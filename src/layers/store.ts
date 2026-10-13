@@ -9,6 +9,7 @@
  */
 import { ArcIndex, groupSides, joinArcs } from "../data/arcs.ts";
 import {
+  CHUNK_IDS,
   DATA_FORMAT,
   concatLines,
   decodeInts,
@@ -185,11 +186,17 @@ export class MapStore {
     return this.loaded.has(id);
   }
 
-  /** Everything the loaded chunks are made from, each source once, in load order. */
+  /**
+   * Everything the loaded chunks are made from, each source once.
+   *
+   * In the chunks' own fixed order, not the order they arrived in: chunks
+   * load in parallel, and the credit line under the map must not read
+   * differently from one page load to the next.
+   */
   public sources(): SourceInfo[] {
     const seen = new Map<string, SourceInfo>();
-    for (const list of this.loaded.values()) {
-      for (const source of list) if (!seen.has(source.id)) seen.set(source.id, source);
+    for (const id of CHUNK_IDS) {
+      for (const source of this.loaded.get(id) ?? []) if (!seen.has(source.id)) seen.set(source.id, source);
     }
     return [...seen.values()];
   }

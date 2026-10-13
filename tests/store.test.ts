@@ -41,6 +41,15 @@ describe("the store", () => {
     expect(storeWith("gemeinden").sources().map((source) => source.holder)).toEqual(["BEV"]);
   });
 
+  it("lists the sources in the same order whichever chunk arrived first", () => {
+    // Chunks load in parallel; the credit line is built from this list.
+    const holders = (store: MapStore): string[] => [...new Set(store.sources().map((source) => source.holder))];
+    const forwards = storeWith("base", "borders", "places");
+    const backwards = storeWith("places", "borders", "base");
+    expect(holders(backwards)).toEqual(holders(forwards));
+    expect(holders(forwards)).toEqual(["BEV", "BMLUK", "Statistik Austria"]);
+  });
+
   it("tells the three levels of the fine borders apart", () => {
     const { level, arcs } = storeWith("borders").detail!;
     expect(level).toHaveLength(arcs.lines.count);

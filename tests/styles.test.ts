@@ -52,6 +52,13 @@ describe("focus", () => {
 describe("the stage", () => {
   it("has the map's proportions and may be squeezed into a fixed cell", () => {
     expect(css).toMatch(/\.stage\s*{[^}]*aspect-ratio:\s*1000 \/ 530/);
-    expect(css).toMatch(/\.stage\s*{[^}]*min-block-size:\s*0/);
+    expect(css).toMatch(/\.stage\s*{[^}]*flex:\s*1 1 auto/);
+  });
+
+  it("is never shorter than the column of buttons on it", () => {
+    // Without an explicit minimum a flex item cannot shrink below its
+    // aspect-ratio height; with a minimum of 0 a narrow card would be
+    // shorter than its own toolbar.
+    expect(css).toMatch(/\.stage\s*{[^}]*min-block-size:\s*calc\(4 \* var\(--amc-control\)/);
   });
 });

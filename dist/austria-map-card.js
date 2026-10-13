@@ -145,12 +145,16 @@ e);var Ht=class{constructor(e,t){this.states=/* @__PURE__ */ new Map,this.attemp
   /* ── The map ─────────────────────────────────────────────────────────
      The stage takes the map's own proportions where the card's height is
      free (a masonry view) and whatever is left where it is fixed (a
-     sections cell): flex may stretch or squeeze it, and min-block-size: 0
-     lets it go below the height the aspect ratio asks for. */
+     sections cell): flex may stretch or squeeze it. An explicit
+     min-block-size is what lets it go below the height the aspect ratio
+     asks for, and it is not 0 but the height of the four buttons on the
+     map plus their margins: on a card 300 px wide the proportions alone
+     would give 159 px, and the buttons would hang out over the panel
+     below. */
   .stage {
     position: relative;
     flex: 1 1 auto;
-    min-block-size: 0;
+    min-block-size: calc(4 * var(--amc-control) + 3 * var(--ha-space-1, 4px) + var(--ha-space-5, 20px));
     aspect-ratio: 1000 / 530;
     margin: var(--ha-space-2, 8px) var(--ha-space-2, 8px) 0;
   }

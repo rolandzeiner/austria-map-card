@@ -1,0 +1,35 @@
+import { describe, expect, it } from "vitest";
+
+import { DEFAULTS } from "../src/config.ts";
+import { buildSchema } from "../src/editor-schema.ts";
+import { localize } from "../src/localize/localize.ts";
+import { LAYER_IDS } from "../src/types.ts";
+
+describe("editor schema", () => {
+  for (const lang of ["en", "de"]) {
+    const t = (key: string): string => localize(`editor.${key}`, lang);
+    const layerName = (id: string): string => localize(`layers.${id}`, lang);
+    const schema = buildSchema(t, layerName);
+
+    it(`offers a field for every option (${lang})`, () => {
+      expect(schema.map((field) => field.name).sort()).toEqual(["title", ...Object.keys(DEFAULTS)].sort());
+    });
+
+    it(`labels every field and every option (${lang})`, () => {
+      for (const field of schema) {
+        expect(t(field.name), field.name).not.toBe(`editor.${field.name}`);
+        if ("select" in field.selector) {
+          for (const option of field.selector.select.options) {
+            expect(option.label, `${field.name}=${option.value}`).not.toMatch(/^(editor|layers)\./);
+          }
+        }
+      }
+    });
+  }
+
+  it("offers every layer, in drawing order", () => {
+    const layers = buildSchema((key) => key, (id) => id).find((field) => field.name === "layers");
+    const options = layers && "select" in layers.selector ? layers.selector.select.options : [];
+    expect(options.map((option) => option.value)).toEqual([...LAYER_IDS]);
+  });
+});

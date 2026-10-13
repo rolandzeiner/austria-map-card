@@ -1,0 +1,29 @@
+{
+  "layers": {
+    "terrain": "Gelände",
+    "rivers": "Flüsse",
+    "provinces": "Bundesländer",
+    "districts": "Bezirke",
+    "municipalities": "Gemeinden",
+    "cities": "Städte und Orte"
+  },
+  "editor": {
+    "title": "Titel",
+    "view": "Ansicht beim Öffnen",
+    "view_austria": "Ganz Österreich",
+    "view_AT-1": "Burgenland",
+    "view_AT-2": "Kärnten",
+    "view_AT-3": "Niederösterreich",
+    "view_AT-4": "Oberösterreich",
+    "view_AT-5": "Salzburg",
+    "view_AT-6": "Steiermark",
+    "view_AT-7": "Tirol",
+    "view_AT-8": "Vorarlberg",
+    "view_AT-9": "Wien",
+    "layers": "Ebenen beim Öffnen",
+    "layers_helper": "Auf der Karte kannst du Ebenen weiterhin ein- und ausschalten. Diese Auswahl gilt, bis die Seite neu lädt.",
+    "show_labels": "Namen auf der Karte anzeigen",
+    "show_layer_control": "Ebenen-Schaltfläche anzeigen",
+    "show_layer_control_helper": "Schalte das aus, um die Ebenen zu sperren, zum Beispiel auf einem Wanddisplay."
+  }
+}

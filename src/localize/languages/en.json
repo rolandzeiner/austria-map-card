@@ -1,0 +1,29 @@
+{
+  "layers": {
+    "terrain": "Terrain",
+    "rivers": "Rivers",
+    "provinces": "Provinces",
+    "districts": "Districts",
+    "municipalities": "Municipalities",
+    "cities": "Towns and cities"
+  },
+  "editor": {
+    "title": "Title",
+    "view": "Opening view",
+    "view_austria": "All of Austria",
+    "view_AT-1": "Burgenland",
+    "view_AT-2": "Carinthia",
+    "view_AT-3": "Lower Austria",
+    "view_AT-4": "Upper Austria",
+    "view_AT-5": "Salzburg",
+    "view_AT-6": "Styria",
+    "view_AT-7": "Tyrol",
+    "view_AT-8": "Vorarlberg",
+    "view_AT-9": "Vienna",
+    "layers": "Layers shown at start",
+    "layers_helper": "You can still switch layers on the map. That choice lasts until the page reloads.",
+    "show_labels": "Show names on the map",
+    "show_layer_control": "Show the layer button",
+    "show_layer_control_helper": "Turn this off to lock the layers, for example on a wall display."
+  }
+}

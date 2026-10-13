@@ -66,6 +66,7 @@ export interface Rivers {
   readonly labels: Lines;
   readonly labelName: Int32Array;
   readonly labelOrder: Int32Array;
+  readonly labelLevel: Int32Array;
   readonly labelBoxes: Float32Array;
 }
 
@@ -114,6 +115,7 @@ function readRivers(set: RiverSet): Rivers {
     labels,
     labelName: decodeInts(set.labelName),
     labelOrder: decodeInts(set.labelOrder),
+    labelLevel: decodeInts(set.labelLevel),
     labelBoxes: lineBoxes(labels),
   };
 }

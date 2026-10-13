@@ -52,7 +52,17 @@ import {
   parseAsciiGrid,
   smooth,
 } from "./lib/terrain.ts";
-import { borderEdges, chain, insideTest, labelPoint, lengthOf, regroup, simplifyArc, sortArcs } from "./lib/topology.ts";
+import {
+  borderEdges,
+  chain,
+  insideTest,
+  labelPoint,
+  lengthOf,
+  nearTest,
+  regroup,
+  simplifyArc,
+  sortArcs,
+} from "./lib/topology.ts";
 
 // ---------------------------------------------------------------------------
 // Sources. A newer release is a new URL and a new date here, never a silent
@@ -217,12 +227,22 @@ const TERRAIN_DETAIL = {
 // was 350 KB, and without it a zoomed-in valley has a river and no streams.
 // The committed stretches are kept at 0.06, so the drawn tolerance can go
 // down to there without a new download.
-const RIVER_KEEP = { minOrder: 3, tolerance: 0.06 };
+const RIVER_KEEP = { minOrder: 3, tolerance: 0.06, reach: 1 };
 const RIVERS_OVERVIEW = { minOrder: 5, tolerance: 0.5, q: 0.1 };
 const RIVERS_DETAIL = { minOrder: 3, tolerance: 0.08, q: 0.05 };
-// A name is set along a smoothed stretch of its river.
-const RIVER_LABELS = { step: 0.5, smoothing: 2.5, maxTurn: 50, turnSpan: 3, minLength: 12, tolerance: 0.15 };
-const STREAM_LABELS = { step: 0.5, smoothing: 1.5, maxTurn: 55, turnSpan: 2, minLength: 7, tolerance: 0.12 };
+// A name is set along a smoothed stretch of its river, and how much
+// smoothing is right depends on the scale: zoomed in, the letters should
+// follow the river closely; on the whole country a name is 80 km long, and
+// what it follows has to be the river's sweep, not its meanders. So the
+// rivers of the overview get stretches at three levels, finest first, and
+// the card picks the level by scale (LABEL_SCALES in src/map/labels.ts).
+// Streams are only named zoomed in and need one.
+const RIVER_LABELS = [
+  { step: 0.5, smoothing: 2.5, maxTurn: 50, turnSpan: 3, minLength: 12, tolerance: 0.15 },
+  { step: 1, smoothing: 6, maxTurn: 55, turnSpan: 7, minLength: 24, tolerance: 0.3 },
+  { step: 1, smoothing: 14, maxTurn: 60, turnSpan: 14, minLength: 50, tolerance: 0.5 },
+];
+const STREAM_LABELS = [{ step: 0.5, smoothing: 1.5, maxTurn: 55, turnSpan: 2, minLength: 7, tolerance: 0.12 }];
 const LABEL_Q = 0.1;
 
 // Label points and places sit on the same grid as the fine borders.
@@ -564,7 +584,16 @@ function countryRings(mesh) {
   return regroup(mesh.arcs, () => 0).map((arc) => arc.points);
 }
 
-/** Cut the river network down to the stretches inside Austria. */
+/**
+ * Cut the river network down to the stretches in Austria or on its border.
+ *
+ * "On the border" matters: the Inn below Braunau, the Salzach below
+ * Salzburg, the March, the Thaya and the Alpine Rhine ARE the border, and a
+ * strict "inside" would keep none of them, because their centre line runs a
+ * few metres to one side or the other. So a point within RIVER_KEEP.reach of
+ * the border counts as well. A river that merely crosses the border runs on
+ * for that distance and stops.
+ */
 async function refreshRivers() {
   await download(RIVERS_URL, RIVERS_CACHE, "Umweltbundesamt");
   // Loaded here and not at the top: only the refresh steps need SQLite.
@@ -575,11 +604,14 @@ async function refreshRivers() {
     .all(RIVER_KEEP.minOrder);
   database.close();
 
-  const insideCountry = insideTest(countryRings(readMesh()));
+  const border = countryRings(readMesh());
+  const insideCountry = insideTest(border);
+  const nearBorder = nearTest(border, RIVER_KEEP.reach);
   const lines = header(
     RIVERS,
     [
-      `Rivers of stream order ${RIVER_KEEP.minOrder} and higher inside Austria, in the view-box units of src/map/projection.ts.`,
+      `Rivers of stream order ${RIVER_KEEP.minOrder} and higher in Austria or within ${RIVER_KEEP.reach} units of its border,`,
+      `in the view-box units of src/map/projection.ts.`,
       `One stretch per line: order, name, points. Simplified to ${RIVER_KEEP.tolerance} units.`,
     ],
     "--refresh-rivers",
@@ -587,7 +619,7 @@ async function refreshRivers() {
   let stretches = 0;
   for (const row of rows) {
     const projected = parseGeoPackageLine(row.geom).map(fromLambert);
-    for (const run of runsInside(projected, ([x, y]) => insideCountry(x, y))) {
+    for (const run of runsInside(projected, ([x, y]) => insideCountry(x, y) || nearBorder(x, y))) {
       const points = simplifyRiver(run, RIVER_KEEP.tolerance);
       lines.push(
         [row.order, (row.name ?? "").trim(), points.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join(" ")].join("\t"),
@@ -610,10 +642,11 @@ function readRivers() {
 /**
  * One river set: the stretches of `minOrder` and up, joined into long lines
  * per river and order, simplified, with the lines to set names along.
- * `labelFrom` limits the label lines to rivers below that order, for the
- * detail chunk, whose larger rivers are already labelled by the base chunk.
+ * `labelLevels` are the smoothing levels to make those lines at, finest
+ * first. `labelBelow` limits them to rivers below that order, for the detail
+ * chunk, whose larger rivers are already named by the base chunk.
  */
-function packRivers(stretches, settings, labelSettings, labelBelow = Infinity) {
+function packRivers(stretches, settings, labelLevels, labelBelow = Infinity) {
   const wanted = stretches.filter((stretch) => stretch.order >= settings.minOrder);
   const names = [...new Set(wanted.map((stretch) => stretch.name))].sort(byCodeUnit);
   const nameRow = new Map(names.map((name, index) => [name, index]));
@@ -643,9 +676,11 @@ function packRivers(stretches, settings, labelSettings, labelBelow = Infinity) {
     const members = wanted.filter((stretch) => stretch.name === name);
     const order = Math.max(...members.map((stretch) => stretch.order));
     if (order >= labelBelow) continue;
-    for (const points of labelStretches(members.map((stretch) => stretch.points), labelSettings)) {
-      labels.push({ name: nameRow.get(name), order, points });
-    }
+    labelLevels.forEach((labelSettings, level) => {
+      for (const points of labelStretches(members.map((stretch) => stretch.points), labelSettings)) {
+        labels.push({ name: nameRow.get(name), order, level, points });
+      }
+    });
   }
   const sortedLabels = sortArcs(labels, SORT_TILE);
 
@@ -657,6 +692,7 @@ function packRivers(stretches, settings, labelSettings, labelBelow = Infinity) {
     labels: encodeLines(sortedLabels.map((label) => label.points), LABEL_Q, { closed: false, keepShort: true }),
     labelName: encodeInts(sortedLabels.map((label) => label.name)),
     labelOrder: encodeInts(sortedLabels.map((label) => label.order)),
+    labelLevel: encodeInts(sortedLabels.map((label) => label.level)),
   };
 }
 

@@ -293,6 +293,27 @@ describe("rivers", () => {
     for (const row of rivers.labelName) expect(rivers.names[row]).not.toBe("");
   });
 
+  it("the overview has label stretches at three levels of smoothing, the detail at one", () => {
+    expect(overview.rivers.labelLevel).toHaveLength(overview.rivers.labels.count);
+    expect(new Set(overview.rivers.labelLevel)).toEqual(new Set([0, 1, 2]));
+    expect(new Set(store.riversDetail!.labelLevel)).toEqual(new Set([0]));
+    // A name on the whole country is some 100 units long; the smoothest level has stretches for that.
+    const longest = (level: number): number =>
+      Math.max(
+        ...Array.from({ length: overview.rivers.labels.count }, (_, line) =>
+          overview.rivers.labelLevel[line] === level
+            ? overview.rivers.labelBoxes[line * 4 + 2]! - overview.rivers.labelBoxes[line * 4]!
+            : 0,
+        ),
+      );
+    expect(longest(2)).toBeGreaterThan(300);
+  });
+
+  it("keeps the border rivers: the March and the Thaya are on the map", () => {
+    expect(overview.rivers.names).toContain("March (Morava)");
+    expect(overview.rivers.names).toContain("Thaya (Dyje)");
+  });
+
   it("the overview holds the rivers of order 5 and up, the Danube as the only 9", () => {
     const rivers = overview.rivers;
     expect(Math.min(...rivers.order)).toBe(5);
@@ -314,7 +335,8 @@ describe("rivers", () => {
     const row = rivers.names.indexOf("Donau");
     let length = 0;
     for (let line = 0; line < rivers.labels.count; line += 1) {
-      if (rivers.labelName[line] !== row) continue;
+      // The closest-following stretches only; the smoother levels cover the same river again.
+      if (rivers.labelName[line] !== row || rivers.labelLevel[line] !== 0) continue;
       for (let point = rivers.labels.start[line]! + 1; point < rivers.labels.start[line + 1]!; point += 1) {
         length += Math.hypot(
           rivers.labels.xy[point * 2]! - rivers.labels.xy[point * 2 - 2]!,

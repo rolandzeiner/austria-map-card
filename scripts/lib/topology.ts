@@ -302,6 +302,54 @@ export function insideTest(
 }
 
 /**
+ * A fast "is this point within `reach` of a line?" for one fixed set of
+ * rings. The edges are filed in a grid of `reach`-sized cells, so a point
+ * only meets the edges of its own cell and the eight around it.
+ */
+export function nearTest(rings: ReadonlyArray<ReadonlyArray<Point>>, reach: number): (x: number, y: number) => boolean {
+  const cells = new Map<string, number[]>();
+  const edges: number[] = [];
+  for (const ring of rings) {
+    for (let index = 0; index < ring.length - 1; index += 1) {
+      const [x1, y1] = ring[index] as Point;
+      const [x2, y2] = ring[index + 1] as Point;
+      const at = edges.length;
+      edges.push(x1, y1, x2, y2);
+      const left = Math.floor(Math.min(x1, x2) / reach);
+      const right = Math.floor(Math.max(x1, x2) / reach);
+      const top = Math.floor(Math.min(y1, y2) / reach);
+      const bottom = Math.floor(Math.max(y1, y2) / reach);
+      for (let column = left; column <= right; column += 1) {
+        for (let row = top; row <= bottom; row += 1) {
+          const key = `${column},${row}`;
+          const list = cells.get(key);
+          if (list === undefined) cells.set(key, [at]);
+          else list.push(at);
+        }
+      }
+    }
+  }
+  return (x, y) => {
+    const column = Math.floor(x / reach);
+    const row = Math.floor(y / reach);
+    for (let dx = -1; dx <= 1; dx += 1) {
+      for (let dy = -1; dy <= 1; dy += 1) {
+        for (const at of cells.get(`${column + dx},${row + dy}`) ?? []) {
+          const x1 = edges[at] as number;
+          const y1 = edges[at + 1] as number;
+          const ex = (edges[at + 2] as number) - x1;
+          const ey = (edges[at + 3] as number) - y1;
+          const length = ex * ex + ey * ey;
+          const t = length === 0 ? 0 : Math.max(0, Math.min(1, ((x - x1) * ex + (y - y1) * ey) / length));
+          if (Math.hypot(x - (x1 + t * ex), y - (y1 + t * ey)) <= reach) return true;
+        }
+      }
+    }
+    return false;
+  };
+}
+
+/**
  * Where to write a unit's name: the point inside it that is farthest from
  * its border (the pole of inaccessibility), found by subdividing squares
  * and always following the most promising one.

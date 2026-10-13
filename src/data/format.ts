@@ -262,9 +262,15 @@ export interface RiverSet {
   readonly order: string;
   /** Smoothed stretches to set a river's name along, each running left to right. */
   readonly labels: PackedLines;
-  /** Packed, per label stretch: index into `names`, and the stream order. */
+  /**
+   * Packed, per label stretch: index into `names`, the stream order, and
+   * how strongly the stretch is smoothed. 0 follows the river closely, for
+   * a zoomed-in map; higher levels keep only its sweep, for small scales,
+   * where a name spans many kilometres of meanders.
+   */
   readonly labelName: string;
   readonly labelOrder: string;
+  readonly labelLevel: string;
 }
 
 /** Settlements, most important first. */

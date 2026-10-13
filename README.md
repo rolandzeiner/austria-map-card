@@ -127,7 +127,7 @@ A dashboard resource loads on every dashboard, whether it shows a map or not. So
 
 | File | Holds | Loaded | Size (compressed) |
 | --- | --- | --- | --- |
-| `austria-map-card.js` | The card | Always | 83 KB (28 KB) |
+| `austria-map-card.js` | The card | Always | 82 KB (28 KB) |
 | `austria-map-data-base.js` | Country and province borders, terrain overview, larger rivers | With the first map | 62 KB (42 KB) |
 | `austria-map-data-places.js` | 2,029 towns and villages | Towns layer on | 61 KB (29 KB) |
 | `austria-map-data-borders.js` | Fine borders down to districts, names and population of all districts and municipalities | Zoomed in, or districts or municipalities on | 142 KB (81 KB) |

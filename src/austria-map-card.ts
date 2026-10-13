@@ -153,8 +153,13 @@ export class AustriaMapCard extends LitElement {
   }
 
   protected override updated(changed: PropertyValues<this>): void {
+    const themeChanged = changed.has("hass") && this._hassFingerprint() !== this._hassKey;
     if (changed.has("hass")) this._hassKey = this._hassFingerprint();
     this._refreshPalette(false);
+    // Home Assistant writes a new theme's variables onto the document in
+    // its own update; read once more after the next frame, when they are
+    // certain to have landed.
+    if (themeChanged) requestAnimationFrame(() => this._refreshPalette(true));
   }
 
   private _observe(): void {

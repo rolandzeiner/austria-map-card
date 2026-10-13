@@ -95,13 +95,28 @@ describe("panning", () => {
     expect(panBy(homeCamera(size), size, 300, 300)).toEqual(homeCamera(size));
   });
 
-  it("stops at the map's edge", () => {
+  it("lets the view run a little past the map's edge, and never loses the map", () => {
+    // At zoom 10 the canvas shows 100 x 53 units: the centre may come
+    // within a tenth of half a canvas of the edge.
     const camera = panBy({ x: 100, y: 60, k: 5 }, size, 100_000, 100_000);
-    expect(visibleBox(camera, size)[0]).toBeCloseTo(0);
-    expect(visibleBox(camera, size)[1]).toBeCloseTo(0);
+    expect(camera.x).toBeCloseTo(5);
+    expect(camera.y).toBeCloseTo(2.65);
+    expect(visibleBox(camera, size)[0]).toBeCloseTo(-45);
     const other = panBy({ x: 100, y: 60, k: 5 }, size, -100_000, -100_000);
-    expect(visibleBox(other, size)[2]).toBeCloseTo(MAP_WIDTH);
-    expect(visibleBox(other, size)[3]).toBeCloseTo(MAP_HEIGHT);
+    expect(other.x).toBeCloseTo(MAP_WIDTH - 5);
+    expect(other.y).toBeCloseTo(MAP_HEIGHT - 2.65);
+  });
+
+  it("allows less of that the further out the view is", () => {
+    // At zoom 2 the canvas shows 500 units; the centre stays 125 from the edge.
+    const camera = panBy({ x: 500, y: 265, k: 1 }, size, 100_000, 0);
+    expect(camera.x).toBeCloseTo(125);
+    expect(visibleBox(camera, size)[0]).toBeCloseTo(-125);
+  });
+
+  it("can bring a spot on the border to the middle at a deep zoom", () => {
+    const deep = clampCamera({ x: 12, y: 300, k: fitScale(size) * 30 }, size);
+    expect(deep.x).toBe(12);
   });
 
   it("centres the map along an axis where it is smaller than the canvas", () => {

@@ -1,4 +1,27 @@
 {
+  "card": {
+    "map_label": "Map of Austria",
+    "map_help": "Arrow keys move the map. Plus and minus zoom. 0 resets the view. Enter reads out what is at the centre.",
+    "loading": "Loading map…",
+    "zoom_hint": "Hold Ctrl or ⌘ and scroll to zoom.",
+    "info_label": "Selected place",
+    "info_idle": "Tap the map to see what is there.",
+    "nothing_here": "Nothing to show at this spot.",
+    "load_failed": "The map data did not load.",
+    "retry": "Try again",
+    "outdated": "The card was updated. Reload the page to show the map.",
+    "reload": "Reload",
+    "credit": "Data: {holders}"
+  },
+  "controls": {
+    "group": "Map controls",
+    "layers": "Layers",
+    "zoom_in": "Zoom in",
+    "zoom_out": "Zoom out",
+    "reset": "Reset view",
+    "zoom_here": "Zoom here",
+    "clear": "Clear selection"
+  },
   "layers": {
     "terrain": "Terrain",
     "rivers": "Rivers",
@@ -6,6 +29,27 @@
     "districts": "Districts",
     "municipalities": "Municipalities",
     "cities": "Towns and cities"
+  },
+  "layer_notes": {
+    "zoom": "Appears when you zoom in",
+    "loading": "Loading…",
+    "failed": "Did not load"
+  },
+  "kinds": {
+    "province": "Province",
+    "district": "District",
+    "municipality": "Municipality",
+    "town_0": "City",
+    "town_1": "Market town",
+    "town_2": "Village",
+    "river": "River",
+    "stream": "Stream"
+  },
+  "facts": {
+    "population": "Population",
+    "municipality_population": "Population of the municipality",
+    "stream_order": "Stream order",
+    "source": "{holder}, as of {stand}"
   },
   "editor": {
     "title": "Title",

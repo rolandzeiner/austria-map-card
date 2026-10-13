@@ -38,16 +38,24 @@ export function zoomOf(camera: Camera, size: Size): number {
 }
 
 /**
- * Keep the camera within the zoom range and the map within the canvas: an
- * axis along which the map is smaller than the canvas is centred, and along
- * the other the view stops at the map's edge.
+ * Keep the camera within the zoom range and the map on the canvas.
+ *
+ * On the whole-country view the map cannot be moved at all. The further in
+ * the view is, the further it may run past the map's edge, up to half a
+ * canvas at the deepest zoom: otherwise nothing near the border could ever
+ * be brought to the middle, and a card that opens on Vorarlberg would show
+ * it squeezed against its left edge. An axis along which the map is smaller
+ * than the canvas even so stays centred.
  */
 export function clampCamera(camera: Camera, size: Size): Camera {
   const fit = fitScale(size);
   const k = Math.min(Math.max(camera.k, fit), fit * MAX_ZOOM);
+  const past = 1 - fit / k;
   const along = (centre: number, extent: number, pixels: number): number => {
     const half = pixels / (2 * k);
-    return half * 2 >= extent ? extent / 2 : Math.min(Math.max(centre, half), extent - half);
+    const low = half * (1 - past);
+    const high = extent - low;
+    return low >= high ? extent / 2 : Math.min(Math.max(centre, low), high);
   };
   return { x: along(camera.x, MAP_WIDTH, size.width), y: along(camera.y, MAP_HEIGHT, size.height), k };
 }

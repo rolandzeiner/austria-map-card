@@ -1,4 +1,27 @@
 {
+  "card": {
+    "map_label": "Karte von Österreich",
+    "map_help": "Pfeiltasten verschieben die Karte. Plus und Minus zoomen. 0 setzt die Ansicht zurück. Die Eingabetaste liest vor, was in der Mitte liegt.",
+    "loading": "Karte lädt …",
+    "zoom_hint": "Halte Strg oder ⌘ gedrückt und scrolle, um zu zoomen.",
+    "info_label": "Ausgewählter Ort",
+    "info_idle": "Tippe auf die Karte, um zu sehen, was dort ist.",
+    "nothing_here": "An dieser Stelle gibt es nichts anzuzeigen.",
+    "load_failed": "Die Kartendaten wurden nicht geladen.",
+    "retry": "Erneut versuchen",
+    "outdated": "Die Karte wurde aktualisiert. Lade die Seite neu, um sie anzuzeigen.",
+    "reload": "Neu laden",
+    "credit": "Daten: {holders}"
+  },
+  "controls": {
+    "group": "Kartensteuerung",
+    "layers": "Ebenen",
+    "zoom_in": "Hineinzoomen",
+    "zoom_out": "Herauszoomen",
+    "reset": "Ansicht zurücksetzen",
+    "zoom_here": "Hierher zoomen",
+    "clear": "Auswahl aufheben"
+  },
   "layers": {
     "terrain": "Gelände",
     "rivers": "Flüsse",
@@ -6,6 +29,27 @@
     "districts": "Bezirke",
     "municipalities": "Gemeinden",
     "cities": "Städte und Orte"
+  },
+  "layer_notes": {
+    "zoom": "Erscheint, wenn du hineinzoomst",
+    "loading": "Lädt …",
+    "failed": "Nicht geladen"
+  },
+  "kinds": {
+    "province": "Bundesland",
+    "district": "Bezirk",
+    "municipality": "Gemeinde",
+    "town_0": "Stadt",
+    "town_1": "Markt",
+    "town_2": "Dorf",
+    "river": "Fluss",
+    "stream": "Bach"
+  },
+  "facts": {
+    "population": "Einwohner",
+    "municipality_population": "Einwohner der Gemeinde",
+    "stream_order": "Flussordnungszahl",
+    "source": "{holder}, Stand {stand}"
   },
   "editor": {
     "title": "Titel",

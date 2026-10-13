@@ -81,6 +81,15 @@ jobs:
         # directly, independent of the Rolldown bundle.
         run: npm test
 
+      - name: Data chunks match their script
+        # dist/austria-map-data-*.js are generated from the reduced inputs
+        # committed in scripts/data/ (BEV borders, terrain and place names,
+        # BMLUK rivers, Statistik Austria population). A hand edit, or a
+        # change to the script, the projection or the format without a
+        # rebuild, shows up here. Needs Node 24: the script imports the
+        # card's TypeScript directly.
+        run: node scripts/build-data.mjs --check
+
       - name: Build bundle
         run: npm run build
 
@@ -94,7 +103,8 @@ jobs:
         # This repo ships dist/ to HACS users directly, so a stale bundle
         # means every install runs code that no longer matches src/ —
         # invisible in review, and the next `npm run build` silently
-        # "fixes" it without anyone learning what shipped.
+        # "fixes" it without anyone learning what shipped. The diff covers
+        # all of dist/, the data chunks included.
         run: |
           if ! git diff --exit-code -- dist/; then
             echo "::error::Committed card bundle differs from a fresh build."

@@ -22,7 +22,7 @@ describe("when the data does not arrive", () => {
       online ? Promise.resolve({ default: chunk("terrain-detail") }) : Promise.reject(new TypeError("Failed to fetch"));
     const card = await mount({ layers: ["terrain"] });
     await zoomIn(card, 5);
-    expect(text(card, ".notice")).toBe("Die Kartendaten wurden nicht geladen. Erneut versuchen");
+    expect(text(card, ".notice")).toBe("Die Kartendaten wurden nicht geladen. Prüfe deine Verbindung. Erneut versuchen");
     expect($(card, ".notice")?.getAttribute("role")).toBe("alert");
     online = true;
     $<HTMLButtonElement>(card, ".notice button")?.click();
@@ -38,7 +38,7 @@ describe("when the data does not arrive", () => {
     const card = await mount({ layers: ["municipalities"] });
     await zoomIn(card, 6);
     expect(pageLoader().state("gemeinden")).toBe("outdated");
-    expect(text(card, ".notice")).toBe("Die Karte wurde aktualisiert. Lade die Seite neu, um sie anzuzeigen. Neu laden");
+    expect(text(card, ".notice")).toBe("Die Karte wurde aktualisiert. Lade die Seite neu, um sie anzuzeigen. Seite neu laden");
     tool(card, "Ebenen").click();
     await settle(card);
     const row = all(card, ".layer").find((entry) => entry.textContent?.includes("Gemeinden"))!;

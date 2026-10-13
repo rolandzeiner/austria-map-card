@@ -234,7 +234,7 @@ describe("the layer list", () => {
 describe("tapping the map", () => {
   it("describes a town under the map, with its municipality, district and province once those are loaded", async () => {
     const card = await mount();
-    expect(text(card, ".info-idle")).toBe("Tippe auf die Karte, um zu sehen, was dort ist.");
+    expect(text(card, ".info-idle")).toBe("Wähle eine Stelle auf der Karte, um zu sehen, was dort ist.");
     await tap(card, ...placeAt(card, "Graz"));
     expect(card._selection).toEqual({ kind: "city", row: pageLoader().store.places!.names.indexOf("Graz") });
     expect(text(card, ".info-name")).toBe("Graz Stadt");
@@ -355,7 +355,7 @@ describe("the keyboard", () => {
     const card = await mount({ layers: [] });
     await key(card, "Enter");
     expect(card._selection).toBeNull();
-    expect(text(card, ".info-idle")).toBe("An dieser Stelle gibt es nichts anzuzeigen.");
+    expect(text(card, ".info-idle")).toBe("Hier gibt es nichts anzuzeigen. Verschiebe die Karte oder schalte eine Ebene ein.");
   });
 
   it("leaves Tab and browser shortcuts alone", async () => {
@@ -443,10 +443,10 @@ describe("configuration", () => {
 
   it("follows the user's language", async () => {
     const card = await mount();
-    expect(text(card, ".info-idle")).toBe("Tippe auf die Karte, um zu sehen, was dort ist.");
+    expect(text(card, ".info-idle")).toBe("Wähle eine Stelle auf der Karte, um zu sehen, was dort ist.");
     card.hass = hassEn;
     await settle(card);
-    expect(text(card, ".info-idle")).toBe("Tap the map to see what is there.");
+    expect(text(card, ".info-idle")).toBe("Select a spot on the map to see what is there.");
     expect($(card, "canvas")?.getAttribute("aria-label")).toBe("Map of Austria");
   });
 

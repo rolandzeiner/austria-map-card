@@ -5,12 +5,12 @@
     "loading": "Loading map…",
     "zoom_hint": "Hold Ctrl or ⌘ and scroll to zoom.",
     "info_label": "Selected place",
-    "info_idle": "Tap the map to see what is there.",
-    "nothing_here": "Nothing to show at this spot.",
-    "load_failed": "The map data did not load.",
+    "info_idle": "Select a spot on the map to see what is there.",
+    "nothing_here": "Nothing to show here. Move the map or switch on a layer.",
+    "load_failed": "The map data did not load. Check your connection.",
     "retry": "Try again",
     "outdated": "The card was updated. Reload the page to show the map.",
-    "reload": "Reload",
+    "reload": "Reload page",
     "credit": "Data: {holders}"
   },
   "controls": {

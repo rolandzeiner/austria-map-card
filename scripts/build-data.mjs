@@ -216,12 +216,12 @@ const TERRAIN_DETAIL = {
 // and their like; 5 the larger side valleys; 4 and 3 are streams.
 //
 //   lowest order  tolerance  grid   rivers-detail chunk
-//   4             0.08       0.05    91.3 KB ( 59.4)
-//   4             0.12       0.05    76.1 KB ( 50.3)
-//   4             0.20       0.10    57.1 KB ( 36.2)
-//   3             0.08       0.05   222.1 KB (141.1)   this one
-//   3             0.12       0.05   188.2 KB (121.5)
-//   3             0.20       0.10   147.6 KB ( 91.1)
+//   4             0.08       0.05    89.5 KB ( 58.6)
+//   4             0.12       0.05    74.0 KB ( 49.3)
+//   4             0.20       0.10    54.7 KB ( 35.0)
+//   3             0.08       0.05   219.6 KB (139.7)   this one
+//   3             0.12       0.05   185.3 KB (119.8)
+//   3             0.20       0.10   144.2 KB ( 89.3)
 //
 // Order 3 more than doubles the chunk, and stays in: the limit set for it
 // was 350 KB, and without it a zoomed-in valley has a river and no streams.

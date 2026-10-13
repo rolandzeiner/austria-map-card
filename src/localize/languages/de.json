@@ -5,12 +5,12 @@
     "loading": "Karte lädt …",
     "zoom_hint": "Halte Strg oder ⌘ gedrückt und scrolle, um zu zoomen.",
     "info_label": "Ausgewählter Ort",
-    "info_idle": "Tippe auf die Karte, um zu sehen, was dort ist.",
-    "nothing_here": "An dieser Stelle gibt es nichts anzuzeigen.",
-    "load_failed": "Die Kartendaten wurden nicht geladen.",
+    "info_idle": "Wähle eine Stelle auf der Karte, um zu sehen, was dort ist.",
+    "nothing_here": "Hier gibt es nichts anzuzeigen. Verschiebe die Karte oder schalte eine Ebene ein.",
+    "load_failed": "Die Kartendaten wurden nicht geladen. Prüfe deine Verbindung.",
     "retry": "Erneut versuchen",
     "outdated": "Die Karte wurde aktualisiert. Lade die Seite neu, um sie anzuzeigen.",
-    "reload": "Neu laden",
+    "reload": "Seite neu laden",
     "credit": "Daten: {holders}"
   },
   "controls": {

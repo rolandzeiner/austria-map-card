@@ -1,0 +1,394 @@
+/**
+ * The names on the map, and the towns that carry them.
+ *
+ * Everything here is drawn in screen pixels, after the map itself. One pass
+ * hands out the space in order of importance: the capitals, the provinces,
+ * the other towns by size, the rivers, then districts and municipalities.
+ * A name is drawn only where it fits, so zooming in is what brings more of
+ * them out.
+ */
+import type { ArcIndex } from "../data/arcs.ts";
+import { minimumRank, placeTier } from "../layers/places.ts";
+import { riversAt } from "../layers/rivers.ts";
+import type { MapStore, Places, Rivers, Table } from "../layers/store.ts";
+import type { LayerId } from "../types.ts";
+import { toScreen, type Box, type Camera, type Size } from "./camera.ts";
+import {
+  LabelPlacer,
+  aroundDot,
+  centredOn,
+  glyphBoxes,
+  longestInside,
+  measure,
+  setAlong,
+  type Glyph,
+  type Rect,
+} from "./label-placer.ts";
+import type { Palette } from "./palette.ts";
+
+/** Something on the map that can be tapped and described. */
+export type Feature =
+  | { readonly kind: "province"; readonly row: number }
+  | { readonly kind: "district"; readonly row: number }
+  | { readonly kind: "municipality"; readonly row: number }
+  | { readonly kind: "city"; readonly row: number }
+  | { readonly kind: "river"; readonly name: string; readonly order: number };
+
+/** A town as drawn in a frame: what a tap is tested against. */
+export interface DrawnCity {
+  readonly row: number;
+  readonly x: number;
+  readonly y: number;
+  readonly radius: number;
+  /** The box of its name, if the name was drawn. */
+  readonly label: Rect | null;
+}
+
+export interface LabelInput {
+  readonly ctx: CanvasRenderingContext2D;
+  readonly store: MapStore;
+  readonly palette: Palette;
+  readonly camera: Camera;
+  readonly size: Size;
+  readonly box: Box;
+  readonly layers: ReadonlySet<LayerId>;
+  readonly showLabels: boolean;
+  readonly selection: Feature | null;
+}
+
+/** The scales, in pixels per map unit, between which each kind of name is shown. */
+export const LABEL_SCALES = {
+  provincesBelow: 4.5,
+  districtsFrom: 1.1,
+  municipalitiesFrom: 4,
+  /** Lowest scale at which a river of each stream order is named. */
+  rivers: { 9: 0, 8: 0, 7: 0, 6: 0.9, 5: 1.6, 4: 3.5, 3: 7 } as Readonly<Record<number, number>>,
+  /**
+   * Below these scales a river's name follows the more strongly smoothed
+   * stretches: level 2 below the first, level 1 below the second, else 0.
+   */
+  riverSweep: [0.95, 2.4],
+  /** Below this, a capital goes by its short name: "Klagenfurt". */
+  shortNamesBelow: 3,
+} as const;
+
+/** Which smoothing level of a river's label stretches suits a scale. */
+export function riverLabelLevel(scale: number): number {
+  return scale < LABEL_SCALES.riverSweep[0] ? 2 : scale < LABEL_SCALES.riverSweep[1] ? 1 : 0;
+}
+
+/**
+ * A river's name as it is lettered on the map. The source appends what tells
+ * two rivers of one name apart, "Weidenbach [March, bei Zwerndorf]", and the
+ * neighbours' name for a border river, "Thaya (Dyje)". On the map the place
+ * does the telling apart; the info panel shows the name in full.
+ */
+export const riverLabel = (name: string): string => name.replace(/\s*[[(].*$/, "");
+
+/** A town's name without what follows "am", "an der", "im": for the capitals on a small map. */
+export const shortTownName = (name: string): string => name.replace(/ (am|an der|im|in|bei|ob) .*$/, "");
+
+const MAX_CITIES = 90;
+const MAX_RIVER_NAMES = 14;
+/** Two names of the same river keep at least this many pixels apart. */
+const RIVER_REPEAT = 260;
+
+interface TownStyle {
+  readonly font: string;
+  readonly size: number;
+  readonly radius: number;
+  readonly ringed: boolean;
+}
+
+const TOWN_STYLES: readonly TownStyle[] = [
+  { font: "700 13px", size: 13, radius: 3.8, ringed: true },
+  { font: "600 12.5px", size: 12.5, radius: 3.3, ringed: true },
+  { font: "500 12px", size: 12, radius: 2.6, ringed: false },
+  { font: "400 11.5px", size: 11.5, radius: 2.2, ringed: false },
+  { font: "400 11px", size: 11, radius: 1.8, ringed: false },
+];
+
+// Text widths, by font and text. Measuring is the slow part of a frame of
+// labels, and the same few hundred names come round again on every one.
+const widths = new Map<string, number>();
+function widthOf(ctx: CanvasRenderingContext2D, font: string, text: string, variant = ""): number {
+  const key = `${font}\n${variant}\n${text}`;
+  let width = widths.get(key);
+  if (width === undefined) {
+    if (widths.size > 6000) widths.clear();
+    ctx.font = font;
+    width = ctx.measureText(text).width;
+    widths.set(key, width);
+  }
+  return width;
+}
+
+/** The capitals and the cities over 100 000: named before anything else. */
+const always = new WeakMap<Places, number[]>();
+function alwaysShown(places: Places): number[] {
+  let rows = always.get(places);
+  if (rows === undefined) {
+    rows = [];
+    for (let row = 0; row < places.count; row += 1) {
+      if (placeTier(places, row) <= 1) rows.push(row);
+    }
+    always.set(places, rows);
+  }
+  return rows;
+}
+
+/** A river set's label stretches, most important first: by order, then by length. */
+const ranked = new WeakMap<Rivers, number[]>();
+function rankedStretches(rivers: Rivers): number[] {
+  let rows = ranked.get(rivers);
+  if (rows === undefined) {
+    const span = (line: number): number =>
+      Math.hypot(
+        (rivers.labelBoxes[line * 4 + 2] as number) - (rivers.labelBoxes[line * 4] as number),
+        (rivers.labelBoxes[line * 4 + 3] as number) - (rivers.labelBoxes[line * 4 + 1] as number),
+      );
+    rows = Array.from({ length: rivers.labels.count }, (_, line) => line).sort(
+      (p, q) => (rivers.labelOrder[q] as number) - (rivers.labelOrder[p] as number) || span(q) - span(p) || p - q,
+    );
+    ranked.set(rivers, rows);
+  }
+  return rows;
+}
+
+export function drawLabels(input: LabelInput): DrawnCity[] {
+  const { ctx, store, palette, camera, size, box, layers, showLabels, selection } = input;
+  const scale = camera.k;
+  const family = palette.font;
+  const placer = new LabelPlacer({ x: 0, y: 0, w: size.width, h: size.height }, 3);
+  const drawn: DrawnCity[] = [];
+  const inView = (x: number, y: number): boolean => x >= box[0] && x <= box[2] && y >= box[1] && y <= box[3];
+
+  ctx.textBaseline = "middle";
+  ctx.lineJoin = "round";
+
+  const text = (value: string, font: string, colour: string, x: number, y: number, align: CanvasTextAlign): void => {
+    ctx.font = font;
+    ctx.textAlign = align;
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = palette.halo;
+    ctx.strokeText(value, x, y);
+    ctx.fillStyle = colour;
+    ctx.fillText(value, x, y);
+  };
+
+  // ── Towns ──────────────────────────────────────────────────────────────
+  const places = layers.has("cities") ? store.places : undefined;
+  const cityDone = new Set<number>();
+  // A place with a population of its own is the one its municipality is named after.
+  const seats = places?.facts.find((fact) => fact.key === "municipality_population")?.values;
+  const namedMunicipalities = new Set<number>();
+  const town = (row: number, force: boolean): boolean => {
+    if (places === undefined || cityDone.has(row)) return false;
+    const mapX = places.at[row * 2] as number;
+    const mapY = places.at[row * 2 + 1] as number;
+    if (!inView(mapX, mapY)) return false;
+    const [x, y] = toScreen(camera, size, mapX, mapY);
+    const style = TOWN_STYLES[placeTier(places, row)] as TownStyle;
+    const font = `${style.font} ${family}`;
+    const dot: Rect = { x: x - style.radius - 1, y: y - style.radius - 1, w: style.radius * 2 + 2, h: style.radius * 2 + 2 };
+    let label: Rect | null = null;
+    const tier = placeTier(places, row);
+    const name =
+      tier <= 1 && scale < LABEL_SCALES.shortNamesBelow
+        ? shortTownName(places.names[row] as string)
+        : (places.names[row] as string);
+    if (showLabels) {
+      const spots = aroundDot(x, y, style.radius, widthOf(ctx, font, name), style.size + 2);
+      if (!placer.fits([dot])) {
+        if (!force) return false;
+      } else {
+        const spot = placer.placeFirst(spots);
+        if (spot >= 0) label = spots[spot] as Rect;
+        else if (!force) return false;
+      }
+    } else if (!force && !placer.fits([dot])) {
+      return false;
+    }
+    placer.take([dot]);
+    cityDone.add(row);
+
+    ctx.beginPath();
+    ctx.arc(x, y, style.radius + 1.2, 0, Math.PI * 2);
+    ctx.fillStyle = palette.halo;
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(x, y, style.radius, 0, Math.PI * 2);
+    ctx.fillStyle = palette.label;
+    ctx.fill();
+    if (style.ringed) {
+      ctx.beginPath();
+      ctx.arc(x, y, style.radius * 0.42, 0, Math.PI * 2);
+      ctx.fillStyle = palette.land;
+      ctx.fill();
+    }
+    if (label !== null) {
+      text(name, font, palette.label, label.x, label.y + label.h / 2, "left");
+      // The town already says its municipality's name.
+      if ((seats?.[row] as number) > 0) namedMunicipalities.add(places.municipality[row] as number);
+    }
+    drawn.push({ row, x, y, radius: style.radius, label });
+    return true;
+  };
+
+  if (places !== undefined) {
+    // A selected town is on the map whatever the scale.
+    if (selection?.kind === "city") town(selection.row, true);
+    for (const row of alwaysShown(places)) town(row, true);
+  }
+
+  // ── Areas ──────────────────────────────────────────────────────────────
+  const areas = (
+    table: Table,
+    index: ArcIndex | undefined,
+    font: string,
+    height: number,
+    colour: string,
+    upper: boolean,
+    spacing: number,
+    skip?: ReadonlySet<number>,
+  ): void => {
+    const withSpacing = spacing > 0 && "letterSpacing" in ctx;
+    if (withSpacing) ctx.letterSpacing = `${spacing}px`;
+    const fullFont = `${font} ${family}`;
+    for (let row = 0; row < table.count; row += 1) {
+      if (skip?.has(row)) continue;
+      const mapX = table.at[row * 2] as number;
+      const mapY = table.at[row * 2 + 1] as number;
+      if (!inView(mapX, mapY)) continue;
+      const name = upper ? (table.names[row] as string).toUpperCase() : (table.names[row] as string);
+      const width = widthOf(ctx, fullFont, name, withSpacing ? `spaced ${spacing}` : "");
+      if (index !== undefined) {
+        // A name much wider than its area belongs to a deeper zoom.
+        const [left, , right] = index.box(row);
+        if ((right - left) * scale < width * 0.7) continue;
+      }
+      const [x, y] = toScreen(camera, size, mapX, mapY);
+      // On its label point, or failing that a line or two above or below it.
+      const shifts = [0, -1.3, 1.3, -2.6, 2.6].map((lines) => lines * (height + 2));
+      const spot = placer.placeFirst(shifts.map((shift) => centredOn(x, y + shift, width, height + 2)));
+      if (spot < 0) continue;
+      text(name, fullFont, colour, x, y + (shifts[spot] as number), "center");
+    }
+    if (withSpacing) ctx.letterSpacing = "0px";
+  };
+
+  if (showLabels && layers.has("provinces") && scale < LABEL_SCALES.provincesBelow && store.overview !== undefined) {
+    areas(store.overview.provinces, undefined, "600 11px", 11, palette.labelMuted, true, 1.2);
+  }
+
+  // ── The other towns, largest first ─────────────────────────────────────
+  if (places !== undefined) {
+    const least = minimumRank(scale);
+    for (let row = 0; row < places.count && drawn.length < MAX_CITIES; row += 1) {
+      if ((places.rank[row] as number) < least) break;
+      town(row, false);
+    }
+  }
+
+  // ── Rivers ─────────────────────────────────────────────────────────────
+  if (showLabels && layers.has("rivers") && store.overview !== undefined) {
+    const current = riversAt(store, scale);
+    const sets: Rivers[] = [store.overview.rivers];
+    // The detail set only carries stretches for what the overview does not name.
+    if (current?.set === "detail") sets.push(current.rivers);
+    const canvas: Rect = { x: 6, y: 6, w: size.width - 12, h: size.height - 12 };
+    const placed: Array<{ name: number; set: Rivers; x: number; y: number }> = [];
+    const level = riverLabelLevel(scale);
+    let count = 0;
+    for (const rivers of sets) {
+      for (const line of rankedStretches(rivers)) {
+        if (count >= MAX_RIVER_NAMES) break;
+        const order = rivers.labelOrder[line] as number;
+        if (scale < (LABEL_SCALES.rivers[order] ?? Infinity)) continue;
+        // The detail set has one level; the overview's rivers have three.
+        if (rivers === store.overview.rivers && rivers.labelLevel[line] !== level) continue;
+        const at = line * 4;
+        const boxes = rivers.labelBoxes;
+        if (
+          (boxes[at] as number) > box[2] ||
+          (boxes[at + 2] as number) < box[0] ||
+          (boxes[at + 1] as number) > box[3] ||
+          (boxes[at + 3] as number) < box[1]
+        ) {
+          continue;
+        }
+        const from = rivers.labels.start[line] as number;
+        const to = rivers.labels.start[line + 1] as number;
+        const screen = new Float32Array((to - from) * 2);
+        for (let point = from; point < to; point += 1) {
+          const [x, y] = toScreen(camera, size, rivers.labels.xy[point * 2] as number, rivers.labels.xy[point * 2 + 1] as number);
+          screen[(point - from) * 2] = x;
+          screen[(point - from) * 2 + 1] = y;
+        }
+        const measured = measure(screen);
+        const visible = longestInside(measured, canvas);
+        if (visible === null) continue;
+        const nameRow = rivers.labelName[line] as number;
+        const name = riverLabel(rivers.names[nameRow] as string);
+        const fontSize = order >= 7 ? 12 : 11;
+        const font = `italic 400 ${fontSize}px ${family}`;
+        const chars = [...name];
+        const charWidths = chars.map((char) => widthOf(ctx, font, char));
+        const spacing = 1.2;
+        const total = charWidths.reduce((sum, width) => sum + width, 0) + spacing * (chars.length - 1);
+        // Room to slide the name along the stretch, out of the way of a town.
+        const slack = (visible[1] - visible[0] - total) / 2 - 8;
+        if (slack < 0) continue;
+        const centre = (visible[0] + visible[1]) / 2;
+        let glyphs: Glyph[] | null = null;
+        for (const shift of [0, -0.45, 0.45, -0.9, 0.9]) {
+          const candidate = setAlong(measured, centre + shift * slack, chars, charWidths, spacing);
+          const middle = candidate?.[Math.floor(candidate.length / 2)];
+          if (candidate === null || middle === undefined) continue;
+          const repeats = placed.some(
+            (other) =>
+              other.set === rivers &&
+              other.name === nameRow &&
+              Math.hypot(other.x - middle.x, other.y - middle.y) < RIVER_REPEAT,
+          );
+          if (repeats || !placer.place(glyphBoxes(candidate, fontSize))) continue;
+          glyphs = candidate;
+          placed.push({ name: nameRow, set: rivers, x: middle.x, y: middle.y });
+          break;
+        }
+        if (glyphs === null) continue;
+        ctx.font = font;
+        ctx.textAlign = "center";
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = palette.halo;
+        ctx.fillStyle = palette.waterLabel;
+        // All halos first: a letter's halo must not eat into its neighbour.
+        for (const pass of ["halo", "ink"] as const) {
+          for (const glyph of glyphs) {
+            ctx.save();
+            ctx.translate(glyph.x, glyph.y);
+            ctx.rotate(glyph.angle);
+            if (pass === "halo") ctx.strokeText(glyph.char, 0, 0);
+            else ctx.fillText(glyph.char, 0, 0);
+            ctx.restore();
+          }
+        }
+        count += 1;
+      }
+    }
+  }
+
+  // ── Districts and municipalities ───────────────────────────────────────
+  if (showLabels && store.detail !== undefined) {
+    if (layers.has("districts") && scale >= LABEL_SCALES.districtsFrom) {
+      // Capitals and spaced, like the provinces but smaller: an area, not a town.
+      areas(store.detail.districts, store.detail.districtIndex, "500 9.5px", 9.5, palette.labelMuted, true, 0.7);
+    }
+    const municipal = store.municipalityIndex;
+    if (layers.has("municipalities") && scale >= LABEL_SCALES.municipalitiesFrom && municipal !== undefined) {
+      areas(store.detail.municipalities, municipal, "400 10px", 10, palette.labelMuted, false, 0, namedMunicipalities);
+    }
+  }
+
+  return drawn;
+}

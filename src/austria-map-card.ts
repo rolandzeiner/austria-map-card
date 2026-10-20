@@ -740,9 +740,11 @@ export class AustriaMapCard extends LitElement {
           <span id="map-help" class="sr-only"
             >${this._t("card.map_help")}${this._canTilt ? ` ${this._t("card.map_help_tilt")}` : ""}</span
           >
-          ${ready ? nothing : this._renderLoading()} ${this._renderReliefLoading()} ${this._renderCompass()}
-          ${this._renderToolbar(zoom)}
-          ${this._layersOpen && config.show_layer_control ? this._renderLayers() : nothing} ${this._renderNotice()}
+          ${ready ? nothing : this._renderLoading()} ${this._renderReliefLoading()}
+          <div class="controls">
+            ${this._renderToolbar(zoom)} ${this._layersOpen && config.show_layer_control ? this._renderLayers() : nothing}
+          </div>
+          ${this._renderNotice()}
         </div>
         ${this._renderInfo()} ${this._renderCredit()}
       </ha-card>
@@ -792,11 +794,13 @@ export class AustriaMapCard extends LitElement {
   }
 
   /** Buttons for everything a drag or a pinch does: the single-pointer
-   *  alternative (WCAG 2.5.1, 2.5.7). */
+   *  alternative (WCAG 2.5.1, 2.5.7). One row in the upper left, after the
+   *  compass: there the map shows Bavaria, and Austria's east stays clear. */
   private _renderToolbar(zoom: number): TemplateResult {
     const layersLabel = this._t("controls.layers");
     return html`
       <div class="toolbar" role="group" aria-label=${this._t("controls.group")}>
+        ${this._renderCompass()}
         ${this._config.show_layer_control
           ? html`
               <button

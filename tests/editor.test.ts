@@ -90,6 +90,7 @@ describe("the editor", () => {
       "Gemeinden",
       "Bezirke",
       "Bundesländer",
+      "Bundesstraßen",
       "Autobahnen",
       "Gipfel",
       "Städte und Orte",

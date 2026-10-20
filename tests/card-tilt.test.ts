@@ -20,16 +20,20 @@ interface TiltInternals extends CardInternals {
 }
 
 /** What the card asks of the WebGL renderer, recorded. */
-function stubGL(): { draws: View3D[]; drapes: string[]; lost: boolean } & Record<string, unknown> {
+function stubGL(): { draws: View3D[]; lines: string[][]; drapes: string[]; lost: boolean } & Record<string, unknown> {
   const stub = {
     draws: [] as View3D[],
+    lines: [] as string[][],
     drapes: [] as string[],
     lost: false,
     hasRelief: true,
     resize: () => undefined,
     setRelief: () => undefined,
     setDrape: (_image: unknown, key: string) => stub.drapes.push(key),
-    draw: (view: View3D) => stub.draws.push(view),
+    draw: (view: View3D, lines: ReadonlyArray<{ key: string }>) => {
+      stub.draws.push(view);
+      stub.lines.push(lines.map((set) => set.key));
+    },
   };
   return stub;
 }
@@ -87,15 +91,20 @@ describe("the tilted map", () => {
     expect(card._orientation).toEqual(FLAT);
   });
 
-  it("draws the relief with WebGL, loads it, and lays the map over it without the towns", async () => {
+  it("draws the relief with WebGL, loads it, and lays only the terrain over it: lines are drawn sharp", async () => {
     const { card, gl } = await mountTilting();
     card._setPose({ camera: card._camera, orientation: { pitch: 0.8, bearing: 0.3 } });
     card._drawNow();
     await settle(card);
     expect(gl.draws.length).toBeGreaterThan(0);
     expect(pageLoader().state("relief")).not.toBe("idle");
-    expect(gl.drapes.at(-1)).toContain("terrain,rivers,provinces");
-    expect(gl.drapes.at(-1)).not.toContain("cities");
+    expect(gl.drapes.at(-1)).toContain("|terrain|");
+    expect(gl.drapes.at(-1)).not.toMatch(/rivers|provinces|cities/);
+    const lines = gl.lines.at(-1)!;
+    expect(lines.some((key) => key.startsWith("rivers:"))).toBe(true);
+    expect(lines).toContain("borders:coarse:1");
+    // The national border last, over the others.
+    expect(lines.at(-1)).toBe("borders:coarse:0");
     expect($(card, "canvas.relief")?.hidden).toBe(false);
   });
 

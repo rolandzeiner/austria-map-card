@@ -31,6 +31,11 @@ export interface RenderState {
   readonly selection: Feature | null;
   /** Where the "you are here" pin goes, in map units; null for no pin. */
   readonly here: MapPoint | null;
+  /**
+   * Only what fills an area: land, terrain, a selected area's tint. For the
+   * picture laid over the tilted map, which draws its lines itself.
+   */
+  readonly fillsOnly?: boolean;
 }
 
 /** The part of a canvas element the renderer uses. */
@@ -145,13 +150,15 @@ export class MapRenderer {
     }
     ctx.restore();
 
-    for (const layer of LAYERS) {
-      if (!layer.clipped && on(layer.id, layer.minScale)) layer.draw(dc);
+    if (state.fillsOnly !== true) {
+      for (const layer of LAYERS) {
+        if (!layer.clipped && on(layer.id, layer.minScale)) layer.draw(dc);
+      }
+      // The national border is not a layer: without it there is no map.
+      drawBorders(dc, 0);
     }
-    // The national border is not a layer: without it there is no map.
-    drawBorders(dc, 0);
 
-    if (state.selection !== null) this.highlight(dc, state.selection);
+    if (state.selection !== null) this.highlight(dc, state.selection, state.fillsOnly !== true);
 
     // Names and towns are drawn in screen pixels.
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -226,11 +233,12 @@ export class MapRenderer {
   }
 
   /** Mark the selected area or river. A selected town is ringed with the labels. */
-  private highlight(dc: DrawContext, selection: Feature): void {
+  private highlight(dc: DrawContext, selection: Feature, strokes: boolean): void {
     const { ctx, store, palette, scale } = dc;
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
     if (selection.kind === "river") {
+      if (!strokes) return;
       const river = riverLines(store, scale, selection.name);
       if (river === undefined) return;
       const path = this.shapes.get(`selected:river:${selection.name}:${scale >= 2 ? "detail" : "overview"}:${river.which.length}`, (target) =>
@@ -248,6 +256,7 @@ export class MapRenderer {
     );
     ctx.fillStyle = palette.accentFill;
     ctx.fill(path, "evenodd");
+    if (!strokes) return;
     ctx.strokeStyle = palette.accent;
     ctx.lineWidth = 2 / scale;
     ctx.stroke(path);

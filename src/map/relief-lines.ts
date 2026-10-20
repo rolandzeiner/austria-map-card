@@ -1,0 +1,161 @@
+/**
+ * The borders and rivers of the tilted map, as lines for WebGL.
+ *
+ * Painted into the image laid over the relief, a border is a few pixels of
+ * a 3072 px picture, and zoomed in that picture is magnified tenfold: the
+ * lines turn into blurred bands. So the tilted map draws them as lines of
+ * their own, lying on the ground, a constant number of pixels wide at any
+ * zoom, and hidden where a mountain stands in front of them.
+ *
+ * This file decides which lines, in which colour and width, from the same
+ * data, the same scales and the same palette as the flat map. The vertices
+ * are plain segments on the map; the shader in relief-gl.ts finds their
+ * height and their width on screen.
+ */
+import type { Lines } from "../data/format.ts";
+import { BORDER_WIDTHS } from "../layers/borders.ts";
+import { useFineBorders } from "../layers/registry.ts";
+import { RIVER_WIDTHS, riverLines, riversAt } from "../layers/rivers.ts";
+import { SCALES, grown } from "../layers/scales.ts";
+import type { MapStore } from "../layers/store.ts";
+import type { LayerId } from "../types.ts";
+import type { Feature } from "./labels.ts";
+import { parseColour, type Palette, type Rgb } from "./palette.ts";
+
+/** One batch of lines: one colour, one width. */
+export interface LineSet {
+  /** Names the data, not the style: the segments are built once per key. */
+  readonly key: string;
+  readonly segments: () => Float32Array;
+  readonly colour: Rgb;
+  /** Pixels on screen, CSS. */
+  readonly width: number;
+}
+
+/** No segment is longer than this, in map units, so lines follow the ground between cells. */
+const STEP = 0.5;
+
+/**
+ * Segments as x1, y1, x2, y2 for the chosen lines, cut into steps of at
+ * most `STEP`. Rings are closed.
+ */
+export function segmentsOf(lines: Lines, keep: (line: number) => boolean, closed = lines.closed): Float32Array {
+  const { xy, start } = lines;
+  const out: number[] = [];
+  const push = (x1: number, y1: number, x2: number, y2: number): void => {
+    const pieces = Math.max(1, Math.ceil(Math.hypot(x2 - x1, y2 - y1) / STEP));
+    for (let piece = 0; piece < pieces; piece += 1) {
+      const t0 = piece / pieces;
+      const t1 = (piece + 1) / pieces;
+      out.push(x1 + (x2 - x1) * t0, y1 + (y2 - y1) * t0, x1 + (x2 - x1) * t1, y1 + (y2 - y1) * t1);
+    }
+  };
+  for (let line = 0; line < lines.count; line += 1) {
+    if (!keep(line)) continue;
+    const from = start[line] as number;
+    const to = start[line + 1] as number;
+    for (let point = from; point + 1 < to; point += 1) {
+      push(xy[point * 2] as number, xy[point * 2 + 1] as number, xy[point * 2 + 2] as number, xy[point * 2 + 3] as number);
+    }
+    if (closed && to - from > 2) {
+      push(xy[(to - 1) * 2] as number, xy[(to - 1) * 2 + 1] as number, xy[from * 2] as number, xy[from * 2 + 1] as number);
+    }
+  }
+  return Float32Array.from(out);
+}
+
+/** Rings as one set of closed lines. */
+function ringLines(rings: readonly Float32Array[]): Lines {
+  const total = rings.reduce((sum, ring) => sum + ring.length / 2, 0);
+  const xy = new Float32Array(total * 2);
+  const start = new Uint32Array(rings.length + 1);
+  let at = 0;
+  rings.forEach((ring, index) => {
+    start[index] = at;
+    xy.set(ring, at * 2);
+    at += ring.length / 2;
+  });
+  start[rings.length] = at;
+  return { xy, start, count: rings.length, closed: true };
+}
+
+const rgb = (colour: string): Rgb => parseColour(colour) ?? [0, 0, 0];
+
+/** Every line the tilted map draws, bottom first: rivers, borders from fine to national, the selection. */
+export function reliefLines(
+  store: MapStore,
+  layers: ReadonlySet<LayerId>,
+  scale: number,
+  selection: Feature | null,
+  palette: Palette,
+): LineSet[] {
+  const sets: LineSet[] = [];
+
+  if (layers.has("rivers")) {
+    const current = riversAt(store, scale);
+    if (current !== undefined) {
+      const { rivers } = current;
+      for (let order = current.minOrder; order <= 9; order += 1) {
+        sets.push({
+          key: `rivers:${current.set}:${order}`,
+          segments: () => segmentsOf(rivers.lines, (line) => rivers.order[line] === order),
+          colour: rgb(palette.water),
+          width: grown(RIVER_WIDTHS[order] ?? 0.45, scale),
+        });
+      }
+    }
+  }
+
+  const colours = [palette.outline, palette.province, palette.district, palette.municipality];
+  const border = (level: number, key: string, segments: () => Float32Array): void => {
+    sets.push({ key, segments, colour: rgb(colours[level] as string), width: grown(BORDER_WIDTHS[level] as number, scale) });
+  };
+  const fine = useFineBorders(store, layers, scale) && store.detail !== undefined;
+  if (layers.has("municipalities") && scale >= SCALES.municipalities && store.municipalArcs !== undefined) {
+    const arcs = store.municipalArcs;
+    border(3, "borders:municipal", () => segmentsOf(arcs.lines, () => true));
+  }
+  if (fine) {
+    const detail = store.detail!;
+    const levels = [0, 1, 2].filter((level) => level === 0 || (level === 1 ? layers.has("provinces") : layers.has("districts")));
+    for (const level of levels.reverse()) {
+      border(level, `borders:fine:${level}`, () => segmentsOf(detail.arcs.lines, (line) => detail.level[line] === level));
+    }
+  } else if (store.overview !== undefined) {
+    const { arcs } = store.overview;
+    if (layers.has("provinces")) border(1, "borders:coarse:1", () => segmentsOf(arcs.lines, (line) => (arcs.a[line] as number) >= 0));
+    border(0, "borders:coarse:0", () => segmentsOf(arcs.lines, (line) => (arcs.a[line] as number) < 0));
+  }
+
+  const accent = rgb(palette.accent);
+  if (selection?.kind === "river") {
+    const river = riverLines(store, scale, selection.name);
+    if (river !== undefined) {
+      const which = new Set(river.which);
+      sets.push({
+        key: `selected:river:${selection.name}:${scale >= SCALES.riversDetail ? "detail" : "overview"}:${which.size}`,
+        segments: () => segmentsOf(river.lines, (line) => which.has(line)),
+        colour: accent,
+        width: grown(2.6, scale),
+      });
+    }
+  } else if (selection !== null && selection.kind !== "city") {
+    const index =
+      selection.kind === "province"
+        ? fine
+          ? store.detail?.provinceIndex
+          : store.overview?.index
+        : selection.kind === "district"
+          ? store.detail?.districtIndex
+          : store.municipalityIndex;
+    if (index !== undefined) {
+      sets.push({
+        key: `selected:${selection.kind}:${selection.row}:${fine ? "fine" : "coarse"}`,
+        segments: () => segmentsOf(ringLines(index.rings(selection.row)), () => true),
+        colour: accent,
+        width: 2,
+      });
+    }
+  }
+  return sets;
+}

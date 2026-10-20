@@ -6,7 +6,7 @@ import { SCALES, grown } from "./scales.ts";
 import type { MapStore, Rivers } from "./store.ts";
 
 /** Stroke width in pixels by stream order; 9 is the Danube. */
-const WIDTHS: Readonly<Record<number, number>> = { 9: 2.2, 8: 1.8, 7: 1.5, 6: 1.1, 5: 0.8, 4: 0.6, 3: 0.45 };
+export const RIVER_WIDTHS: Readonly<Record<number, number>> = { 9: 2.2, 8: 1.8, 7: 1.5, 6: 1.1, 5: 0.8, 4: 0.6, 3: 0.45 };
 
 /** The river set to draw at a scale, and the lowest stream order to show from it. */
 export function riversAt(store: MapStore, scale: number): { rivers: Rivers; set: string; minOrder: number } | undefined {
@@ -40,7 +40,7 @@ function draw(dc: DrawContext): void {
   ctx.lineJoin = "round";
   // Small streams first, so a river is drawn over the brooks that join it.
   for (let order = current.minOrder; order <= 9; order += 1) {
-    ctx.lineWidth = grown(WIDTHS[order] ?? 0.45, scale) / scale;
+    ctx.lineWidth = grown(RIVER_WIDTHS[order] ?? 0.45, scale) / scale;
     tiles.visit(box, order, (tile, lines) => {
       ctx.stroke(
         shapes.get(`rivers:${current.set}:${order}:${tile}`, (path) => traceLines(path, current.rivers.lines, lines)),

@@ -27,6 +27,7 @@ import type { Feature } from "./map/labels.ts";
 import { derivePalette, readTheme, type Palette } from "./map/palette.ts";
 import { project, type MapPoint } from "./map/projection.ts";
 import { ReliefGL } from "./map/relief-gl.ts";
+import { reliefLines } from "./map/relief-lines.ts";
 import { MapRenderer, type RenderState } from "./map/renderer.ts";
 import {
   FLAT,
@@ -440,9 +441,10 @@ export class AustriaMapCard extends LitElement {
     this._tiltTo({ pitch: this._orientation.pitch, bearing: 0 });
   }
 
-  /** The layers laid over the relief: the towns are drawn upright, over it. */
+  /** The layers painted into the picture laid over the relief: only the
+   *  terrain fills an area. Lines and towns are drawn sharp, over it. */
   private _drapeLayers(): ReadonlySet<LayerId> {
-    return new Set([...this._layers].filter((id) => id !== "cities"));
+    return new Set(this._layers.has("terrain") ? (["terrain"] as const) : []);
   }
 
   /** Redraw the flat map that covers the relief, when what it shows changed. */
@@ -467,6 +469,7 @@ export class AustriaMapCard extends LitElement {
       showLabels: false,
       selection,
       here: null,
+      fillsOnly: true,
     });
     gl.setDrape(drape.canvas, key);
   }
@@ -514,7 +517,7 @@ export class AustriaMapCard extends LitElement {
       gl.setRelief(store.relief ?? flatRelief());
       this._updateDrape(gl);
       const view = new View3D(camera, this._orientation, renderer.size, store.relief);
-      gl.draw(view);
+      gl.draw(view, this._palette ? reliefLines(store, this._layers, camera.k, this._selection, this._palette) : []);
       renderer.drawTilted(this._state(camera), view);
     }
     this._syncView(camera, renderer.size);

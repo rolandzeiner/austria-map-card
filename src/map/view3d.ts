@@ -78,6 +78,8 @@ export class View3D {
   public readonly scale: number;
   /** How much the heights are stretched in this view. */
   public readonly stretch: number;
+  /** From the eye to the point it orbits, in world units. */
+  public readonly distance: number;
   public readonly eye: Vec3;
   /** Unit vectors: where the camera looks, and the canvas's right and down. */
   public readonly forward: Vec3;
@@ -100,6 +102,7 @@ export class View3D {
     this.focal = size.height / 2 / Math.tan(FIELD_OF_VIEW / 2);
     // Far enough that the map point at the centre shows at the camera's scale.
     const distance = this.focal / camera.k;
+    this.distance = distance;
     const target: Vec3 = [camera.x, camera.y, groundZ(relief, camera.x, camera.y, this.stretch)];
     const eye: [number, number, number] = [
       target[0] - this.forward[0] * distance,

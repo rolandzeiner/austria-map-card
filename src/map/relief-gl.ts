@@ -9,13 +9,16 @@
  * 1000 × 530 grid costs one texture and one draw call, and drawing every
  * second cell for the whole-country view is a uniform.
  *
- * The "cloth" is the flat map drawn by the 2D renderer into a canvas of its
- * own, without names: the names and the pin are drawn over the 3D map in
- * screen pixels, upright, by the card's own canvas.
+ * The "cloth" is the flat map's fills, drawn by the 2D renderer into a
+ * canvas of its own: land, terrain, a selected area. Borders and rivers are
+ * lines of their own (relief-lines.ts), drawn a constant number of pixels
+ * wide however far the cloth is magnified. The names and the pin are drawn
+ * over it all in screen pixels, upright, by the card's own canvas.
  *
  * Without WebGL 2 `create` returns null and the card stays flat.
  */
 import type { Relief } from "../layers/store.ts";
+import type { LineSet } from "./relief-lines.ts";
 import { MAP_HEIGHT, MAP_WIDTH } from "./projection.ts";
 import { METRES_PER_UNIT, type View3D } from "./view3d.ts";
 
@@ -71,12 +74,114 @@ void main() {
 }
 `;
 
+// A line is a segment instance, drawn as a quad of four corners. Both ends
+// are lifted onto the ground (heights interpolated between cells, like the
+// mesh), projected, and pushed apart sideways on screen by half the width
+// and a pixel more for the soft edge.
+const LINE_VERTEX = `#version 300 es
+uniform highp sampler2D u_height;
+uniform mat4 u_matrix;
+uniform ivec2 u_grid;
+uniform float u_zscale;
+uniform float u_lift;
+uniform vec2 u_half;
+uniform float u_width;
+in vec4 a_segment;
+out float v_across;
+
+float texel(ivec2 cell) {
+  return texelFetch(u_height, clamp(cell, ivec2(0), u_grid - 1), 0).r;
+}
+
+float groundAt(vec2 at) {
+  vec2 f = at - 0.5;
+  vec2 base = floor(f);
+  vec2 t = f - base;
+  ivec2 c = ivec2(base);
+  float top = mix(texel(c), texel(c + ivec2(1, 0)), t.x);
+  float bottom = mix(texel(c + ivec2(0, 1)), texel(c + ivec2(1, 1)), t.x);
+  return mix(top, bottom, t.y) * u_zscale + u_lift;
+}
+
+void main() {
+  float along = float(gl_VertexID >> 1);
+  float side = float(gl_VertexID & 1) * 2.0 - 1.0;
+  vec4 a = u_matrix * vec4(a_segment.xy, groundAt(a_segment.xy), 1.0);
+  vec4 b = u_matrix * vec4(a_segment.zw, groundAt(a_segment.zw), 1.0);
+  if (a.w <= 0.0 || b.w <= 0.0) {
+    // Behind the eye: nothing to draw.
+    gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+    v_across = 0.0;
+    return;
+  }
+  vec2 sa = a.xy / a.w * u_half;
+  vec2 sb = b.xy / b.w * u_half;
+  vec2 d = sb - sa;
+  float len = length(d);
+  vec2 dir = len > 1e-4 ? d / len : vec2(1.0, 0.0);
+  vec2 normal = vec2(-dir.y, dir.x);
+  float reach = u_width * 0.5 + 1.0;
+  vec4 end = along > 0.5 ? b : a;
+  vec2 at = (along > 0.5 ? sb : sa) + normal * side * reach + dir * (along * 2.0 - 1.0) * u_width * 0.5;
+  v_across = side * reach;
+  gl_Position = vec4(at / u_half * end.w, end.z, end.w);
+}
+`;
+
+const LINE_FRAGMENT = `#version 300 es
+// highp: u_width is shared with the vertex shader, and a uniform must have
+// the same precision in both or the program does not link.
+precision highp float;
+uniform vec3 u_colour;
+uniform float u_width;
+in float v_across;
+out vec4 colour;
+
+void main() {
+  // Full inside the line, fading over the last pixel: lines thinner than a
+  // pixel come out fainter, not jagged.
+  float cover = clamp(u_width * 0.5 + 0.5 - abs(v_across), 0.0, 1.0) * min(u_width, 1.0);
+  if (cover <= 0.0) discard;
+  colour = vec4(u_colour * cover, cover);
+}
+`;
+
+/** The shader pairs, for the tests: a browser is the only place they compile. */
+export const SHADERS = {
+  relief: { vertex: VERTEX, fragment: FRAGMENT },
+  lines: { vertex: LINE_VERTEX, fragment: LINE_FRAGMENT },
+} as const;
+
+interface LineBuffer {
+  readonly vao: WebGLVertexArrayObject;
+  readonly buffer: WebGLBuffer;
+  readonly count: number;
+}
+
 /** Light from the north-west, 40° above the horizon: the hill-shading of every atlas. */
 const LIGHT = (() => {
   const altitude = (40 * Math.PI) / 180;
   const v = [-Math.cos(altitude) / Math.SQRT2, -Math.cos(altitude) / Math.SQRT2, Math.sin(altitude)];
   return new Float32Array(v);
 })();
+
+function link(gl: WebGL2RenderingContext, vertex: string, fragment: string): WebGLProgram {
+  const program = gl.createProgram();
+  if (program === null) throw new Error("no program");
+  gl.attachShader(program, compile(gl, gl.VERTEX_SHADER, vertex));
+  gl.attachShader(program, compile(gl, gl.FRAGMENT_SHADER, fragment));
+  gl.linkProgram(program);
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    throw new Error(`program: ${gl.getProgramInfoLog(program) ?? "did not link"}`);
+  }
+  return program;
+}
+
+const locations = (
+  gl: WebGL2RenderingContext,
+  program: WebGLProgram,
+  names: readonly string[],
+): Record<string, WebGLUniformLocation | null> => Object.fromEntries(names.map((name) => [name, gl.getUniformLocation(program, name)]));
 
 function compile(gl: WebGL2RenderingContext, type: number, source: string): WebGLShader {
   const shader = gl.createShader(type);
@@ -92,6 +197,10 @@ function compile(gl: WebGL2RenderingContext, type: number, source: string): WebG
 export class ReliefGL {
   private readonly gl: WebGL2RenderingContext;
   private readonly program: WebGLProgram;
+  private readonly lineProgram: WebGLProgram;
+  private readonly lineUniforms: Record<string, WebGLUniformLocation | null>;
+  /** Segment buffers by LineSet key; the data never changes once loaded. */
+  private readonly lines = new Map<string, LineBuffer>();
   private readonly heights: WebGLTexture;
   private readonly drape: WebGLTexture;
   private readonly uniforms: Record<string, WebGLUniformLocation | null>;
@@ -118,20 +227,30 @@ export class ReliefGL {
 
   private constructor(canvas: HTMLCanvasElement, gl: WebGL2RenderingContext) {
     this.gl = gl;
-    const program = gl.createProgram();
-    if (program === null) throw new Error("no program");
-    gl.attachShader(program, compile(gl, gl.VERTEX_SHADER, VERTEX));
-    gl.attachShader(program, compile(gl, gl.FRAGMENT_SHADER, FRAGMENT));
-    gl.linkProgram(program);
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-      throw new Error(`program: ${gl.getProgramInfoLog(program) ?? "did not link"}`);
-    }
+    const program = link(gl, VERTEX, FRAGMENT);
     this.program = program;
-    this.uniforms = Object.fromEntries(
-      ["u_height", "u_matrix", "u_stride", "u_grid", "u_zscale", "u_map", "u_drape", "u_light", "u_shade"].map(
-        (name) => [name, gl.getUniformLocation(program, name)],
-      ),
-    );
+    this.uniforms = locations(gl, program, [
+      "u_height",
+      "u_matrix",
+      "u_stride",
+      "u_grid",
+      "u_zscale",
+      "u_map",
+      "u_drape",
+      "u_light",
+      "u_shade",
+    ]);
+    this.lineProgram = link(gl, LINE_VERTEX, LINE_FRAGMENT);
+    this.lineUniforms = locations(gl, this.lineProgram, [
+      "u_height",
+      "u_matrix",
+      "u_grid",
+      "u_zscale",
+      "u_lift",
+      "u_half",
+      "u_width",
+      "u_colour",
+    ]);
     const texture = (): WebGLTexture => {
       const made = gl.createTexture();
       if (made === null) throw new Error("no texture");
@@ -202,8 +321,65 @@ export class ReliefGL {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
   }
 
+  private lineBuffer(set: LineSet): LineBuffer | null {
+    const known = this.lines.get(set.key);
+    if (known !== undefined) return known;
+    const { gl } = this;
+    const segments = set.segments();
+    if (segments.length === 0) return null;
+    const vao = gl.createVertexArray();
+    const buffer = gl.createBuffer();
+    if (vao === null || buffer === null) return null;
+    gl.bindVertexArray(vao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, segments, gl.STATIC_DRAW);
+    const location = gl.getAttribLocation(this.lineProgram, "a_segment");
+    gl.enableVertexAttribArray(location);
+    gl.vertexAttribPointer(location, 4, gl.FLOAT, false, 0, 0);
+    gl.vertexAttribDivisor(location, 1);
+    gl.bindVertexArray(null);
+    const made = { vao, buffer, count: segments.length / 4 };
+    this.lines.set(set.key, made);
+    return made;
+  }
+
+  /** Lines on the ground: depth-tested against the relief, never writing depth themselves. */
+  private drawLines(view: View3D, sets: readonly LineSet[]): void {
+    const { gl, relief, lineUniforms: u } = this;
+    if (relief === undefined || sets.length === 0) return;
+    const dpr = gl.drawingBufferHeight / Math.max(view.size.height, 1);
+    gl.useProgram(this.lineProgram);
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LEQUAL);
+    gl.depthMask(false);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, this.heights);
+    gl.uniform1i(u.u_height!, 0);
+    gl.uniformMatrix4fv(u.u_matrix!, false, view.matrix());
+    gl.uniform2i(u.u_grid!, relief.columns, relief.rows);
+    gl.uniform1f(u.u_zscale!, view.stretch / METRES_PER_UNIT);
+    // Just off the ground, so the mesh does not cover a line lying on it;
+    // further off the further away, where depth is coarser.
+    gl.uniform1f(u.u_lift!, view.distance * 0.004);
+    gl.uniform2f(u.u_half!, gl.drawingBufferWidth / 2, gl.drawingBufferHeight / 2);
+    for (const set of sets) {
+      const buffer = this.lineBuffer(set);
+      if (buffer === null) continue;
+      gl.uniform1f(u.u_width!, set.width * dpr);
+      gl.uniform3f(u.u_colour!, set.colour[0] / 255, set.colour[1] / 255, set.colour[2] / 255);
+      gl.bindVertexArray(buffer.vao);
+      gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, buffer.count);
+    }
+    gl.bindVertexArray(null);
+    gl.depthMask(true);
+    gl.disable(gl.BLEND);
+    gl.disable(gl.DEPTH_TEST);
+  }
+
   /** Draw a frame. Nothing until both the relief and a drape are there. */
-  public draw(view: View3D): void {
+  public draw(view: View3D, lines: readonly LineSet[] = []): void {
     const { gl, relief, uniforms: u } = this;
     gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
     this.clear();
@@ -229,5 +405,6 @@ export class ReliefGL {
     const strips = Math.ceil((relief.rows - 1) / stride);
     gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, across * 2, strips);
     gl.disable(gl.DEPTH_TEST);
+    this.drawLines(view, lines);
   }
 }

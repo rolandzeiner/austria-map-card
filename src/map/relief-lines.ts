@@ -14,7 +14,7 @@
  */
 import type { Lines } from "../data/format.ts";
 import { BORDER_WIDTHS } from "../layers/borders.ts";
-import { MOTORWAY_CASING, MOTORWAY_WIDTH, motorwayLines } from "../layers/motorways.ts";
+import { ROAD_LAYER, ROAD_STYLES, roadLines, roadSet } from "../layers/roads.ts";
 import { useFineBorders } from "../layers/registry.ts";
 import { RIVER_WIDTHS, riverLines, riversAt } from "../layers/rivers.ts";
 import { SCALES, grown } from "../layers/scales.ts";
@@ -150,26 +150,32 @@ export function reliefLines(
     border(0, "borders:coarse:0", () => segmentsOf(arcs.lines, (line) => (arcs.a[line] as number) < 0));
   }
 
-  // As on the flat map: over the inner borders, under the national one.
-  const motorways = layers.has("motorways") ? store.motorways : undefined;
-  if (motorways !== undefined) {
-    const all = (): Float32Array => segmentsOf(motorways.lines, () => true);
-    const national = sets.findIndex((set) => set.key.startsWith("borders:") && set.key.endsWith(":0"));
-    sets.splice(
-      national < 0 ? sets.length : national,
-      0,
-      { key: "motorways", segments: all, colour: rgb(palette.motorwayCasing), width: grown(MOTORWAY_CASING, scale) },
-      { key: "motorways", segments: all, colour: rgb(palette.motorway), width: grown(MOTORWAY_WIDTH, scale) },
-    );
+  // As on the flat map: over the inner borders, under the national one;
+  // main roads under motorways.
+  const roads: LineSet[] = [];
+  for (const kind of ["main", "motorway"] as const) {
+    const set = layers.has(ROAD_LAYER[kind]) ? roadSet(store, kind) : undefined;
+    if (set === undefined) continue;
+    const style = ROAD_STYLES[kind];
+    const key = `roads:${kind}`;
+    const all = (): Float32Array => segmentsOf(set.lines, () => true);
+    if (scale < style.fullFrom) {
+      roads.push({ key, segments: all, colour: rgb(style.casingColour(palette)), width: style.thin });
+      continue;
+    }
+    roads.push({ key, segments: all, colour: rgb(style.casingColour(palette)), width: grown(style.casing, scale) });
+    roads.push({ key, segments: all, colour: rgb(style.fill(palette)), width: grown(style.width, scale) });
   }
+  const national = sets.findIndex((set) => set.key.startsWith("borders:") && set.key.endsWith(":0"));
+  sets.splice(national < 0 ? sets.length : national, 0, ...roads);
 
   const accent = rgb(palette.accent);
-  if (selection?.kind === "motorway") {
-    const route = motorwayLines(store, selection.ref);
+  if (selection?.kind === "road") {
+    const route = roadLines(store, selection.ref);
     if (route !== undefined) {
       const which = new Set(route.which);
       sets.push({
-        key: `selected:motorway:${selection.ref}`,
+        key: `selected:road:${selection.ref}`,
         segments: () => segmentsOf(route.lines, (line) => which.has(line)),
         colour: accent,
         width: grown(3.2, scale),

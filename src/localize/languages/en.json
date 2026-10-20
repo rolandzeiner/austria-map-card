@@ -35,7 +35,8 @@
     "municipalities": "Municipalities",
     "cities": "Towns and cities",
     "peaks": "Peaks",
-    "motorways": "Motorways"
+    "motorways": "Motorways",
+    "main_roads": "Main roads"
   },
   "layer_notes": {
     "zoom": "Appears when you zoom in",
@@ -53,7 +54,8 @@
     "stream": "Stream",
     "peak": "Peak",
     "motorway": "Motorway",
-    "expressway": "Expressway"
+    "expressway": "Expressway",
+    "main_road": "Main road"
   },
   "facts": {
     "population": "Population",

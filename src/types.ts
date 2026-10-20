@@ -28,6 +28,7 @@ export const LAYER_IDS = [
   "municipalities",
   "districts",
   "provinces",
+  "main_roads",
   "motorways",
   "peaks",
   "cities",

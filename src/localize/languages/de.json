@@ -35,7 +35,8 @@
     "municipalities": "Gemeinden",
     "cities": "Städte und Orte",
     "peaks": "Gipfel",
-    "motorways": "Autobahnen"
+    "motorways": "Autobahnen",
+    "main_roads": "Bundesstraßen"
   },
   "layer_notes": {
     "zoom": "Erscheint, wenn du hineinzoomst",
@@ -53,7 +54,8 @@
     "stream": "Bach",
     "peak": "Gipfel",
     "motorway": "Autobahn",
-    "expressway": "Schnellstraße"
+    "expressway": "Schnellstraße",
+    "main_road": "Bundesstraße"
   },
   "facts": {
     "population": "Einwohner",

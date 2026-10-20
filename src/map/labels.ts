@@ -10,7 +10,8 @@
 import type { ArcIndex } from "../data/arcs.ts";
 import { minimumRank, placeTier } from "../layers/places.ts";
 import { riversAt } from "../layers/rivers.ts";
-import type { MapStore, Motorways, Places, Rivers, Table } from "../layers/store.ts";
+import { ROAD_LAYER, roadSet, type RoadClass } from "../layers/roads.ts";
+import type { MapStore, Places, Rivers, Roads, Table } from "../layers/store.ts";
 import type { LayerId } from "../types.ts";
 import { toScreen, type Box, type Camera, type Size } from "./camera.ts";
 import {
@@ -35,7 +36,7 @@ export type Feature =
   | { readonly kind: "city"; readonly row: number }
   | { readonly kind: "peak"; readonly row: number }
   | { readonly kind: "river"; readonly name: string; readonly order: number }
-  | { readonly kind: "motorway"; readonly ref: string };
+  | { readonly kind: "road"; readonly ref: string };
 
 /** A town or a summit as drawn in a frame: what a tap is tested against. */
 export interface DrawnCity {
@@ -100,7 +101,11 @@ export const shortTownName = (name: string): string => name.replace(/ (am|an der
 
 const MAX_CITIES = 90;
 const MAX_PEAKS = 40;
-const MAX_SHIELDS = 16;
+/** Shields per class of road, and the scale from which a class gets them. */
+const SHIELDS: Readonly<Record<RoadClass, { readonly most: number; readonly from: number }>> = {
+  motorway: { most: 16, from: 0 },
+  main: { most: 20, from: 2.5 },
+};
 /** Pixels between candidate spots for a route shield, along its line. */
 const SHIELD_STEP = 180;
 /** Two shields of the same route keep at least this far apart. */
@@ -157,12 +162,12 @@ function alwaysShown(places: Places): number[] {
   return rows;
 }
 
-/** Motorway strokes, longest first: the main carriageways get their shields before the stubs. */
-const strokes = new WeakMap<Motorways, number[]>();
-function longestStrokes(motorways: Motorways): number[] {
-  let rows = strokes.get(motorways);
+/** Road strokes, longest first: the main carriageways get their shields before the stubs. */
+const strokes = new WeakMap<Roads, number[]>();
+function longestStrokes(roads: Roads): number[] {
+  let rows = strokes.get(roads);
   if (rows === undefined) {
-    const { xy, start } = motorways.lines;
+    const { xy, start } = roads.lines;
     const length = (line: number): number => {
       let sum = 0;
       for (let point = (start[line] as number) + 1; point < (start[line + 1] as number); point += 1) {
@@ -170,9 +175,9 @@ function longestStrokes(motorways: Motorways): number[] {
       }
       return sum;
     };
-    const lengths = Array.from({ length: motorways.lines.count }, (_, line) => length(line));
+    const lengths = Array.from({ length: roads.lines.count }, (_, line) => length(line));
     rows = lengths.map((_, line) => line).sort((p, q) => (lengths[q] as number) - (lengths[p] as number) || p - q);
-    strokes.set(motorways, rows);
+    strokes.set(roads, rows);
   }
   return rows;
 }
@@ -338,15 +343,19 @@ export function drawLabels(input: LabelInput): DrawnCity[] {
     }
   }
 
-  // ── Route shields along the motorways ─────────────────────────────────
-  const motorways = layers.has("motorways") ? store.motorways : undefined;
-  if (showLabels && motorways !== undefined) {
-    const font = `700 10px ${family}`;
+  // ── Route shields: motorways first, then main roads ───────────────────
+  const shieldFont = `700 10px ${family}`;
+  for (const kind of ["motorway", "main"] as const) {
+    const roads = layers.has(ROAD_LAYER[kind]) ? roadSet(store, kind) : undefined;
+    const limits = SHIELDS[kind];
+    if (!showLabels || roads === undefined || scale < limits.from) continue;
+    const fill = kind === "motorway" ? palette.shield : palette.mainShield;
+    const ink = kind === "motorway" ? palette.shieldText : palette.mainShieldText;
     const placed: Array<{ ref: string; x: number; y: number }> = [];
-    const { xy, start } = motorways.lines;
-    for (const line of longestStrokes(motorways)) {
-      if (placed.length >= MAX_SHIELDS) break;
-      const ref = motorways.refs[motorways.route[line] as number] as string;
+    const { xy, start } = roads.lines;
+    for (const line of longestStrokes(roads)) {
+      if (placed.length >= limits.most) break;
+      const ref = roads.refs[roads.route[line] as number] as string;
       const screen: number[] = [];
       for (let point = start[line] as number; point < (start[line + 1] as number); point += 1) {
         const at = pixels(xy[point * 2] as number, xy[point * 2 + 1] as number);
@@ -355,8 +364,8 @@ export function drawLabels(input: LabelInput): DrawnCity[] {
       if (screen.length < 4) continue;
       const measured = measure(screen);
       const total = measured.along[measured.along.length - 1] as number;
-      const width = widthOf(ctx, font, ref) + 8;
-      for (let distance = SHIELD_STEP / 2; distance < total && placed.length < MAX_SHIELDS; distance += SHIELD_STEP) {
+      const width = widthOf(ctx, shieldFont, ref) + 8;
+      for (let distance = SHIELD_STEP / 2; distance < total && placed.length < limits.most; distance += SHIELD_STEP) {
         const [x, y] = pointAlong(measured, distance);
         if (x < 0 || y < 0 || x > size.width || y > size.height) continue;
         if (placed.some((other) => other.ref === ref && Math.hypot(other.x - x, other.y - y) < SHIELD_REPEAT)) continue;
@@ -366,13 +375,13 @@ export function drawLabels(input: LabelInput): DrawnCity[] {
         ctx.beginPath();
         ctx.roundRect(box.x, box.y, box.w, box.h, 3);
         ctx.lineWidth = 2;
-        ctx.strokeStyle = palette.halo;
+        ctx.strokeStyle = kind === "motorway" ? palette.halo : ink;
         ctx.stroke();
-        ctx.fillStyle = palette.shield;
+        ctx.fillStyle = fill;
         ctx.fill();
-        ctx.font = font;
+        ctx.font = shieldFont;
         ctx.textAlign = "center";
-        ctx.fillStyle = palette.shieldText;
+        ctx.fillStyle = ink;
         ctx.fillText(ref, x, y + 0.5);
       }
     }

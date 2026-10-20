@@ -41,9 +41,15 @@ export interface Palette {
   /** Motorways: an amber line on a darker casing, as in a road atlas. */
   readonly motorway: string;
   readonly motorwayCasing: string;
-  /** Route shields: the blue of Austria's route signs, with white letters. */
+  /** Main roads (B): pale yellow on a darker casing. */
+  readonly road: string;
+  readonly roadCasing: string;
+  /** Route shields: the blue of Austria's motorway signs, with white letters. */
   readonly shield: string;
   readonly shieldText: string;
+  /** A main road's shield: white, framed and lettered in the text colour. */
+  readonly mainShield: string;
+  readonly mainShieldText: string;
   /** The fill for ground above a height in metres. */
   band(level: number): string;
 }
@@ -111,6 +117,8 @@ const BAND_TINT = 0.052;
 const MOTORWAY_LIGHT: Rgb = [236, 152, 54];
 const MOTORWAY_DARK: Rgb = [214, 140, 62];
 const SHIELD: Rgb = [30, 84, 160];
+const ROAD_LIGHT: Rgb = [250, 220, 120];
+const ROAD_DARK: Rgb = [196, 170, 92];
 
 const WATER_LIGHT: Rgb = [111, 157, 198];
 const WATER_DARK: Rgb = [92, 148, 204];
@@ -145,8 +153,12 @@ export function derivePalette(theme: Theme): Palette {
     accentFill: css(theme.accent, 0.18),
     motorway: css(dark ? MOTORWAY_DARK : MOTORWAY_LIGHT),
     motorwayCasing: css(dark ? mix(MOTORWAY_DARK, background, 0.55) : mix(MOTORWAY_LIGHT, [60, 30, 0], 0.45)),
+    road: css(dark ? ROAD_DARK : ROAD_LIGHT),
+    roadCasing: css(dark ? mix(ROAD_DARK, background, 0.55) : mix(ROAD_LIGHT, [70, 50, 0], 0.5)),
     shield: css(SHIELD),
     shieldText: "rgb(255, 255, 255)",
+    mainShield: css(dark ? mix(background, text, 0.85) : [255, 255, 255]),
+    mainShieldText: css(dark ? background : [40, 40, 40]),
     band,
   };
 }

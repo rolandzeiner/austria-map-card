@@ -6,7 +6,7 @@
 //   node scripts/build-data.mjs --measure       print the size tables the settings below were picked from
 //   node scripts/build-data.mjs --refresh       rebuild every committed input from its download
 //   node scripts/build-data.mjs --refresh-borders | --refresh-terrain | --refresh-rivers
-//                               | --refresh-places | --refresh-peaks | --refresh-motorways
+//                               | --refresh-places | --refresh-peaks | --refresh-motorways | --refresh-main-roads
 //                               | --refresh-population
 //                               add --download to fetch a file again that is already in .cache/
 //
@@ -20,7 +20,7 @@
 //   Terrain     BEV, Digitales Geländehöhenmodell, Höhenraster 500 m
 //   Rivers      BMLUK, Flussordnungszahlen NGP 2021 (Gesamtgewässernetz)
 //   Places      BEV, Digitales Landschaftsmodell, Namen
-//   Motorways   BEV, Digitales Landschaftsmodell, Verkehr
+//   Roads       BEV, Digitales Landschaftsmodell, Verkehr
 //   Population  Statistik Austria, Bevölkerung zu Jahresbeginn
 //
 // Everything is drawn in the view-box units of src/map/projection.ts, from
@@ -131,8 +131,6 @@ const ROADS = {
 };
 const ROADS_URL = "https://data.bev.gv.at/download/DLM/DLM_20260323/DLM_1000_VERKEHR_20260323.gpkg";
 const ROADS_TABLE = "VER_1100_STRASSE_L";
-/** Bundesstraße A and S: the motorways and expressways, ASFINAG's network. */
-const MOTORWAY_CODES = [1101, 1102];
 
 const POPULATION = {
   id: "statistik-bev",
@@ -153,6 +151,7 @@ const RIVERS_FILE = input("ggn_rivers.txt.gz");
 const PLACES_FILE = input("bev_places.txt.gz");
 const PEAKS_FILE = input("bev_peaks.txt.gz");
 const MOTORWAYS_FILE = input("bev_motorways.txt.gz");
+const MAIN_ROADS_FILE = input("bev_main_roads.txt.gz");
 const POPULATION_FILE = input("statistik_population.txt.gz");
 const BORDERS_CACHE = cache("borders/VGD_Oesterreich_gen_250.zip");
 const TERRAIN_CACHE = cache("terrain/DGM_Rasterweite_500m.zip");
@@ -256,9 +255,43 @@ const RELIEF = { step: 16, reach: 3 };
 //   2.0 (1170 m)            7 789    260 KB (102)   this one
 const PEAKS = { minIsolation: 2 };
 
-// Motorways: see refreshMotorways.
-const MOTORWAY_KEEP = { tolerance: 0.05, minLength: 1 };
-const MOTORWAY_Q = 0.05;
+// Roads: see refreshRoads.
+//
+//   main roads: shortest stroke   main-roads chunk (tolerance 0.1, grid 0.05)
+//   all                           108.1 KB (63.6)
+//   0.1 units (60 m)               76.9 KB (49.2)   this one
+//   0.2 units (120 m)              65.3 KB (42.9)
+const ROAD_KINDS = {
+  motorways: {
+    what: "Motorways (A) and expressways (S)",
+    // Bundesstraße A and S: ASFINAG's network.
+    codes: [1101, 1102],
+    ref: /^[AS]\d+$/,
+    name: /Autobahn|Schnellstraße|[Tt]angente/,
+    tolerance: 0.05,
+    minLength: 1,
+    q: 0.05,
+    minRoutes: 20,
+    flag: "--refresh-motorways",
+    get file() {
+      return MOTORWAYS_FILE;
+    },
+  },
+  "main-roads": {
+    what: "Main roads (Landesstraße B, the former Bundesstraßen)",
+    codes: [1103],
+    ref: /^B\d+[a-z]?$/,
+    name: /Straße$/,
+    tolerance: 0.1,
+    minLength: 0.1,
+    q: 0.05,
+    minRoutes: 200,
+    flag: "--refresh-main-roads",
+    get file() {
+      return MAIN_ROADS_FILE;
+    },
+  },
+};
 /** Isolation of the highest summit, which has none: as good as infinite. */
 const UNRIVALLED = 9999;
 
@@ -673,14 +706,14 @@ function packPeaks(peaks, settings) {
   };
 }
 
-/** Motorway strokes and the route each belongs to, A before S, by number. */
-function packMotorways(strokes) {
+/** Road strokes and the route each belongs to, in route order. */
+function packRoads(strokes, q) {
   const refs = [...new Set(strokes.map((stroke) => stroke.ref))];
   const names = refs.map((ref) => strokes.find((stroke) => stroke.ref === ref && stroke.name !== "")?.name ?? "");
   return {
     refs,
     names,
-    lines: encodeLines(strokes.map((stroke) => stroke.points), MOTORWAY_Q, { closed: false }),
+    lines: encodeLines(strokes.map((stroke) => stroke.points), q, { closed: false }),
     route: encodeInts(strokes.map((stroke) => refs.indexOf(stroke.ref))),
   };
 }
@@ -980,14 +1013,18 @@ async function refreshPeaks() {
 }
 
 /**
- * Motorways and expressways. The BEV draws each carriageway, slip road and
- * junction loop as pieces of a few hundred metres; per route they are
- * joined into long strokes, simplified to a twentieth of a unit (30 m), and
- * what is still shorter than a unit (585 m) is dropped: the slip roads and
- * loops, which are a blot at any scale the map shows. The two carriageways
- * of a route, 20 to 40 m apart, stay two strokes that draw as one.
+ * Motorways and main roads, one route per stroke set. The BEV draws each
+ * carriageway, slip road and junction loop as pieces of a few hundred
+ * metres; per route they are joined end to end into long strokes and
+ * simplified. Motorway strokes shorter than a unit (585 m) are dropped:
+ * slip roads and loops, a blot at any scale the map shows. Main-road
+ * strokes are cut short by every junction and roundabout, and dropping
+ * those would leave gaps; only the bits under 60 m go, roundabout arcs
+ * mostly, a gap of 3 px at the deepest zoom. The two carriageways of a
+ * motorway, 20 to 40 m apart, stay two strokes that draw as one.
  */
-async function refreshMotorways() {
+async function refreshRoads(kind) {
+  const settings = ROAD_KINDS[kind];
   await download(ROADS_URL, ROADS_CACHE, "BEV");
   const { DatabaseSync } = await import("node:sqlite");
   const database = new DatabaseSync(fileURLToPath(ROADS_CACHE), { readOnly: true });
@@ -997,8 +1034,8 @@ async function refreshMotorways() {
   if (srs !== 31255) throw new Error(`roads are in EPSG:${srs}, not MGI / Austria GK Central (31255)`);
   const rows = database
     .prepare(
-      `select KURZBEZ_NAT as ref, NAME as name, geom from "${ROADS_TABLE}" ` +
-        `where F_CODE in (${MOTORWAY_CODES.join(",")}) and KURZBEZ_NAT is not null order by OBJECTID`,
+      `select KURZBEZ_NAT as ref, NAME as name, SHAPE_LEN as length, geom from "${ROADS_TABLE}" ` +
+        `where F_CODE in (${settings.codes.join(",")}) and KURZBEZ_NAT is not null order by OBJECTID`,
     )
     .all();
   database.close();
@@ -1006,43 +1043,45 @@ async function refreshMotorways() {
   const byRef = new Map();
   for (const row of rows) {
     const ref = row.ref.replace(/\s+/g, "");
-    if (!/^[AS]\d+$/.test(ref)) continue;
+    if (!settings.ref.test(ref)) continue;
     let route = byRef.get(ref);
     if (route === undefined) byRef.set(ref, (route = { pieces: [], names: new Map() }));
     for (const line of parseGeoPackageLines(row.geom)) {
       if (line.length > 1) route.pieces.push(line.map(([e, n]) => project(...gaussKruegerToGeographic(e, n))));
     }
+    // The route's own name is the one carried furthest; slip roads and
+    // town streets carry others.
     const name = (row.name ?? "").trim();
-    // The route's own name is the one most of its pieces carry; slip roads carry place names.
-    if (/Autobahn|Schnellstraße|[Tt]angente/.test(name)) route.names.set(name, (route.names.get(name) ?? 0) + 1);
+    if (settings.name.test(name)) route.names.set(name, (route.names.get(name) ?? 0) + row.length);
   }
   const lines = header(
     ROADS,
     [
-      `Motorways (A) and expressways (S): route, name, points in the view-box units of`,
-      `src/map/projection.ts. Pieces joined per route, simplified to ${MOTORWAY_KEEP.tolerance} units,`,
-      `strokes shorter than ${MOTORWAY_KEEP.minLength} units dropped.`,
+      `${settings.what}: route, name, points in the view-box units of src/map/projection.ts.`,
+      `Pieces joined per route, simplified to ${settings.tolerance} units` +
+        (settings.minLength > 0 ? `, strokes shorter than ${settings.minLength} units dropped.` : "."),
     ],
-    "--refresh-motorways",
+    settings.flag,
   );
+  const number = (ref) => Number.parseInt(ref.slice(1), 10);
   let strokes = 0;
-  for (const ref of [...byRef.keys()].sort((p, q) => byCodeUnit(p[0], q[0]) || Number(p.slice(1)) - Number(q.slice(1)))) {
+  for (const ref of [...byRef.keys()].sort((p, q) => byCodeUnit(p[0], q[0]) || number(p) - number(q) || byCodeUnit(p, q))) {
     const route = byRef.get(ref);
     const name = [...route.names].sort((p, q) => q[1] - p[1])[0]?.[0] ?? "";
     for (const line of joinPieces(route.pieces)) {
-      if (roadLength(line) < MOTORWAY_KEEP.minLength) continue;
-      const points = simplifyRoad(line, MOTORWAY_KEEP.tolerance);
+      if (roadLength(line) < settings.minLength) continue;
+      const points = simplifyRoad(line, settings.tolerance);
       lines.push([ref, name, points.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join(" ")].join("\t"));
       strokes += 1;
     }
   }
-  if (byRef.size < 20) throw new Error(`only ${byRef.size} motorway routes; expected about 30`);
-  writeInput(MOTORWAYS_FILE, lines);
+  if (byRef.size < settings.minRoutes) throw new Error(`only ${byRef.size} ${kind} routes; expected ${settings.minRoutes} or more`);
+  writeInput(settings.file, lines);
   console.log(`  kept ${strokes} strokes on ${byRef.size} routes from ${rows.length} road pieces`);
 }
 
-function readMotorways() {
-  return readInput(MOTORWAYS_FILE).map((line) => {
+function readRoads(kind) {
+  return readInput(ROAD_KINDS[kind].file).map((line) => {
     const [ref, name, points] = line.split("\t");
     return { ref, name, points: points.split(" ").map((pair) => pair.split(",").map(Number)) };
   });
@@ -1270,7 +1309,8 @@ function build(settings = {}) {
     places: { ...head("places", [PLACES, POPULATION]), places: placeTable },
     relief: { ...head("relief", [TERRAIN]), relief: packRelief(grid, RELIEF) },
     peaks: { ...head("peaks", [PLACES]), peaks: packPeaks(readPeaks(), PEAKS) },
-    motorways: { ...head("motorways", [ROADS]), motorways: packMotorways(readMotorways()) },
+    motorways: { ...head("motorways", [ROADS]), motorways: packRoads(readRoads("motorways"), ROAD_KINDS.motorways.q) },
+    "main-roads": { ...head("main-roads", [ROADS]), roads: packRoads(readRoads("main-roads"), ROAD_KINDS["main-roads"].q) },
   };
 
   const files = new Map();
@@ -1330,7 +1370,8 @@ if (everything || args.has("--refresh-rivers")) await refreshRivers();
 if (everything || args.has("--refresh-places")) await refreshPlaces();
 // Reads the committed terrain grid, so after the terrain.
 if (everything || args.has("--refresh-peaks")) await refreshPeaks();
-if (everything || args.has("--refresh-motorways")) await refreshMotorways();
+if (everything || args.has("--refresh-motorways")) await refreshRoads("motorways");
+if (everything || args.has("--refresh-main-roads")) await refreshRoads("main-roads");
 
 if (args.has("--measure")) {
   measure();

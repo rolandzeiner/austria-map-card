@@ -8,6 +8,7 @@
  */
 import type { SourceInfo } from "../data/format.ts";
 import type { Feature } from "../map/labels.ts";
+import { classOf, roadSet } from "./roads.ts";
 import type { Fact, MapStore, Table } from "./store.ts";
 
 export interface InfoFact {
@@ -111,15 +112,16 @@ export function describeFeature(store: MapStore, feature: Feature): FeatureInfo 
       }
       return { name: peaks.names[feature.row] ?? "", kind: "kinds.peak", parents, facts: factsOf(store, peaks.facts, feature.row) };
     }
-    case "motorway": {
-      const motorways = store.motorways;
-      const route = motorways?.refs.indexOf(feature.ref) ?? -1;
-      if (motorways === undefined || route < 0) return null;
-      const name = motorways.names[route] ?? "";
+    case "road": {
+      const roads = roadSet(store, classOf(feature.ref));
+      const route = roads?.refs.indexOf(feature.ref) ?? -1;
+      if (roads === undefined || route < 0) return null;
+      const name = roads.names[route] ?? "";
+      const kinds: Record<string, string> = { A: "kinds.motorway", S: "kinds.expressway", B: "kinds.main_road" };
       return {
         // "A1 · West Autobahn"; a route without a name of its own is its number.
         name: name === "" ? feature.ref : `${feature.ref} · ${name}`,
-        kind: feature.ref.startsWith("S") ? "kinds.expressway" : "kinds.motorway",
+        kind: kinds[feature.ref[0] ?? "A"] ?? "kinds.motorway",
         parents: [],
         facts: [],
       };

@@ -1,7 +1,7 @@
 /**
  * The format of the map's data chunks, and how to read them.
  *
- * The card's code is one file. The geometry is six more, written by
+ * The card's code is one file. The geometry is seven more, written by
  * `scripts/build-data.mjs` and imported one at a time when a layer or a zoom
  * level first needs them. Each is an ES module whose default export is one
  * of the `Chunk` shapes below.
@@ -26,6 +26,7 @@ export const CHUNK_IDS = [
   "terrain-detail",
   "rivers-detail",
   "places",
+  "relief",
 ] as const;
 export type ChunkId = (typeof CHUNK_IDS)[number];
 
@@ -289,6 +290,20 @@ export interface PlaceTable {
   readonly facts: readonly FactColumn[];
 }
 
+/**
+ * Ground height on a grid of one cell per view-box unit, for the tilted
+ * map. Rows run north to south. Each row is packed as the steps from one
+ * cell to the next, starting from 0, in units of `step` metres; 0 is no
+ * data, far outside the country.
+ */
+export interface ReliefGrid {
+  readonly columns: number;
+  readonly rows: number;
+  /** Metres per integer step. */
+  readonly step: number;
+  readonly d: string;
+}
+
 interface ChunkHead {
   readonly format: number;
   readonly sources: readonly SourceInfo[];
@@ -332,6 +347,11 @@ export interface PlacesChunk extends ChunkHead {
   readonly places: PlaceTable;
 }
 
+export interface ReliefChunk extends ChunkHead {
+  readonly id: "relief";
+  readonly relief: ReliefGrid;
+}
+
 export interface ChunkMap {
   base: BaseChunk;
   borders: BordersChunk;
@@ -339,5 +359,6 @@ export interface ChunkMap {
   "terrain-detail": TerrainDetailChunk;
   "rivers-detail": RiversDetailChunk;
   places: PlacesChunk;
+  relief: ReliefChunk;
 }
 export type Chunk = ChunkMap[ChunkId];

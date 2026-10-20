@@ -54,6 +54,12 @@ export interface LabelInput {
   readonly layers: ReadonlySet<LayerId>;
   readonly showLabels: boolean;
   readonly selection: Feature | null;
+  /**
+   * Where a map point lands on the canvas, or null when it cannot be seen
+   * (behind a tilted camera). Without it, the flat camera's `toScreen`.
+   * `box` must then cover every map point that may land on the canvas.
+   */
+  readonly project?: (x: number, y: number) => readonly [number, number] | null;
 }
 
 /** The scales, in pixels per map unit, between which each kind of name is shown. */
@@ -161,7 +167,13 @@ export function drawLabels(input: LabelInput): DrawnCity[] {
   const family = palette.font;
   const placer = new LabelPlacer({ x: 0, y: 0, w: size.width, h: size.height }, 3);
   const drawn: DrawnCity[] = [];
-  const inView = (x: number, y: number): boolean => x >= box[0] && x <= box[2] && y >= box[1] && y <= box[3];
+  const pixels = input.project ?? ((x: number, y: number): readonly [number, number] => toScreen(camera, size, x, y));
+  /** Where a map point is on the canvas, or null when it is off it. */
+  const onCanvas = (x: number, y: number): readonly [number, number] | null => {
+    if (x < box[0] || x > box[2] || y < box[1] || y > box[3]) return null;
+    const at = pixels(x, y);
+    return at !== null && at[0] >= 0 && at[0] <= size.width && at[1] >= 0 && at[1] <= size.height ? at : null;
+  };
 
   ctx.textBaseline = "middle";
   ctx.lineJoin = "round";
@@ -186,8 +198,9 @@ export function drawLabels(input: LabelInput): DrawnCity[] {
     if (places === undefined || cityDone.has(row)) return false;
     const mapX = places.at[row * 2] as number;
     const mapY = places.at[row * 2 + 1] as number;
-    if (!inView(mapX, mapY)) return false;
-    const [x, y] = toScreen(camera, size, mapX, mapY);
+    const at = onCanvas(mapX, mapY);
+    if (at === null) return false;
+    const [x, y] = at;
     const style = TOWN_STYLES[placeTier(places, row)] as TownStyle;
     const font = `${style.font} ${family}`;
     const dot: Rect = { x: x - style.radius - 1, y: y - style.radius - 1, w: style.radius * 2 + 2, h: style.radius * 2 + 2 };
@@ -259,7 +272,8 @@ export function drawLabels(input: LabelInput): DrawnCity[] {
       if (skip?.has(row)) continue;
       const mapX = table.at[row * 2] as number;
       const mapY = table.at[row * 2 + 1] as number;
-      if (!inView(mapX, mapY)) continue;
+      const at = onCanvas(mapX, mapY);
+      if (at === null) continue;
       const name = upper ? (table.names[row] as string).toUpperCase() : (table.names[row] as string);
       const width = widthOf(ctx, fullFont, name, withSpacing ? `spaced ${spacing}` : "");
       if (index !== undefined) {
@@ -267,7 +281,7 @@ export function drawLabels(input: LabelInput): DrawnCity[] {
         const [left, , right] = index.box(row);
         if ((right - left) * scale < width * 0.7) continue;
       }
-      const [x, y] = toScreen(camera, size, mapX, mapY);
+      const [x, y] = at;
       // On its label point, or failing that a line or two above or below it.
       const shifts = [0, -1.3, 1.3, -2.6, 2.6].map((lines) => lines * (height + 2));
       const spot = placer.placeFirst(shifts.map((shift) => centredOn(x, y + shift, width, height + 2)));
@@ -320,11 +334,16 @@ export function drawLabels(input: LabelInput): DrawnCity[] {
         const from = rivers.labels.start[line] as number;
         const to = rivers.labels.start[line + 1] as number;
         const screen = new Float32Array((to - from) * 2);
-        for (let point = from; point < to; point += 1) {
-          const [x, y] = toScreen(camera, size, rivers.labels.xy[point * 2] as number, rivers.labels.xy[point * 2 + 1] as number);
-          screen[(point - from) * 2] = x;
-          screen[(point - from) * 2 + 1] = y;
+        let seen = true;
+        for (let point = from; point < to && seen; point += 1) {
+          const at = pixels(rivers.labels.xy[point * 2] as number, rivers.labels.xy[point * 2 + 1] as number);
+          if (at === null) seen = false;
+          else {
+            screen[(point - from) * 2] = at[0];
+            screen[(point - from) * 2 + 1] = at[1];
+          }
         }
+        if (!seen) continue;
         const measured = measure(screen);
         const visible = longestInside(measured, canvas);
         if (visible === null) continue;

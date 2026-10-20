@@ -11,6 +11,7 @@ import { LAYERS, chunksFor, type LayerDef } from "./layers/registry.ts";
 import { locate, locationKey, type Position } from "./location.ts";
 import { localize, resolveLang } from "./localize/localize.ts";
 import {
+  clampCamera,
   fitBox,
   homeCamera,
   panBy,
@@ -21,13 +22,28 @@ import {
   type Camera,
   type Size,
 } from "./map/camera.ts";
-import { MapGesture, ZOOM_STEP, keyCommand, wheelFactor } from "./map/gestures.ts";
+import { MapGesture, ZOOM_STEP, keyCommand, wheelFactor, type Pose } from "./map/gestures.ts";
 import type { Feature } from "./map/labels.ts";
-import { derivePalette, readTheme } from "./map/palette.ts";
+import { derivePalette, readTheme, type Palette } from "./map/palette.ts";
 import { project, type MapPoint } from "./map/projection.ts";
+import { ReliefGL } from "./map/relief-gl.ts";
 import { MapRenderer, type RenderState } from "./map/renderer.ts";
+import {
+  FLAT,
+  TILT_PITCH,
+  View3D,
+  clampTilted,
+  isFlat,
+  normalBearing,
+  orient,
+  panTilted,
+  zoomTilted,
+  type Orientation,
+} from "./map/view3d.ts";
+import type { Relief } from "./layers/store.ts";
 import { cardStyles } from "./styles.ts";
 import { PROVINCE_IDS, type HomeAssistant, type LayerId } from "./types.ts";
+import { MAP_HEIGHT, MAP_WIDTH } from "./map/projection.ts";
 
 console.info(
   `%c AUSTRIA-MAP-CARD %c ${CARD_VERSION} `,
@@ -41,6 +57,18 @@ const FRAME_PADDING = 28;
 const HERE_SURROUNDINGS = 14;
 const TOAST_MS = 1800;
 const LICENCE_URL = "https://creativecommons.org/licenses/by/4.0/";
+
+/** Pixels across of the flat map laid over the relief. */
+const DRAPE_WIDTH = 3072;
+const TILT_MS = 450;
+
+/** Whether this browser can draw the tilted map at all. */
+const canTilt = (): boolean => typeof WebGL2RenderingContext !== "undefined";
+
+/** Flat ground, for the moment between tilting and the relief arriving. */
+let flatGround: Relief | undefined;
+const flatRelief = (): Relief =>
+  (flatGround ??= { columns: MAP_WIDTH, rows: MAP_HEIGHT, metres: new Float32Array(MAP_WIDTH * MAP_HEIGHT), peak: 0 });
 
 /** What a layer's line in the layer list says under its name, if anything. */
 type LayerNote = "zoom" | "loading" | "failed" | null;
@@ -61,10 +89,15 @@ export class AustriaMapCard extends LitElement {
   @state() private _nothingHere = false;
   /** Bumped when something the template shows changed outside Lit's view. */
   @state() private _revision = 0;
+  /** Tilt and compass heading; FLAT is the plain map. Lasts for the session. */
+  @state() private _orientation: Orientation = FLAT;
+  /** False once WebGL 2 turned out not to be there. */
+  @state() private _canTilt = canTilt();
   /** The browser's answer when the pin follows this device. */
   @state() private _device: Position | null = null;
 
-  @query("canvas") private _canvas?: HTMLCanvasElement;
+  @query("canvas.map") private _canvas?: HTMLCanvasElement;
+  @query("canvas.relief") private _reliefCanvas?: HTMLCanvasElement;
   @query(".stage") private _stage?: HTMLElement;
   @query(".probe") private _probe?: HTMLElement;
   @query(".layers-button") private _layersButton?: HTMLButtonElement;
@@ -82,6 +115,13 @@ export class AustriaMapCard extends LitElement {
   private _viewKey = "";
   private _locationKey = "";
   private _watch: number | null = null;
+  /** The WebGL renderer, made the first time the map tilts. */
+  private _gl: ReliefGL | null = null;
+  private _drape?: { canvas: HTMLCanvasElement; renderer: MapRenderer; key: string };
+  private _palette?: Palette;
+  private _tiltRaf = 0;
+  /** The right mouse button or Shift turns and tilts instead of moving. */
+  private _turning = false;
 
   // ── HA card contract ───────────────────────────────────────────────────
 
@@ -141,6 +181,8 @@ export class AustriaMapCard extends LitElement {
     clearTimeout(this._toastTimer);
     this._gesture.reset();
     this._stopDeviceWatch();
+    cancelAnimationFrame(this._tiltRaf);
+    this._tiltRaf = 0;
   }
 
   /** Re-render only when something the card shows changed. Home Assistant
@@ -196,6 +238,7 @@ export class AustriaMapCard extends LitElement {
     const before = renderer.size;
     if (size.width === before.width && size.height === before.height) return;
     renderer.resize(size.width, size.height, window.devicePixelRatio);
+    if (this._gl && this._reliefCanvas) this._gl.resize(this._reliefCanvas, size.width, size.height, window.devicePixelRatio);
     // Being laid out means being in the document: a good moment to retry a
     // palette read that failed earlier.
     if (!renderer.hasPalette) this._refreshPalette(true);
@@ -230,7 +273,8 @@ export class AustriaMapCard extends LitElement {
       return;
     }
     this._paletteKey = key;
-    renderer.setPalette(derivePalette(theme));
+    this._palette = derivePalette(theme);
+    renderer.setPalette(this._palette);
     this._requestDraw();
   }
 
@@ -305,12 +349,126 @@ export class AustriaMapCard extends LitElement {
   private _zoomBy(factor: number): void {
     const size = this._renderer?.size;
     if (!this._camera || !size) return;
-    this._setCamera(zoomAbout(this._camera, size, size.width / 2, size.height / 2, factor));
+    if (!this._flat) this._setCamera(zoomTilted(this._camera, size, factor));
+    else this._setCamera(zoomAbout(this._camera, size, size.width / 2, size.height / 2, factor));
   }
 
   private _resetView(): void {
     const camera = this._openingCamera();
+    this._stopTilt();
+    this._orientation = FLAT;
     if (camera) this._setCamera(camera);
+  }
+
+  // ── Tilt and turn ──────────────────────────────────────────────────────
+
+  /** True while the plain map is drawn: no tilt, north up, or no WebGL. */
+  private get _flat(): boolean {
+    return isFlat(this._orientation) || !this._canTilt;
+  }
+
+  /** The WebGL renderer, made on first use; null where there is none. */
+  private _relief(): ReliefGL | null {
+    if (this._gl !== null || !this._canTilt) return this._gl;
+    const canvas = this._reliefCanvas;
+    const size = this._renderer?.size;
+    if (!canvas || !size) return null;
+    this._gl = ReliefGL.create(canvas);
+    if (this._gl === null) {
+      this._canTilt = false;
+      this._orientation = FLAT;
+      return null;
+    }
+    this._gl.resize(canvas, size.width, size.height, window.devicePixelRatio);
+    return this._gl;
+  }
+
+  /** Apply a pose from a gesture or a key. Back at no tilt and near north,
+   *  the map snaps flat and the flat camera's limits apply again. */
+  private _setPose(pose: Pose): void {
+    const size = this._renderer?.size;
+    if (!size) return;
+    let { orientation } = pose;
+    if (orientation.pitch === 0 && Math.abs(orientation.bearing) < 0.05) orientation = FLAT;
+    this._orientation = orientation;
+    this._setCamera(isFlat(orientation) ? clampCamera(pose.camera, size) : clampTilted(pose.camera, size));
+  }
+
+  private _orientBy(pitch: number, bearing: number): void {
+    if (!this._camera || !this._canTilt) return;
+    this._stopTilt();
+    this._setPose({ camera: this._camera, orientation: orient(this._orientation, pitch, bearing) });
+  }
+
+  private _stopTilt(): void {
+    cancelAnimationFrame(this._tiltRaf);
+    this._tiltRaf = 0;
+  }
+
+  /** Ease to an orientation, the short way round; at once with reduced motion. */
+  private _tiltTo(target: Orientation): void {
+    this._stopTilt();
+    const from = this._orientation;
+    const turn = normalBearing(target.bearing - from.bearing);
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+      if (this._camera) this._setPose({ camera: this._camera, orientation: target });
+      return;
+    }
+    const start = performance.now();
+    const step = (now: number): void => {
+      const t = Math.min(1, (now - start) / TILT_MS);
+      const eased = t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
+      const camera = this._camera;
+      if (!camera) return;
+      this._setPose({
+        camera,
+        orientation:
+          t >= 1
+            ? target
+            : { pitch: from.pitch + (target.pitch - from.pitch) * eased, bearing: normalBearing(from.bearing + turn * eased) },
+      });
+      this._tiltRaf = t < 1 ? requestAnimationFrame(step) : 0;
+    };
+    this._tiltRaf = requestAnimationFrame(step);
+  }
+
+  private _toggleTilt(): void {
+    this._tiltTo(this._orientation.pitch > 0 ? FLAT : { pitch: TILT_PITCH, bearing: this._orientation.bearing });
+  }
+
+  private _faceNorth(): void {
+    this._tiltTo({ pitch: this._orientation.pitch, bearing: 0 });
+  }
+
+  /** The layers laid over the relief: the towns are drawn upright, over it. */
+  private _drapeLayers(): ReadonlySet<LayerId> {
+    return new Set([...this._layers].filter((id) => id !== "cities"));
+  }
+
+  /** Redraw the flat map that covers the relief, when what it shows changed. */
+  private _updateDrape(gl: ReliefGL): void {
+    const palette = this._palette;
+    if (palette === undefined) return;
+    if (this._drape === undefined) {
+      const canvas = document.createElement("canvas");
+      this._drape = { canvas, renderer: new MapRenderer(canvas, this._loader.store, () => new Path2D()), key: "" };
+      this._drape.renderer.resize(DRAPE_WIDTH, Math.round((DRAPE_WIDTH * MAP_HEIGHT) / MAP_WIDTH), 1, DRAPE_WIDTH);
+    }
+    const drape = this._drape;
+    const layers = this._drapeLayers();
+    const selection = this._selection?.kind === "city" ? null : this._selection;
+    const key = [this._loader.store.revision, [...layers].join(), this._paletteKey, JSON.stringify(selection)].join("|");
+    if (key === drape.key) return;
+    drape.key = key;
+    drape.renderer.setPalette(palette);
+    drape.renderer.draw({
+      camera: { x: MAP_WIDTH / 2, y: MAP_HEIGHT / 2, k: DRAPE_WIDTH / MAP_WIDTH },
+      layers,
+      showLabels: false,
+      selection,
+      here: null,
+    });
+    gl.setDrape(drape.canvas, key);
   }
 
   // ── Drawing ────────────────────────────────────────────────────────────
@@ -341,7 +499,24 @@ export class AustriaMapCard extends LitElement {
     const camera = this._camera ?? homeCamera(renderer.size);
     // Ask for whatever this view needs; what is already there costs nothing.
     this._loader.request(chunksFor(this._layers, camera.k));
-    renderer.draw(this._state(camera));
+    const gl = this._flat ? null : this._relief();
+    if (gl === null || gl.lost) {
+      if (this._reliefCanvas) this._reliefCanvas.hidden = true;
+      if (gl?.lost) {
+        this._canTilt = false;
+        this._orientation = FLAT;
+      }
+      renderer.draw(this._state(camera));
+    } else {
+      if (this._reliefCanvas) this._reliefCanvas.hidden = false;
+      this._loader.request(["relief", ...chunksFor(this._drapeLayers(), DRAPE_WIDTH / MAP_WIDTH)]);
+      const store = this._loader.store;
+      gl.setRelief(store.relief ?? flatRelief());
+      this._updateDrape(gl);
+      const view = new View3D(camera, this._orientation, renderer.size, store.relief);
+      gl.draw(view);
+      renderer.drawTilted(this._state(camera), view);
+    }
     this._syncView(camera, renderer.size);
   }
 
@@ -374,6 +549,8 @@ export class AustriaMapCard extends LitElement {
   private _onPointerDown(event: PointerEvent): void {
     const canvas = event.currentTarget as HTMLCanvasElement;
     canvas.setPointerCapture?.(event.pointerId);
+    this._stopTilt();
+    this._turning = this._canTilt && (event.button === 2 || event.shiftKey);
     this._gesture.down(event.pointerId, ...this._local(event));
     canvas.classList.add("dragging");
   }
@@ -381,8 +558,19 @@ export class AustriaMapCard extends LitElement {
   private _onPointerMove(event: PointerEvent): void {
     const size = this._renderer?.size;
     if (!this._camera || !size) return;
+    if (this._canTilt) {
+      const pose = { camera: this._camera, orientation: this._orientation };
+      const next = this._gesture.movePose(event.pointerId, ...this._local(event), pose, size, this._turning);
+      if (next !== null && (next.camera !== pose.camera || next.orientation !== pose.orientation)) this._setPose(next);
+      return;
+    }
     const camera = this._gesture.move(event.pointerId, ...this._local(event), this._camera, size);
     if (camera !== null && camera !== this._camera) this._setCamera(camera);
+  }
+
+  /** The right mouse button turns the map, so its menu stays shut. */
+  private _onContextMenu(event: MouseEvent): void {
+    if (this._canTilt) event.preventDefault();
   }
 
   private _onPointerUp(event: PointerEvent): void {
@@ -391,7 +579,13 @@ export class AustriaMapCard extends LitElement {
     if (!this._gesture.active) (event.currentTarget as HTMLElement).classList.remove("dragging");
     const renderer = this._renderer;
     if (!renderer || !this._camera) return;
-    if (release === "double-tap") {
+    if (release === "double-tap" && !this._flat) {
+      // Zoom in on the tapped ground: it comes to the middle.
+      const view = new View3D(this._camera, this._orientation, renderer.size, this._loader.store.relief);
+      const at = view.pick(x, y, this._loader.store.relief);
+      const camera = at === null ? this._camera : { ...this._camera, x: at[0], y: at[1] };
+      this._setCamera(zoomTilted(camera, renderer.size, ZOOM_STEP * ZOOM_STEP));
+    } else if (release === "double-tap") {
       this._setCamera(zoomAbout(this._camera, renderer.size, x, y, ZOOM_STEP * ZOOM_STEP));
     } else if (release === "tap") {
       this._select(renderer.hit(this._state(this._camera), x, y));
@@ -411,7 +605,8 @@ export class AustriaMapCard extends LitElement {
       event.preventDefault();
       const size = this._renderer?.size;
       if (!this._camera || !size) return;
-      this._setCamera(zoomAbout(this._camera, size, ...this._local(event), wheelFactor(event.deltaY)));
+      if (!this._flat) this._setCamera(zoomTilted(this._camera, size, wheelFactor(event.deltaY)));
+      else this._setCamera(zoomAbout(this._camera, size, ...this._local(event), wheelFactor(event.deltaY)));
     },
     passive: false,
   };
@@ -419,12 +614,18 @@ export class AustriaMapCard extends LitElement {
   private _onKeyDown(event: KeyboardEvent): void {
     // Shortcuts with a modifier belong to the browser.
     if (event.ctrlKey || event.metaKey || event.altKey) return;
-    const command = keyCommand(event.key);
+    const command = keyCommand(event.key, event.shiftKey, this._canTilt);
     const renderer = this._renderer;
     if (!command || !renderer || !this._camera) return;
     event.preventDefault();
     const size = renderer.size;
-    if (command.kind === "pan") this._setCamera(panBy(this._camera, size, command.dx, command.dy));
+    if (command.kind === "pan") {
+      this._setCamera(
+        this._flat
+          ? panBy(this._camera, size, command.dx, command.dy)
+          : panTilted(this._camera, this._orientation, size, command.dx, command.dy),
+      );
+    } else if (command.kind === "orient") this._orientBy(command.pitch, command.bearing);
     else if (command.kind === "zoom") this._zoomBy(command.factor);
     else if (command.kind === "reset") this._resetView();
     else {
@@ -513,7 +714,7 @@ export class AustriaMapCard extends LitElement {
         ${config.title ? html`<h2 class="title">${config.title}</h2>` : nothing}
         <div class="stage">
           <canvas
-            class=${classMap({ zoomed: zoom > 1.0001 })}
+            class=${classMap({ map: true, zoomed: zoom > 1.0001, tilted: !this._flat })}
             tabindex="0"
             role="application"
             aria-label=${this._t("card.map_label")}
@@ -524,10 +725,14 @@ export class AustriaMapCard extends LitElement {
             @pointercancel=${this._onPointerUp}
             @wheel=${this._wheel}
             @keydown=${this._onKeyDown}
+            @contextmenu=${this._onContextMenu}
           ></canvas>
+          ${this._canTilt ? html`<canvas class="relief" aria-hidden="true" hidden></canvas>` : nothing}
           <span class="crosshair" aria-hidden="true"></span>
-          <span id="map-help" class="sr-only">${this._t("card.map_help")}</span>
-          ${ready ? nothing : this._renderLoading()} ${this._renderToolbar(zoom)}
+          <span id="map-help" class="sr-only"
+            >${this._t("card.map_help")}${this._canTilt ? ` ${this._t("card.map_help_tilt")}` : ""}</span
+          >
+          ${ready ? nothing : this._renderLoading()} ${this._renderReliefLoading()} ${this._renderToolbar(zoom)}
           ${this._layersOpen && config.show_layer_control ? this._renderLayers() : nothing} ${this._renderNotice()}
         </div>
         ${this._renderInfo()} ${this._renderCredit()}
@@ -539,6 +744,11 @@ export class AustriaMapCard extends LitElement {
     const state = this._loader.state("base");
     if (state === "failed" || state === "outdated") return nothing;
     return html`<div class="loading" role="status">${this._t("card.loading")}</div>`;
+  }
+
+  private _renderReliefLoading(): TemplateResult | typeof nothing {
+    if (this._flat || this._loader.state("relief") !== "loading") return nothing;
+    return html`<div class="toast" role="status">${this._t("card.loading_relief")}</div>`;
   }
 
   private _tool(label: string, icon: string, onClick: () => void, disabled = false): TemplateResult {
@@ -574,6 +784,37 @@ export class AustriaMapCard extends LitElement {
         ${this._tool(this._t("controls.zoom_in"), "mdi:plus", () => this._zoomBy(ZOOM_STEP), zoom >= MAX_ZOOM - 0.0001)}
         ${this._tool(this._t("controls.zoom_out"), "mdi:minus", () => this._zoomBy(1 / ZOOM_STEP), zoom <= 1.0001)}
         ${this._tool(this._t("controls.reset"), "mdi:fit-to-screen-outline", () => this._resetView())}
+        ${this._canTilt
+          ? html`
+              <button
+                type="button"
+                class="tool"
+                aria-label=${this._t("controls.tilt")}
+                title=${this._t("controls.tilt")}
+                aria-pressed=${this._orientation.pitch > 0 ? "true" : "false"}
+                @click=${() => this._toggleTilt()}
+              >
+                <ha-icon icon="mdi:rotate-3d-variant" aria-hidden="true"></ha-icon>
+              </button>
+            `
+          : nothing}
+        ${this._canTilt && this._orientation.bearing !== 0
+          ? html`
+              <button
+                type="button"
+                class="tool compass"
+                aria-label=${this._t("controls.north")}
+                title=${this._t("controls.north")}
+                @click=${() => this._faceNorth()}
+              >
+                <ha-icon
+                  icon="mdi:navigation"
+                  aria-hidden="true"
+                  style=${`transform: rotate(${-this._orientation.bearing}rad)`}
+                ></ha-icon>
+              </button>
+            `
+          : nothing}
         ${this._config.show_location
           ? this._tool(this._t("controls.my_location"), "mdi:crosshairs-gps", () => this._goHere(), this._here() === null)
           : nothing}

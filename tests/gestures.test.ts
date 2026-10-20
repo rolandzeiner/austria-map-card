@@ -1,7 +1,20 @@
 import { describe, expect, it } from "vitest";
 
 import { toMap, zoomOf, type Camera } from "../src/map/camera.ts";
-import { DOUBLE_TAP_MS, KEY_PAN, MapGesture, ZOOM_STEP, keyCommand, wheelFactor } from "../src/map/gestures.ts";
+import {
+  DOUBLE_TAP_MS,
+  KEY_PAN,
+  KEY_TILT,
+  KEY_TURN,
+  MapGesture,
+  TILT_RATE,
+  TURN_RATE,
+  ZOOM_STEP,
+  keyCommand,
+  wheelFactor,
+  type Pose,
+} from "../src/map/gestures.ts";
+import { FLAT } from "../src/map/view3d.ts";
 
 const size = { width: 500, height: 265 };
 const zoomed: Camera = { x: 500, y: 265, k: 4 };
@@ -129,5 +142,66 @@ describe("the wheel", () => {
   it("caps one event, however large its delta", () => {
     expect(wheelFactor(-5000)).toBe(wheelFactor(-120));
     expect(zoomOf({ x: 0, y: 0, k: wheelFactor(-5000) }, { width: 1000, height: 530 })).toBeLessThan(2);
+  });
+});
+
+describe("tilting and turning", () => {
+  const size = { width: 760, height: 403 };
+  const camera = { x: 500, y: 265, k: 0.76 * 4 };
+  const flat: Pose = { camera, orientation: FLAT };
+
+  it("moves the map with one finger, as the flat gesture does", () => {
+    const gesture = new MapGesture();
+    gesture.down(1, 100, 100);
+    const pose = gesture.movePose(1, 140, 120, flat, size, false)!;
+    expect(pose.orientation).toBe(FLAT);
+    expect(pose.camera.x).toBeLessThan(camera.x);
+  });
+
+  it("tilts by dragging up and turns by dragging sideways, with Shift or the right button", () => {
+    const gesture = new MapGesture();
+    gesture.down(1, 100, 200);
+    const tilted = gesture.movePose(1, 100, 150, flat, size, true)!;
+    expect(tilted.orientation.pitch).toBeCloseTo(50 * TILT_RATE);
+    expect(tilted.camera).toBe(camera);
+    const turned = gesture.movePose(1, 140, 150, tilted, size, true)!;
+    expect(turned.orientation.bearing).toBeCloseTo(-40 * TURN_RATE);
+  });
+
+  it("tilts when two fingers slide up side by side", () => {
+    const gesture = new MapGesture();
+    gesture.down(1, 300, 300);
+    gesture.down(2, 400, 300);
+    let pose = flat;
+    for (let step = 1; step <= 6; step += 1) {
+      pose = gesture.movePose(1, 300, 300 - step * 5, pose, size, false)!;
+      pose = gesture.movePose(2, 400, 300 - step * 5, pose, size, false)!;
+    }
+    expect(pose.orientation.pitch).toBeGreaterThan(0.1);
+    expect(pose.orientation.bearing).toBe(0);
+    expect(pose.camera.k).toBe(camera.k);
+  });
+
+  it("pinches without turning until the fingers have twisted far enough", () => {
+    const gesture = new MapGesture();
+    gesture.down(1, 300, 200);
+    gesture.down(2, 400, 200);
+    // Spread apart with a slight twist: zoom only.
+    let pose = gesture.movePose(2, 440, 210, flat, size, false)!;
+    pose = gesture.movePose(2, 460, 212, pose, size, false)!;
+    expect(pose.orientation).toEqual(FLAT);
+    expect(pose.camera.k).toBeGreaterThan(camera.k);
+    // A real twist turns the map.
+    pose = gesture.movePose(2, 400, 330, pose, size, false)!;
+    expect(Math.abs(pose.orientation.bearing)).toBeGreaterThan(0.21);
+    expect(pose.orientation.pitch).toBe(0);
+  });
+
+  it("offers Shift and the arrows to tilt and turn, but only where the map can tilt", () => {
+    expect(keyCommand("ArrowUp", true, true)).toEqual({ kind: "orient", pitch: KEY_TILT, bearing: 0 });
+    expect(keyCommand("ArrowRight", true, true)).toEqual({ kind: "orient", pitch: 0, bearing: -KEY_TURN });
+    expect(keyCommand("ArrowUp", true, false)).toEqual({ kind: "pan", dx: 0, dy: KEY_PAN });
+    // "+" takes Shift on many keyboards and still zooms.
+    expect(keyCommand("+", true, true)).toEqual({ kind: "zoom", factor: ZOOM_STEP });
   });
 });

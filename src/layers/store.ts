@@ -21,6 +21,7 @@ import {
   type FactColumn,
   type Lines,
   type PlaceTable,
+  type ReliefGrid,
   type RiverSet,
   type SourceInfo,
   type TerrainSet,
@@ -80,6 +81,53 @@ export interface Places {
   readonly municipality: Int32Array;
   readonly rank: Int32Array;
   readonly facts: readonly Fact[];
+}
+
+/** Ground height in metres, one value per view-box unit; 0 is no data. */
+export interface Relief {
+  readonly columns: number;
+  readonly rows: number;
+  readonly metres: Float32Array;
+  /** The highest cell, in metres. */
+  readonly peak: number;
+}
+
+function readRelief(grid: ReliefGrid): Relief {
+  const steps = decodeInts(grid.d);
+  if (steps.length !== grid.columns * grid.rows) throw new Error("the relief grid is damaged");
+  const metres = new Float32Array(steps.length);
+  let peak = 0;
+  for (let row = 0; row < grid.rows; row += 1) {
+    let value = 0;
+    for (let column = 0; column < grid.columns; column += 1) {
+      const index = row * grid.columns + column;
+      value += steps[index] as number;
+      const height = value * grid.step;
+      metres[index] = height;
+      if (height > peak) peak = height;
+    }
+  }
+  return { columns: grid.columns, rows: grid.rows, metres, peak };
+}
+
+/**
+ * The ground height at a map point, in metres, interpolated between the
+ * four nearest cell centres. Off the grid, the nearest edge.
+ */
+export function heightAt(relief: Relief, x: number, y: number): number {
+  const { columns, rows, metres } = relief;
+  const fx = Math.min(Math.max(x - 0.5, 0), columns - 1);
+  const fy = Math.min(Math.max(y - 0.5, 0), rows - 1);
+  const x0 = Math.floor(fx);
+  const y0 = Math.floor(fy);
+  const x1 = Math.min(x0 + 1, columns - 1);
+  const y1 = Math.min(y0 + 1, rows - 1);
+  const tx = fx - x0;
+  const ty = fy - y0;
+  const at = (c: number, r: number): number => metres[r * columns + c] as number;
+  const top = at(x0, y0) * (1 - tx) + at(x1, y0) * tx;
+  const bottom = at(x0, y1) * (1 - tx) + at(x1, y1) * tx;
+  return top * (1 - ty) + bottom * ty;
 }
 
 const readFacts = (facts: readonly FactColumn[]): Fact[] =>
@@ -178,6 +226,7 @@ export class MapStore {
   public terrainDetail: Terrain | undefined;
   public riversDetail: Rivers | undefined;
   public places: Places | undefined;
+  public relief: Relief | undefined;
 
   private readonly loaded = new Map<ChunkId, readonly SourceInfo[]>();
   private municipal: ArcIndex | undefined;
@@ -272,6 +321,9 @@ export class MapStore {
         break;
       case "places":
         this.places = readPlaces(chunk.places);
+        break;
+      case "relief":
+        this.relief = readRelief(chunk.relief);
         break;
     }
     this.loaded.set(chunk.id, chunk.sources);

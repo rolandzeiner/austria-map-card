@@ -56,7 +56,7 @@ describe("the stage", () => {
     expect(css).toMatch(/\.stage\s*{[^}]*flex:\s*1 1 auto/);
   });
 
-  it("is never shorter than the column of buttons on it", () => {
+  it("is never shorter than the buttons on it, wrapped on a narrow card", () => {
     // Without an explicit minimum a flex item cannot shrink below its
     // aspect-ratio height; with a minimum of 0 a narrow card would be
     // shorter than its own toolbar.

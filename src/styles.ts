@@ -82,7 +82,8 @@ export const cardStyles = css`
      asks for, and it is not 0 but the height of the four buttons on the
      map plus their margins: on a card 300 px wide the proportions alone
      would give 159 px, and the buttons would hang out over the panel
-     below. */
+     below. The buttons are one row now, but a narrow card wraps it, and
+     the layer list opens under it. */
   .stage {
     position: relative;
     flex: 1 1 auto;
@@ -149,9 +150,7 @@ export const cardStyles = css`
      little on a dark theme so it keeps 3:1 against the dial (WCAG 1.4.11);
      the needle's shape tells north from south without the colour. */
   .compass {
-    position: absolute;
-    inset-block-start: var(--ha-space-2, 8px);
-    inset-inline-start: var(--ha-space-2, 8px);
+    flex: none;
     inline-size: var(--amc-control);
     block-size: var(--amc-control);
     padding: 0;
@@ -197,12 +196,24 @@ export const cardStyles = css`
   .compass:focus-visible {
     border-radius: 50%;
   }
-  .toolbar {
+  /* The compass and the buttons, in a row along the top from the left:
+     the empty corner over Bavaria. The row wraps on a card too narrow for
+     it, and the layer list opens under it, however many lines it takes. */
+  .controls {
     position: absolute;
     inset-block-start: var(--ha-space-2, 8px);
-    inset-inline-end: var(--ha-space-2, 8px);
+    inset-inline-start: var(--ha-space-2, 8px);
+    max-inline-size: calc(100% - var(--ha-space-4, 16px));
+    max-block-size: calc(100% - var(--ha-space-4, 16px));
     display: flex;
     flex-direction: column;
+    align-items: flex-start;
+    gap: var(--ha-space-2, 8px);
+  }
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
     gap: var(--ha-space-1, 4px);
   }
   .tool,
@@ -229,15 +240,14 @@ export const cardStyles = css`
     color: var(--amc-accent);
   }
   .tool-gap {
-    block-size: var(--ha-space-1, 4px);
+    inline-size: var(--ha-space-1, 4px);
   }
 
+  /* Under the row of buttons; it scrolls in what is left of the stage. */
   .layers {
-    position: absolute;
-    inset-block-start: var(--ha-space-2, 8px);
-    inset-inline-end: calc(var(--amc-control) + var(--ha-space-4, 16px));
-    inline-size: min(260px, calc(100% - var(--amc-control) - var(--ha-space-6, 24px)));
-    max-block-size: calc(100% - var(--ha-space-4, 16px));
+    inline-size: min(260px, 100%);
+    min-block-size: 0;
+    box-sizing: border-box;
     overflow-y: auto;
     padding: var(--ha-space-1, 4px);
     border: 1px solid var(--amc-line);
@@ -435,6 +445,32 @@ export const cardStyles = css`
   }
   .credit a {
     color: inherit;
+  }
+
+  /* A card too narrow for the row of buttons to fit in the empty corner
+     over Bavaria: the map starts under the row, and the stage grows by as
+     much, so the whole-country view keeps its size and nothing of Austria
+     is covered. Pointer positions are measured on the canvas, so moving it
+     down needs nothing else. Below 340 px the row wraps onto two lines. */
+  @container austria-map-card (inline-size < 760px) {
+    .stage {
+      --amc-band: calc(var(--amc-control) + var(--ha-space-3, 12px));
+      padding-block-start: var(--amc-band);
+      aspect-ratio: auto;
+      block-size: calc((100cqi - 2 * var(--ha-space-2, 8px)) * 530 / 1000 + var(--amc-band));
+    }
+    canvas {
+      inset-block-start: var(--amc-band);
+      block-size: calc(100% - var(--amc-band));
+    }
+    .crosshair {
+      inset-block-start: calc(50% + var(--amc-band) / 2);
+    }
+  }
+  @container austria-map-card (inline-size < 340px) {
+    .stage {
+      --amc-band: calc(2 * var(--amc-control) + var(--ha-space-1, 4px) + var(--ha-space-3, 12px));
+    }
   }
 
   @container austria-map-card (inline-size < 360px) {

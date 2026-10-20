@@ -173,19 +173,22 @@ export class MapRenderer {
       showLabels: state.showLabels,
       selection: state.selection,
     });
-    if (state.selection?.kind === "city") {
-      const row = state.selection.row;
-      const city = this.cities.find((entry) => entry.row === row);
-      if (city !== undefined) {
-        ctx.beginPath();
-        ctx.arc(city.x, city.y, city.radius + 4.5, 0, Math.PI * 2);
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = palette.accent;
-        ctx.stroke();
-      }
-    }
+    this.ringSelected(state.selection, palette);
     // On top of everything: it is the one mark that is about you.
     if (state.here !== null) drawPin(ctx, ...toScreen(camera, size, ...state.here), palette);
+  }
+
+  /** Ring a selected town or summit, where the label pass drew it. */
+  private ringSelected(selection: Feature | null, palette: Palette): void {
+    if (selection?.kind !== "city" && selection?.kind !== "peak") return;
+    const { ctx } = this;
+    const drawn = this.cities.find((entry) => entry.kind === selection.kind && entry.row === selection.row);
+    if (drawn === undefined) return;
+    ctx.beginPath();
+    ctx.arc(drawn.x, drawn.y, drawn.radius + 4.5, 0, Math.PI * 2);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = palette.accent;
+    ctx.stroke();
   }
 
   /**
@@ -215,17 +218,7 @@ export class MapRenderer {
       selection: state.selection,
       project,
     });
-    if (state.selection?.kind === "city") {
-      const row = state.selection.row;
-      const city = this.cities.find((entry) => entry.row === row);
-      if (city !== undefined) {
-        ctx.beginPath();
-        ctx.arc(city.x, city.y, city.radius + 4.5, 0, Math.PI * 2);
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = palette.accent;
-        ctx.stroke();
-      }
-    }
+    this.ringSelected(state.selection, palette);
     if (state.here !== null) {
       const tip = project(...state.here);
       if (tip !== null) drawPin(ctx, tip[0], tip[1], palette);
@@ -306,7 +299,7 @@ export class MapRenderer {
         nearest = city;
       }
     }
-    if (nearest !== undefined) return { kind: "city", row: nearest.row };
+    if (nearest !== undefined) return { kind: nearest.kind, row: nearest.row };
 
     let x: number;
     let y: number;
@@ -355,6 +348,13 @@ export class MapRenderer {
         if (places === undefined) return undefined;
         const x = places.at[feature.row * 2] as number;
         const y = places.at[feature.row * 2 + 1] as number;
+        return [x - CITY_SURROUNDINGS, y - CITY_SURROUNDINGS, x + CITY_SURROUNDINGS, y + CITY_SURROUNDINGS];
+      }
+      case "peak": {
+        const peaks = store.peaks;
+        if (peaks === undefined) return undefined;
+        const x = peaks.at[feature.row * 2] as number;
+        const y = peaks.at[feature.row * 2 + 1] as number;
         return [x - CITY_SURROUNDINGS, y - CITY_SURROUNDINGS, x + CITY_SURROUNDINGS, y + CITY_SURROUNDINGS];
       }
       case "river":

@@ -20,6 +20,7 @@ import {
   type ChunkId,
   type FactColumn,
   type Lines,
+  type PeakTable,
   type PlaceTable,
   type ReliefGrid,
   type RiverSet,
@@ -81,6 +82,31 @@ export interface Places {
   readonly municipality: Int32Array;
   readonly rank: Int32Array;
   readonly facts: readonly Fact[];
+}
+
+/** Summits, most prominent first. */
+export interface Peaks {
+  readonly count: number;
+  readonly names: readonly string[];
+  readonly at: Float32Array;
+  /** Tenths of a map unit to the nearest higher summit. */
+  readonly isolation: Int32Array;
+  readonly major: Int32Array;
+  readonly height: Int32Array;
+  readonly facts: readonly Fact[];
+}
+
+function readPeaks(table: PeakTable): Peaks {
+  const facts = readFacts(table.facts);
+  return {
+    count: table.names.length,
+    names: table.names,
+    at: decodeLines(table.at).xy,
+    isolation: decodeInts(table.isolation),
+    major: decodeInts(table.major),
+    height: facts.find((fact) => fact.key === "height")?.values ?? new Int32Array(table.names.length),
+    facts,
+  };
 }
 
 /** Ground height in metres, one value per view-box unit; 0 is no data. */
@@ -227,6 +253,7 @@ export class MapStore {
   public riversDetail: Rivers | undefined;
   public places: Places | undefined;
   public relief: Relief | undefined;
+  public peaks: Peaks | undefined;
 
   private readonly loaded = new Map<ChunkId, readonly SourceInfo[]>();
   private municipal: ArcIndex | undefined;
@@ -324,6 +351,9 @@ export class MapStore {
         break;
       case "relief":
         this.relief = readRelief(chunk.relief);
+        break;
+      case "peaks":
+        this.peaks = readPeaks(chunk.peaks);
         break;
     }
     this.loaded.set(chunk.id, chunk.sources);

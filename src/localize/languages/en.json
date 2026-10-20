@@ -33,7 +33,8 @@
     "provinces": "Provinces",
     "districts": "Districts",
     "municipalities": "Municipalities",
-    "cities": "Towns and cities"
+    "cities": "Towns and cities",
+    "peaks": "Peaks"
   },
   "layer_notes": {
     "zoom": "Appears when you zoom in",
@@ -48,13 +49,15 @@
     "town_1": "Market town",
     "town_2": "Village",
     "river": "River",
-    "stream": "Stream"
+    "stream": "Stream",
+    "peak": "Peak"
   },
   "facts": {
     "population": "Population",
     "municipality_population": "Population of the municipality",
     "stream_order": "Stream order",
-    "source": "{holder}, as of {stand}"
+    "source": "{holder}, as of {stand}",
+    "height": "Height"
   },
   "editor": {
     "title": "Title",

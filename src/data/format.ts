@@ -1,7 +1,7 @@
 /**
  * The format of the map's data chunks, and how to read them.
  *
- * The card's code is one file. The geometry is seven more, written by
+ * The card's code is one file. The geometry is eight more, written by
  * `scripts/build-data.mjs` and imported one at a time when a layer or a zoom
  * level first needs them. Each is an ES module whose default export is one
  * of the `Chunk` shapes below.
@@ -27,6 +27,7 @@ export const CHUNK_IDS = [
   "rivers-detail",
   "places",
   "relief",
+  "peaks",
 ] as const;
 export type ChunkId = (typeof CHUNK_IDS)[number];
 
@@ -216,7 +217,7 @@ export interface FactColumn {
   /** Translation key of the column's label. */
   readonly label: string;
   /** How to print a value. Zero means "not known for this row". */
-  readonly format: "integer";
+  readonly format: "integer" | "metres";
   /** `SourceInfo.id` of where the values come from. */
   readonly source: string;
   /** Packed integers, one per row. */
@@ -290,6 +291,23 @@ export interface PlaceTable {
   readonly facts: readonly FactColumn[];
 }
 
+/** Summits, most prominent first. */
+export interface PeakTable {
+  readonly names: readonly string[];
+  /** One point per summit, as a single packed line. */
+  readonly at: PackedLines;
+  /**
+   * Packed, per summit: its isolation, the distance to the nearest higher
+   * summit, in tenths of a view-box unit. It decides from which scale the
+   * summit is named, so the map shows the summits that stand out first.
+   */
+  readonly isolation: string;
+  /** Packed, per summit: 1 where the BEV marks it as major. */
+  readonly major: string;
+  /** Its height, among others. */
+  readonly facts: readonly FactColumn[];
+}
+
 /**
  * Ground height on a grid of one cell per view-box unit, for the tilted
  * map. Rows run north to south. Each row is packed as the steps from one
@@ -352,6 +370,11 @@ export interface ReliefChunk extends ChunkHead {
   readonly relief: ReliefGrid;
 }
 
+export interface PeaksChunk extends ChunkHead {
+  readonly id: "peaks";
+  readonly peaks: PeakTable;
+}
+
 export interface ChunkMap {
   base: BaseChunk;
   borders: BordersChunk;
@@ -360,5 +383,6 @@ export interface ChunkMap {
   "rivers-detail": RiversDetailChunk;
   places: PlacesChunk;
   relief: ReliefChunk;
+  peaks: PeaksChunk;
 }
 export type Chunk = ChunkMap[ChunkId];

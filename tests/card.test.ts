@@ -170,9 +170,10 @@ describe("the layer list", () => {
       "Gemeinden",
       "Bezirke",
       "Bundesländer",
+      "Gipfel",
       "Städte und Orte",
     ]);
-    expect(rows.map((row) => row.getAttribute("aria-checked"))).toEqual(["true", "true", "false", "false", "true", "true"]);
+    expect(rows.map((row) => row.getAttribute("aria-checked"))).toEqual(["true", "true", "false", "false", "true", "false", "true"]);
     for (const row of rows) expect(row.getAttribute("role")).toBe("switch");
   });
 

@@ -32,10 +32,12 @@ export type Feature =
   | { readonly kind: "district"; readonly row: number }
   | { readonly kind: "municipality"; readonly row: number }
   | { readonly kind: "city"; readonly row: number }
+  | { readonly kind: "peak"; readonly row: number }
   | { readonly kind: "river"; readonly name: string; readonly order: number };
 
-/** A town as drawn in a frame: what a tap is tested against. */
+/** A town or a summit as drawn in a frame: what a tap is tested against. */
 export interface DrawnCity {
+  readonly kind: "city" | "peak";
   readonly row: number;
   readonly x: number;
   readonly y: number;
@@ -95,6 +97,11 @@ export const riverLabel = (name: string): string => name.replace(/\s*[[(].*$/, "
 export const shortTownName = (name: string): string => name.replace(/ (am|an der|im|in|bei|ob) .*$/, "");
 
 const MAX_CITIES = 90;
+const MAX_PEAKS = 40;
+/** A summit is named once its isolation spans this many pixels. */
+export const PEAK_SPACING = 40;
+/** Half the width of a summit's triangle, in pixels. */
+const PEAK_SIZE = 4.5;
 const MAX_RIVER_NAMES = 14;
 /** Two names of the same river keep at least this many pixels apart. */
 const RIVER_REPEAT = 260;
@@ -244,7 +251,7 @@ export function drawLabels(input: LabelInput): DrawnCity[] {
       // The town already says its municipality's name.
       if ((seats?.[row] as number) > 0) namedMunicipalities.add(places.municipality[row] as number);
     }
-    drawn.push({ row, x, y, radius: style.radius, label });
+    drawn.push({ kind: "city", row, x, y, radius: style.radius, label });
     return true;
   };
 
@@ -301,6 +308,59 @@ export function drawLabels(input: LabelInput): DrawnCity[] {
     for (let row = 0; row < places.count && drawn.length < MAX_CITIES; row += 1) {
       if ((places.rank[row] as number) < least) break;
       town(row, false);
+    }
+  }
+
+  // ── Summits, the most isolated first ──────────────────────────────────
+  const peaks = layers.has("peaks") ? store.peaks : undefined;
+  if (peaks !== undefined) {
+    const nameFont = `italic 500 11px ${family}`;
+    const heightFont = `400 10px ${family}`;
+    const summit = (row: number, force: boolean): boolean => {
+      const at = onCanvas(peaks.at[row * 2] as number, peaks.at[row * 2 + 1] as number);
+      if (at === null) return false;
+      const [x, y] = at;
+      const mark: Rect = { x: x - PEAK_SIZE - 1, y: y - PEAK_SIZE - 1, w: PEAK_SIZE * 2 + 2, h: PEAK_SIZE * 2 + 1 };
+      const name = peaks.names[row] as string;
+      const height = `${peaks.height[row] as number}`;
+      const nameWidth = widthOf(ctx, nameFont, name);
+      const width = nameWidth + 4 + widthOf(ctx, heightFont, height);
+      let label: Rect | null = null;
+      if (!placer.fits([mark]) && !force) return false;
+      if (showLabels) {
+        const spots = aroundDot(x, y, PEAK_SIZE, width, 13);
+        const spot = placer.placeFirst(spots);
+        if (spot >= 0) label = spots[spot] as Rect;
+        else if (!force) return false;
+      }
+      placer.take([mark]);
+
+      ctx.beginPath();
+      ctx.moveTo(x, y - PEAK_SIZE);
+      ctx.lineTo(x + PEAK_SIZE, y + PEAK_SIZE * 0.75);
+      ctx.lineTo(x - PEAK_SIZE, y + PEAK_SIZE * 0.75);
+      ctx.closePath();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = palette.halo;
+      ctx.stroke();
+      ctx.fillStyle = palette.label;
+      ctx.fill();
+      if (label !== null) {
+        const middle = label.y + label.h / 2;
+        text(name, nameFont, palette.label, label.x, middle, "left");
+        text(height, heightFont, palette.labelMuted, label.x + nameWidth + 4, middle, "left");
+      }
+      drawn.push({ kind: "peak", row, x, y, radius: PEAK_SIZE, label });
+      return true;
+    };
+    if (selection?.kind === "peak") summit(selection.row, true);
+    let named = 0;
+    for (let row = 0; row < peaks.count && named < MAX_PEAKS; row += 1) {
+      const rank = ((peaks.isolation[row] as number) / 10) * ((peaks.major[row] as number) > 0 ? 2 : 1);
+      // Most isolated first: the first one that does not stand out ends the list.
+      if (rank * scale < PEAK_SPACING) break;
+      if (selection?.kind === "peak" && selection.row === row) continue;
+      if (summit(row, false)) named += 1;
     }
   }
 

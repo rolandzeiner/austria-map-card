@@ -33,7 +33,8 @@
     "provinces": "Bundesländer",
     "districts": "Bezirke",
     "municipalities": "Gemeinden",
-    "cities": "Städte und Orte"
+    "cities": "Städte und Orte",
+    "peaks": "Gipfel"
   },
   "layer_notes": {
     "zoom": "Erscheint, wenn du hineinzoomst",
@@ -48,13 +49,15 @@
     "town_1": "Markt",
     "town_2": "Dorf",
     "river": "Fluss",
-    "stream": "Bach"
+    "stream": "Bach",
+    "peak": "Gipfel"
   },
   "facts": {
     "population": "Einwohner",
     "municipality_population": "Einwohner der Gemeinde",
     "stream_order": "Flussordnungszahl",
-    "source": "{holder}, Stand {stand}"
+    "source": "{holder}, Stand {stand}",
+    "height": "Höhe"
   },
   "editor": {
     "title": "Titel",

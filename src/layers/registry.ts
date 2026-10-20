@@ -16,6 +16,7 @@ import type { Palette } from "../map/palette.ts";
 import type { ShapeCache } from "../map/tiles.ts";
 import { LAYER_IDS, type LayerId } from "../types.ts";
 import { districtsLayer, municipalitiesLayer, provincesLayer } from "./borders.ts";
+import { peaksLayer } from "./peaks.ts";
 import { citiesLayer } from "./places.ts";
 import { riversLayer } from "./rivers.ts";
 import { SCALES } from "./scales.ts";
@@ -58,6 +59,7 @@ export const LAYERS: readonly LayerDef[] = [
   municipalitiesLayer,
   districtsLayer,
   provincesLayer,
+  peaksLayer,
   citiesLayer,
 ];
 

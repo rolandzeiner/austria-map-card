@@ -333,6 +333,30 @@ describe("rivers", () => {
     expect(longest(2)).toBeGreaterThan(300);
   });
 
+  it.each(sets)("%s: every name has a length in Austria and the provinces it runs through", (_, rivers) => {
+    const length = rivers.facts.find((fact) => fact.key === "length")!;
+    expect(length.format).toBe("kilometres");
+    expect(length.values).toHaveLength(rivers.names.length);
+    expect(rivers.provinces).toHaveLength(rivers.names.length);
+  });
+
+  it("measures the rivers in Austria as published, in tenths of a kilometre", () => {
+    const rivers = store.riversDetail!;
+    const length = rivers.facts.find((fact) => fact.key === "length")!.values;
+    const km = (name: string): number => length[rivers.names.indexOf(name)]! / 10;
+    // Published lengths in Austria: Danube 350, Enns 254 (all of it), Wien 34.
+    expect(km("Donau")).toBeCloseTo(350, -1);
+    expect(km("Enns")).toBeCloseTo(254, -1);
+    expect(km("Wien")).toBeCloseTo(34, 0);
+    // Two rivers of one name: no length rather than their sum.
+    expect(km("Krems")).toBe(0);
+    expect(rivers.provinces[rivers.names.indexOf("Krems")]).toBe(0);
+    const provinces = (name: string): string[] =>
+      overview.provinces.names.filter((_, row) => (rivers.provinces[rivers.names.indexOf(name)]! & (1 << row)) !== 0);
+    expect(provinces("Mur")).toEqual(["Salzburg", "Steiermark"]);
+    expect(provinces("Donau")).toEqual(["Niederösterreich", "Oberösterreich", "Wien"]);
+  });
+
   it("keeps the border rivers: the March and the Thaya are on the map", () => {
     expect(overview.rivers.names).toContain("March (Morava)");
     expect(overview.rivers.names).toContain("Thaya (Dyje)");

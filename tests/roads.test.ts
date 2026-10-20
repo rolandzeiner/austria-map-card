@@ -91,6 +91,19 @@ describe("a tapped motorway", () => {
     expect(describeFeature(store, hit)).toMatchObject({ name: "A1 · West Autobahn", kind: "kinds.motorway" });
     expect(describeFeature(store, { kind: "road", ref: "S6" })?.kind).toBe("kinds.expressway");
   });
+
+  it("say how long a route is, its two carriageways counted once, and which provinces it runs through", () => {
+    const info = describeFeature(store, { kind: "road", ref: "A1" })!;
+    expect(info.parents).toEqual(["Niederösterreich", "Oberösterreich", "Salzburg", "Wien"]);
+    expect(info.facts).toEqual([
+      expect.objectContaining({ label: "facts.length", format: "kilometres", source: expect.objectContaining({ holder: "BEV" }) }),
+    ]);
+    // Published lengths: A1 292 km, S6 105 km, A10 192 km. Tenths of a kilometre.
+    const km = (ref: string): number => describeFeature(store, { kind: "road", ref })!.facts[0]!.value / 10;
+    expect(km("A1")).toBeCloseTo(292, -1);
+    expect(km("S6")).toBeCloseTo(105, -1);
+    expect(km("A10")).toBeCloseTo(192, -1);
+  });
 });
 
 describe("motorways on the tilted map", () => {
@@ -111,6 +124,13 @@ describe("main roads", () => {
     expect(roads.refs).toContain("B1");
     expect(roads.refs.length).toBeGreaterThan(200);
     expect(describeFeature(store, { kind: "road", ref: "B1" })).toMatchObject({ kind: "kinds.main_road" });
+  });
+
+  it("count a hairpin road in full: the Glocknerstraße is not halved", () => {
+    // The B3 Donau Straße is published at 195 km; the B107 runs some 35 km on the map's data.
+    const km = (ref: string): number => describeFeature(store, { kind: "road", ref })!.facts[0]!.value / 10;
+    expect(km("B3")).toBeCloseTo(195, -1);
+    expect(km("B107")).toBeGreaterThan(33);
   });
 
   it("are one thin line on the whole country, cased once zoomed in", () => {

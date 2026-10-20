@@ -61,6 +61,8 @@
     "population": "Population",
     "municipality_population": "Population of the municipality",
     "stream_order": "Stream order",
+    "length": "Length",
+    "length_in_austria": "Length in Austria",
     "source": "{holder}, as of {stand}",
     "height": "Height"
   },

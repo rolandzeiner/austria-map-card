@@ -267,6 +267,17 @@ describe("tapping the map", () => {
     expect(text(card, ".facts")).toMatch(/Population 2,\d{3},\d{3} Statistik Austria, as of 01\.01\.2026/);
   });
 
+  it("gives a river's length in Austria in kilometres, with tenths below 100, and the provinces it runs through", async () => {
+    const card = await mount();
+    card._selection = { kind: "river", name: "Lech", order: 6 };
+    await settle(card);
+    expect(text(card, ".info-parents")).toBe("Tirol · Vorarlberg");
+    expect(text(card, ".facts")).toMatch(/^Länge in Österreich 90,5 km BMLUK, Stand 2021 Flussordnungszahl 6 BMLUK, Stand 2021$/);
+    card._selection = { kind: "river", name: "Donau", order: 9 };
+    await settle(card);
+    expect(text(card, ".facts")).toMatch(/^Länge in Österreich 350 km /);
+  });
+
   it("clears the selection on a tap abroad and with the close button", async () => {
     const card = await mount();
     await tap(card, ...placeAt(card, "Linz"));

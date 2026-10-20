@@ -1,7 +1,7 @@
 /** Reading and trimming river lines. */
 import { describe, expect, it } from "vitest";
 
-import { parseGeoPackageLine, runsInside, simplifyRiver } from "./rivers.ts";
+import { lengthWhere, networks, parseGeoPackageLine, runsInside, simplifyRiver } from "./rivers.ts";
 
 /** A GeoPackage LineString blob: header, optional envelope, well-known binary. */
 function blob(points: number[][], options: { envelope?: boolean; type?: number } = {}): Uint8Array {
@@ -73,5 +73,40 @@ describe("simplifyRiver", () => {
       [10, 5],
     ]);
     expect(simplifyRiver(meander, 0.05)).toHaveLength(6);
+  });
+});
+
+describe("lengthWhere", () => {
+  it("measures the segments whose midpoint is kept", () => {
+    const line: Array<[number, number]> = [[0, 0], [3, 4], [6, 8], [6, 18]];
+    expect(lengthWhere(line, () => true)).toBe(20);
+    // Midpoints at x 1.5, 4.5 and 6: the first two segments.
+    expect(lengthWhere(line, ([x]) => x < 5)).toBe(10);
+  });
+});
+
+describe("networks", () => {
+  it("joins lines whose ends meet, within the snap", () => {
+    const groups = networks(
+      [
+        [[0, 0], [10, 0]],
+        [[10.5, 0], [20, 0]],
+        [[20, 0], [20, 10]],
+      ],
+      1,
+    );
+    expect(groups).toEqual([[0, 1, 2]]);
+  });
+
+  it("keeps lines apart that only cross or pass near the middle", () => {
+    const groups = networks(
+      [
+        [[0, 0], [100, 0]],
+        [[50, -10], [50, 10]],
+        [[500, 0], [600, 0]],
+      ],
+      1,
+    );
+    expect(groups).toHaveLength(3);
   });
 });

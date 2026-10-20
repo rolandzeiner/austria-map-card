@@ -145,6 +145,58 @@ export const cardStyles = css`
   }
 
   /* ── Controls on the map ─────────────────────────────────────────── */
+  /* The compass. Its north half is the red of the Austrian flag, lifted a
+     little on a dark theme so it keeps 3:1 against the dial (WCAG 1.4.11);
+     the needle's shape tells north from south without the colour. */
+  .compass {
+    position: absolute;
+    inset-block-start: var(--ha-space-2, 8px);
+    inset-inline-start: var(--ha-space-2, 8px);
+    inline-size: var(--amc-control);
+    block-size: var(--amc-control);
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: none;
+    color: var(--amc-text);
+    cursor: pointer;
+    /* Lets the rose lean back with the tilted map. */
+    perspective: 90px;
+    --amc-north: #c8102e;
+    --amc-north: light-dark(#c8102e, #ff6b6b);
+  }
+  .compass svg {
+    display: block;
+    inline-size: 100%;
+    block-size: 100%;
+    overflow: visible;
+  }
+  .compass-ring {
+    fill: var(--amc-background);
+    stroke: var(--amc-line);
+    stroke-width: 1;
+  }
+  .compass-ticks {
+    stroke: var(--amc-muted);
+    stroke-width: 1.2;
+    stroke-linecap: round;
+  }
+  .compass-north {
+    fill: var(--amc-north);
+  }
+  .compass-south {
+    fill: var(--amc-muted);
+  }
+  .compass-n {
+    fill: var(--amc-north);
+    font-size: 7.5px;
+    font-weight: var(--ha-font-weight-bold, 700);
+    text-anchor: middle;
+    dominant-baseline: central;
+  }
+  .compass:focus-visible {
+    border-radius: 50%;
+  }
   .toolbar {
     position: absolute;
     inset-block-start: var(--ha-space-2, 8px);
@@ -413,6 +465,17 @@ export const cardStyles = css`
     }
     .crosshair {
       forced-color-adjust: none;
+    }
+    .compass-ring {
+      fill: Canvas;
+      stroke: CanvasText;
+    }
+    .compass-north,
+    .compass-n {
+      fill: Highlight;
+    }
+    .compass-south {
+      fill: CanvasText;
     }
   }
   @media (prefers-reduced-motion: reduce) {

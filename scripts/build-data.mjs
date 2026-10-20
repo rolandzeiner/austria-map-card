@@ -6,7 +6,8 @@
 //   node scripts/build-data.mjs --measure       print the size tables the settings below were picked from
 //   node scripts/build-data.mjs --refresh       rebuild every committed input from its download
 //   node scripts/build-data.mjs --refresh-borders | --refresh-terrain | --refresh-rivers
-//                               | --refresh-places | --refresh-peaks | --refresh-population
+//                               | --refresh-places | --refresh-peaks | --refresh-motorways
+//                               | --refresh-population
 //                               add --download to fetch a file again that is already in .cache/
 //
 // Two stages. The downloads are large (a 59 MB river network, 58 MB of place
@@ -19,6 +20,7 @@
 //   Terrain     BEV, Digitales Geländehöhenmodell, Höhenraster 500 m
 //   Rivers      BMLUK, Flussordnungszahlen NGP 2021 (Gesamtgewässernetz)
 //   Places      BEV, Digitales Landschaftsmodell, Namen
+//   Motorways   BEV, Digitales Landschaftsmodell, Verkehr
 //   Population  Statistik Austria, Bevölkerung zu Jahresbeginn
 //
 // Everything is drawn in the view-box units of src/map/projection.ts, from
@@ -42,6 +44,7 @@ import { encodeInts, encodeLines, encodePoints } from "./lib/encode.ts";
 import { labelStretches } from "./lib/label-lines.ts";
 import { PLACE_KINDS, classFloor, nameKey, rankPlaces } from "./lib/places.ts";
 import { parseGeoPackageLine, runsInside, simplifyRiver } from "./lib/rivers.ts";
+import { joinPieces, lengthOf as roadLength, parseGeoPackageLines, simplifyRoad } from "./lib/roads.ts";
 import { parseDbf, parseShapefilePolygons } from "./lib/shapefile.ts";
 import {
   GridAccumulator,
@@ -118,6 +121,19 @@ const PLACES_TABLE = "NAM_7100_SIEDLUNG_P";
 const PEAKS_TABLE = "NAM_7300_GELAENDEFORM_P";
 const PEAK_CODE = 7302;
 
+const ROADS = {
+  id: "bev-dlm-verkehr",
+  holder: "BEV",
+  name: "Digitales Landschaftsmodell, Verkehr",
+  licence: LICENCE,
+  stand: "23.03.2026",
+  url: "https://data.bev.gv.at/download/DLM/DLM_20260323/",
+};
+const ROADS_URL = "https://data.bev.gv.at/download/DLM/DLM_20260323/DLM_1000_VERKEHR_20260323.gpkg";
+const ROADS_TABLE = "VER_1100_STRASSE_L";
+/** Bundesstraße A and S: the motorways and expressways, ASFINAG's network. */
+const MOTORWAY_CODES = [1101, 1102];
+
 const POPULATION = {
   id: "statistik-bev",
   holder: "Statistik Austria",
@@ -136,11 +152,13 @@ const GRID_FILE = input("bev_dgm_grid.txt.gz");
 const RIVERS_FILE = input("ggn_rivers.txt.gz");
 const PLACES_FILE = input("bev_places.txt.gz");
 const PEAKS_FILE = input("bev_peaks.txt.gz");
+const MOTORWAYS_FILE = input("bev_motorways.txt.gz");
 const POPULATION_FILE = input("statistik_population.txt.gz");
 const BORDERS_CACHE = cache("borders/VGD_Oesterreich_gen_250.zip");
 const TERRAIN_CACHE = cache("terrain/DGM_Rasterweite_500m.zip");
 const RIVERS_CACHE = cache("rivers/FlussordnungszahlenNGP21.gpkg");
 const PLACES_CACHE = cache("places/DLM_7000_NAMEN_20260323.gpkg");
+const ROADS_CACHE = cache("roads/DLM_1000_VERKEHR_20260323.gpkg");
 const POPULATION_CACHE = cache("population/OGD_bevstandjbab2002_BevStand_2026.csv");
 const DIST = new URL("dist/", root);
 
@@ -237,6 +255,10 @@ const RELIEF = { step: 16, reach: 3 };
 //   1.5 (878 m)            10 091    338 KB (132)
 //   2.0 (1170 m)            7 789    260 KB (102)   this one
 const PEAKS = { minIsolation: 2 };
+
+// Motorways: see refreshMotorways.
+const MOTORWAY_KEEP = { tolerance: 0.05, minLength: 1 };
+const MOTORWAY_Q = 0.05;
 /** Isolation of the highest summit, which has none: as good as infinite. */
 const UNRIVALLED = 9999;
 
@@ -651,6 +673,18 @@ function packPeaks(peaks, settings) {
   };
 }
 
+/** Motorway strokes and the route each belongs to, A before S, by number. */
+function packMotorways(strokes) {
+  const refs = [...new Set(strokes.map((stroke) => stroke.ref))];
+  const names = refs.map((ref) => strokes.find((stroke) => stroke.ref === ref && stroke.name !== "")?.name ?? "");
+  return {
+    refs,
+    names,
+    lines: encodeLines(strokes.map((stroke) => stroke.points), MOTORWAY_Q, { closed: false }),
+    route: encodeInts(strokes.map((stroke) => refs.indexOf(stroke.ref))),
+  };
+}
+
 const packTerrain = (grid, settings) => ({
   levels: settings.levels,
   bands: terrainRings(grid, settings).map((rings) => encodeLines(sortArcs(rings.map((points) => ({ points })), SORT_TILE).map((ring) => ring.points), settings.q, { closed: true })),
@@ -945,6 +979,75 @@ async function refreshPeaks() {
   console.log(`  kept ${kept.length} of ${rows.length} summits`);
 }
 
+/**
+ * Motorways and expressways. The BEV draws each carriageway, slip road and
+ * junction loop as pieces of a few hundred metres; per route they are
+ * joined into long strokes, simplified to a twentieth of a unit (30 m), and
+ * what is still shorter than a unit (585 m) is dropped: the slip roads and
+ * loops, which are a blot at any scale the map shows. The two carriageways
+ * of a route, 20 to 40 m apart, stay two strokes that draw as one.
+ */
+async function refreshMotorways() {
+  await download(ROADS_URL, ROADS_CACHE, "BEV");
+  const { DatabaseSync } = await import("node:sqlite");
+  const database = new DatabaseSync(fileURLToPath(ROADS_CACHE), { readOnly: true });
+  const [{ srs }] = database
+    .prepare(`select srs_id as srs from gpkg_geometry_columns where table_name = ?`)
+    .all(ROADS_TABLE);
+  if (srs !== 31255) throw new Error(`roads are in EPSG:${srs}, not MGI / Austria GK Central (31255)`);
+  const rows = database
+    .prepare(
+      `select KURZBEZ_NAT as ref, NAME as name, geom from "${ROADS_TABLE}" ` +
+        `where F_CODE in (${MOTORWAY_CODES.join(",")}) and KURZBEZ_NAT is not null order by OBJECTID`,
+    )
+    .all();
+  database.close();
+
+  const byRef = new Map();
+  for (const row of rows) {
+    const ref = row.ref.replace(/\s+/g, "");
+    if (!/^[AS]\d+$/.test(ref)) continue;
+    let route = byRef.get(ref);
+    if (route === undefined) byRef.set(ref, (route = { pieces: [], names: new Map() }));
+    for (const line of parseGeoPackageLines(row.geom)) {
+      if (line.length > 1) route.pieces.push(line.map(([e, n]) => project(...gaussKruegerToGeographic(e, n))));
+    }
+    const name = (row.name ?? "").trim();
+    // The route's own name is the one most of its pieces carry; slip roads carry place names.
+    if (/Autobahn|Schnellstraße|[Tt]angente/.test(name)) route.names.set(name, (route.names.get(name) ?? 0) + 1);
+  }
+  const lines = header(
+    ROADS,
+    [
+      `Motorways (A) and expressways (S): route, name, points in the view-box units of`,
+      `src/map/projection.ts. Pieces joined per route, simplified to ${MOTORWAY_KEEP.tolerance} units,`,
+      `strokes shorter than ${MOTORWAY_KEEP.minLength} units dropped.`,
+    ],
+    "--refresh-motorways",
+  );
+  let strokes = 0;
+  for (const ref of [...byRef.keys()].sort((p, q) => byCodeUnit(p[0], q[0]) || Number(p.slice(1)) - Number(q.slice(1)))) {
+    const route = byRef.get(ref);
+    const name = [...route.names].sort((p, q) => q[1] - p[1])[0]?.[0] ?? "";
+    for (const line of joinPieces(route.pieces)) {
+      if (roadLength(line) < MOTORWAY_KEEP.minLength) continue;
+      const points = simplifyRoad(line, MOTORWAY_KEEP.tolerance);
+      lines.push([ref, name, points.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join(" ")].join("\t"));
+      strokes += 1;
+    }
+  }
+  if (byRef.size < 20) throw new Error(`only ${byRef.size} motorway routes; expected about 30`);
+  writeInput(MOTORWAYS_FILE, lines);
+  console.log(`  kept ${strokes} strokes on ${byRef.size} routes from ${rows.length} road pieces`);
+}
+
+function readMotorways() {
+  return readInput(MOTORWAYS_FILE).map((line) => {
+    const [ref, name, points] = line.split("\t");
+    return { ref, name, points: points.split(" ").map((pair) => pair.split(",").map(Number)) };
+  });
+}
+
 function readPeaks() {
   return readInput(PEAKS_FILE).map((line) => {
     const [name, height, major, x, y] = line.split("\t");
@@ -1167,6 +1270,7 @@ function build(settings = {}) {
     places: { ...head("places", [PLACES, POPULATION]), places: placeTable },
     relief: { ...head("relief", [TERRAIN]), relief: packRelief(grid, RELIEF) },
     peaks: { ...head("peaks", [PLACES]), peaks: packPeaks(readPeaks(), PEAKS) },
+    motorways: { ...head("motorways", [ROADS]), motorways: packMotorways(readMotorways()) },
   };
 
   const files = new Map();
@@ -1226,6 +1330,7 @@ if (everything || args.has("--refresh-rivers")) await refreshRivers();
 if (everything || args.has("--refresh-places")) await refreshPlaces();
 // Reads the committed terrain grid, so after the terrain.
 if (everything || args.has("--refresh-peaks")) await refreshPeaks();
+if (everything || args.has("--refresh-motorways")) await refreshMotorways();
 
 if (args.has("--measure")) {
   measure();

@@ -3,6 +3,7 @@
 import baseText from "../dist/austria-map-data-base.js?raw";
 import bordersText from "../dist/austria-map-data-borders.js?raw";
 import gemeindenText from "../dist/austria-map-data-gemeinden.js?raw";
+import motorwaysText from "../dist/austria-map-data-motorways.js?raw";
 import peaksText from "../dist/austria-map-data-peaks.js?raw";
 import placesText from "../dist/austria-map-data-places.js?raw";
 import reliefText from "../dist/austria-map-data-relief.js?raw";
@@ -20,6 +21,7 @@ export const CHUNK_TEXT: Record<ChunkId, string> = {
   places: placesText,
   relief: reliefText,
   peaks: peaksText,
+  motorways: motorwaysText,
 };
 
 const MARK = "export default ";

@@ -34,7 +34,7 @@ describe("the store", () => {
     const store = storeWith();
     const sources = store.sources();
     expect(sources.map((source) => source.id).sort()).toEqual(
-      ["bev-dgm", "bev-dlm-namen", "bev-vgd", "bmluk-ggn", "statistik-bev"].sort(),
+      ["bev-dgm", "bev-dlm-namen", "bev-dlm-verkehr", "bev-vgd", "bmluk-ggn", "statistik-bev"].sort(),
     );
     expect(store.source("statistik-bev")?.holder).toBe("Statistik Austria");
     expect(store.source("nasa")).toBeUndefined();

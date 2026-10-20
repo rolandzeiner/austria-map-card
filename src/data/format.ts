@@ -1,7 +1,7 @@
 /**
  * The format of the map's data chunks, and how to read them.
  *
- * The card's code is one file. The geometry is eight more, written by
+ * The card's code is one file. The geometry is nine more, written by
  * `scripts/build-data.mjs` and imported one at a time when a layer or a zoom
  * level first needs them. Each is an ES module whose default export is one
  * of the `Chunk` shapes below.
@@ -28,6 +28,7 @@ export const CHUNK_IDS = [
   "places",
   "relief",
   "peaks",
+  "motorways",
 ] as const;
 export type ChunkId = (typeof CHUNK_IDS)[number];
 
@@ -370,6 +371,22 @@ export interface ReliefChunk extends ChunkHead {
   readonly relief: ReliefGrid;
 }
 
+/** Motorways and expressways, as strokes along their carriageways. */
+export interface MotorwaySet {
+  /** Route numbers: "A1", "S6". */
+  readonly refs: readonly string[];
+  /** Per route: "West Autobahn"; empty where the source has none. */
+  readonly names: readonly string[];
+  readonly lines: PackedLines;
+  /** Packed, per line: index into `refs`. */
+  readonly route: string;
+}
+
+export interface MotorwaysChunk extends ChunkHead {
+  readonly id: "motorways";
+  readonly motorways: MotorwaySet;
+}
+
 export interface PeaksChunk extends ChunkHead {
   readonly id: "peaks";
   readonly peaks: PeakTable;
@@ -384,5 +401,6 @@ export interface ChunkMap {
   places: PlacesChunk;
   relief: ReliefChunk;
   peaks: PeaksChunk;
+  motorways: MotorwaysChunk;
 }
 export type Chunk = ChunkMap[ChunkId];

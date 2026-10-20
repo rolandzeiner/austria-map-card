@@ -12,6 +12,7 @@
  */
 import { drawBorders } from "../layers/borders.ts";
 import { LAYERS, useFineBorders, type DrawContext } from "../layers/registry.ts";
+import { motorwayBox, motorwayLines, motorwayNear } from "../layers/motorways.ts";
 import { riverBox, riverLines, riverNear } from "../layers/rivers.ts";
 import { grown } from "../layers/scales.ts";
 import type { MapStore } from "../layers/store.ts";
@@ -230,6 +231,16 @@ export class MapRenderer {
     const { ctx, store, palette, scale } = dc;
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
+    if (selection.kind === "motorway") {
+      if (!strokes) return;
+      const route = motorwayLines(store, selection.ref);
+      if (route === undefined) return;
+      const path = this.shapes.get(`selected:motorway:${selection.ref}`, (target) => traceLines(target, route.lines, route.which));
+      ctx.strokeStyle = palette.accent;
+      ctx.lineWidth = grown(3.2, scale) / scale;
+      ctx.stroke(path);
+      return;
+    }
     if (selection.kind === "river") {
       if (!strokes) return;
       const river = riverLines(store, scale, selection.name);
@@ -310,6 +321,10 @@ export class MapRenderer {
     } else {
       [x, y] = toMap(camera, this.size, px, py);
     }
+    if (layers.has("motorways")) {
+      const ref = motorwayNear(store, x, y, RIVER_REACH / scale);
+      if (ref !== undefined) return { kind: "motorway", ref };
+    }
     if (layers.has("rivers")) {
       const river = riverNear(store, scale, x, y, RIVER_REACH / scale);
       if (river !== undefined) return { kind: "river", name: river.name, order: river.order };
@@ -359,6 +374,8 @@ export class MapRenderer {
       }
       case "river":
         return riverBox(store, feature.name);
+      case "motorway":
+        return motorwayBox(store, feature.ref);
     }
   }
 }

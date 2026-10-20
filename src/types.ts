@@ -28,6 +28,7 @@ export const LAYER_IDS = [
   "municipalities",
   "districts",
   "provinces",
+  "motorways",
   "peaks",
   "cities",
 ] as const;

@@ -67,7 +67,7 @@ describe("editor defaults", () => {
 
 describe("config validation", () => {
   it.each([
-    [{ layers: ["roads"] }, /"layers" must be a list of: terrain, rivers, municipalities, districts, provinces, peaks, cities/],
+    [{ layers: ["roads"] }, /"layers" must be a list of: terrain, rivers, municipalities, districts, provinces, motorways, peaks, cities/],
     [{ layers: "terrain" }, /"layers" must be a list of/],
     [{ view: "AT-10" }, /"view" must be one of: austria, AT-1/],
     [{ show_labels: "yes" }, /"show_labels" must be true or false/],

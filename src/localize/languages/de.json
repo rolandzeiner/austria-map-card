@@ -34,7 +34,8 @@
     "districts": "Bezirke",
     "municipalities": "Gemeinden",
     "cities": "Städte und Orte",
-    "peaks": "Gipfel"
+    "peaks": "Gipfel",
+    "motorways": "Autobahnen"
   },
   "layer_notes": {
     "zoom": "Erscheint, wenn du hineinzoomst",
@@ -50,7 +51,9 @@
     "town_2": "Dorf",
     "river": "Fluss",
     "stream": "Bach",
-    "peak": "Gipfel"
+    "peak": "Gipfel",
+    "motorway": "Autobahn",
+    "expressway": "Schnellstraße"
   },
   "facts": {
     "population": "Einwohner",

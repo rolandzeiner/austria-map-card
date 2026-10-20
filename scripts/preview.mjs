@@ -64,6 +64,8 @@ const scenes = [
   { name: "location-dark", width: 760, height: 403, theme: DARK_THEME, layers: standard, here: [47.0707, 15.4395] },
   { name: "peaks", width: 760, height: 403, theme: LIGHT_THEME, layers: [...standard, "peaks"] },
   { name: "peaks-tirol", width: 760, height: 403, theme: LIGHT_THEME, layers: [...standard, "peaks"], fit: "AT-7" },
+  { name: "motorways", width: 760, height: 403, theme: LIGHT_THEME, layers: [...standard, "motorways"] },
+  { name: "motorways-wien", width: 760, height: 403, theme: DARK_THEME, layers: [...standard, "motorways", "peaks"], fit: "AT-9" },
   { name: "bare", width: 760, height: 403, theme: LIGHT_THEME, layers: [] },
 ];
 

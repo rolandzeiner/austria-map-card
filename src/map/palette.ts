@@ -38,6 +38,12 @@ export interface Palette {
   readonly halo: string;
   readonly accent: string;
   readonly accentFill: string;
+  /** Motorways: an amber line on a darker casing, as in a road atlas. */
+  readonly motorway: string;
+  readonly motorwayCasing: string;
+  /** Route shields: the blue of Austria's route signs, with white letters. */
+  readonly shield: string;
+  readonly shieldText: string;
   /** The fill for ground above a height in metres. */
   band(level: number): string;
 }
@@ -102,6 +108,10 @@ const BAND_BASE = 400;
 const BAND_STEP = 300;
 const BAND_TINT = 0.052;
 
+const MOTORWAY_LIGHT: Rgb = [236, 152, 54];
+const MOTORWAY_DARK: Rgb = [214, 140, 62];
+const SHIELD: Rgb = [30, 84, 160];
+
 const WATER_LIGHT: Rgb = [111, 157, 198];
 const WATER_DARK: Rgb = [92, 148, 204];
 
@@ -133,6 +143,10 @@ export function derivePalette(theme: Theme): Palette {
     halo: css(land, 0.82),
     accent: css(theme.accent),
     accentFill: css(theme.accent, 0.18),
+    motorway: css(dark ? MOTORWAY_DARK : MOTORWAY_LIGHT),
+    motorwayCasing: css(dark ? mix(MOTORWAY_DARK, background, 0.55) : mix(MOTORWAY_LIGHT, [60, 30, 0], 0.45)),
+    shield: css(SHIELD),
+    shieldText: "rgb(255, 255, 255)",
     band,
   };
 }

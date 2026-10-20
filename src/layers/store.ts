@@ -20,6 +20,7 @@ import {
   type ChunkId,
   type FactColumn,
   type Lines,
+  type MotorwaySet,
   type PeakTable,
   type PlaceTable,
   type ReliefGrid,
@@ -82,6 +83,22 @@ export interface Places {
   readonly municipality: Int32Array;
   readonly rank: Int32Array;
   readonly facts: readonly Fact[];
+}
+
+/** Motorways and expressways. */
+export interface Motorways {
+  readonly refs: readonly string[];
+  readonly names: readonly string[];
+  readonly lines: Lines;
+  /** Per line: index into `refs`. */
+  readonly route: Int32Array;
+  /** Per line: left, top, right, bottom. */
+  readonly boxes: Float32Array;
+}
+
+function readMotorways(set: MotorwaySet): Motorways {
+  const lines = decodeLines(set.lines);
+  return { refs: set.refs, names: set.names, lines, route: decodeInts(set.route), boxes: lineBoxes(lines) };
 }
 
 /** Summits, most prominent first. */
@@ -254,6 +271,7 @@ export class MapStore {
   public places: Places | undefined;
   public relief: Relief | undefined;
   public peaks: Peaks | undefined;
+  public motorways: Motorways | undefined;
 
   private readonly loaded = new Map<ChunkId, readonly SourceInfo[]>();
   private municipal: ArcIndex | undefined;
@@ -354,6 +372,9 @@ export class MapStore {
         break;
       case "peaks":
         this.peaks = readPeaks(chunk.peaks);
+        break;
+      case "motorways":
+        this.motorways = readMotorways(chunk.motorways);
         break;
     }
     this.loaded.set(chunk.id, chunk.sources);

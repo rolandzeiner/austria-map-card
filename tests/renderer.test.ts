@@ -194,7 +194,8 @@ describe("tile culling", () => {
     const strokes = [3, 12, 40].map((zoom) => {
       fake.reset();
       renderer.draw(state(cameraAt("40709", zoom), everything));
-      return fake.named("stroke").length;
+      // Map paths only: the summits' marks are strokes too, and more of them show further in.
+      return fake.named("stroke").filter((call) => call.args.length > 0).length;
     });
     expect(strokes[1]!).toBeLessThan(strokes[0]! / 2);
     expect(strokes[2]!).toBeLessThan(strokes[1]!);

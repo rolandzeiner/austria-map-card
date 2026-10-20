@@ -458,7 +458,7 @@ export class AustriaMapCard extends LitElement {
     }
     const drape = this._drape;
     const layers = this._drapeLayers();
-    const selection = this._selection?.kind === "city" ? null : this._selection;
+    const selection = this._selection?.kind === "city" || this._selection?.kind === "peak" ? null : this._selection;
     const key = [this._loader.store.revision, [...layers].join(), this._paletteKey, JSON.stringify(selection)].join("|");
     if (key === drape.key) return;
     drape.key = key;
@@ -647,6 +647,8 @@ export class AustriaMapCard extends LitElement {
     this._nothingHere = false;
     // A town's municipality, district and province are in the borders chunk.
     if (feature?.kind === "city") this._loader.request(["borders"]);
+    // A summit's municipality is found by its borders: both border chunks.
+    if (feature?.kind === "peak") this._loader.request(["borders", "gemeinden"]);
     this._requestDraw();
   }
 
@@ -891,7 +893,7 @@ export class AustriaMapCard extends LitElement {
             <div>
               <dt>${this._t(fact.label)}</dt>
               <dd>
-                ${this._number(fact.value)}
+                ${this._number(fact.value)}${fact.format === "metres" ? " m" : ""}
                 ${fact.source
                   ? html`<span class="fact-source"
                       >${this._t("facts.source", { holder: fact.source.holder, stand: fact.source.stand })}</span

@@ -1,12 +1,12 @@
 #!/usr/bin/env node
-// Builds the card's map data: the six files dist/austria-map-data-*.js.
+// Builds the card's map data: the files dist/austria-map-data-*.js.
 //
 //   node scripts/build-data.mjs                 from the committed inputs
 //   node scripts/build-data.mjs --check         fail if dist/ is not current
 //   node scripts/build-data.mjs --measure       print the size tables the settings below were picked from
 //   node scripts/build-data.mjs --refresh       rebuild every committed input from its download
 //   node scripts/build-data.mjs --refresh-borders | --refresh-terrain | --refresh-rivers
-//                               | --refresh-places | --refresh-population
+//                               | --refresh-places | --refresh-peaks | --refresh-population
 //                               add --download to fetch a file again that is already in .cache/
 //
 // Two stages. The downloads are large (a 59 MB river network, 58 MB of place
@@ -114,6 +114,9 @@ const PLACES = {
 };
 const PLACES_URL = "https://data.bev.gv.at/download/DLM/DLM_20260323/DLM_7000_NAMEN_20260323.gpkg";
 const PLACES_TABLE = "NAM_7100_SIEDLUNG_P";
+/** Summits come from the same names file: its landforms, class Berggipfel. */
+const PEAKS_TABLE = "NAM_7300_GELAENDEFORM_P";
+const PEAK_CODE = 7302;
 
 const POPULATION = {
   id: "statistik-bev",
@@ -132,6 +135,7 @@ const MESH_FILE = input("bev_vgd_mesh.txt.gz");
 const GRID_FILE = input("bev_dgm_grid.txt.gz");
 const RIVERS_FILE = input("ggn_rivers.txt.gz");
 const PLACES_FILE = input("bev_places.txt.gz");
+const PEAKS_FILE = input("bev_peaks.txt.gz");
 const POPULATION_FILE = input("statistik_population.txt.gz");
 const BORDERS_CACHE = cache("borders/VGD_Oesterreich_gen_250.zip");
 const TERRAIN_CACHE = cache("terrain/DGM_Rasterweite_500m.zip");
@@ -221,6 +225,20 @@ const TERRAIN_DETAIL = {
 //   16 m   3       523 KB (162)   this one
 //   16 m   8       523 KB (167)
 const RELIEF = { step: 16, reach: 3 };
+
+// Summits, by isolation: the distance to the nearest higher summit. A name
+// is drawn once its isolation spans about 40 px (src/map/labels.ts), so on
+// a card of ordinary size a summit less isolated than 2 units (1.2 km)
+// would never be named, even at the deepest zoom.
+//
+//   isolation at least     summits   peaks chunk
+//   0.6 units (351 m)      13 550    458 KB (176)
+//   1.0 (585 m)            12 389    417 KB (161)
+//   1.5 (878 m)            10 091    338 KB (132)
+//   2.0 (1170 m)            7 789    260 KB (102)   this one
+const PEAKS = { minIsolation: 2 };
+/** Isolation of the highest summit, which has none: as good as infinite. */
+const UNRIVALLED = 9999;
 
 // Rivers, by stream order (Flussordnungszahl). 9 is the Danube; 7 and 8 the
 // Inn, Salzach, Mur, Drau, March, Thaya and Rhine; 6 the Enns, Traun, Mürz
@@ -596,6 +614,43 @@ function packRelief(grid, settings) {
   return { columns: grid.columns, rows: grid.rows, step: settings.step, d: encodeInts(steps) };
 }
 
+/**
+ * The summits worth naming, most prominent first. A major summit (the
+ * BEV's own judgement) counts as twice as isolated, so the Dachstein is
+ * named before a lone hill of the same isolation in the Waldviertel.
+ */
+function packPeaks(peaks, settings) {
+  // Highest first, so every higher summit comes before.
+  const isolation = peaks.map((peak, index) => {
+    let nearest = Infinity;
+    for (let other = 0; other < index; other += 1) {
+      const distance = Math.hypot(peaks[other].x - peak.x, peaks[other].y - peak.y);
+      if (distance < nearest) nearest = distance;
+    }
+    return Math.min(UNRIVALLED, Math.round(nearest * 10));
+  });
+  const rank = (index) => isolation[index] * (peaks[index].major ? 2 : 1);
+  const kept = peaks
+    .map((_, index) => index)
+    .filter((index) => isolation[index] >= settings.minIsolation * 10 || peaks[index].major)
+    .sort((p, q) => rank(q) - rank(p) || peaks[q].height - peaks[p].height || p - q);
+  return {
+    names: kept.map((index) => peaks[index].name),
+    at: encodePoints(kept.map((index) => [onGrid(peaks[index].x), onGrid(peaks[index].y)]), POINT_Q),
+    isolation: encodeInts(kept.map((index) => isolation[index])),
+    major: encodeInts(kept.map((index) => peaks[index].major)),
+    facts: [
+      {
+        key: "height",
+        label: "facts.height",
+        format: "metres",
+        source: PLACES.id,
+        values: encodeInts(kept.map((index) => peaks[index].height)),
+      },
+    ],
+  };
+}
+
 const packTerrain = (grid, settings) => ({
   levels: settings.levels,
   bands: terrainRings(grid, settings).map((rings) => encodeLines(sortArcs(rings.map((points) => ({ points })), SORT_TILE).map((ring) => ring.points), settings.q, { closed: true })),
@@ -810,13 +865,7 @@ async function refreshPlaces() {
   const kept = [];
   let outside = 0;
   for (const row of rows) {
-    // A GeoPackage point: the header, then byte order, type, x, y.
-    const blob = row.geom;
-    const envelope = [0, 32, 48, 48, 64][(blob[3] >> 1) & 7];
-    const view = new DataView(blob.buffer, blob.byteOffset + 8 + envelope);
-    const little = view.getUint8(0) === 1;
-    const [latitude, longitude] = gaussKruegerToGeographic(view.getFloat64(5, little), view.getFloat64(13, little));
-    const [x, y] = project(latitude, longitude);
+    const [x, y] = project(...gpkgPoint(row.geom));
     const municipality = index.locate(x, y);
     if (municipality < 0) {
       outside += 1;
@@ -840,6 +889,67 @@ async function refreshPlaces() {
   for (const place of kept) lines.push([place.kind, place.name, place.size, place.x, place.y].join("\t"));
   writeInput(PLACES_FILE, lines);
   console.log(`  kept ${kept.length} of ${rows.length} settlements (${outside} lie outside every municipality)`);
+}
+
+/** A GeoPackage point in MGI / Austria GK Central as latitude and longitude: the header, then byte order, type, x, y. */
+function gpkgPoint(blob) {
+  const envelope = [0, 32, 48, 48, 64][(blob[3] >> 1) & 7];
+  const view = new DataView(blob.buffer, blob.byteOffset + 8 + envelope);
+  const little = view.getUint8(0) === 1;
+  return gaussKruegerToGeographic(view.getFloat64(5, little), view.getFloat64(13, little));
+}
+
+/**
+ * Every named summit with a height, from the BEV's landforms: 14 000 of
+ * them, 102 marked as major. Kept where the relief grid has ground, so the
+ * peaks on the border (Weißkugel, Similaun) stay in.
+ */
+async function refreshPeaks() {
+  await download(PLACES_URL, PLACES_CACHE, "BEV");
+  const { DatabaseSync } = await import("node:sqlite");
+  const database = new DatabaseSync(fileURLToPath(PLACES_CACHE), { readOnly: true });
+  const [{ srs }] = database
+    .prepare(`select srs_id as srs from gpkg_geometry_columns where table_name = ?`)
+    .all(PEAKS_TABLE);
+  if (srs !== 31255) throw new Error(`landforms are in EPSG:${srs}, not MGI / Austria GK Central (31255)`);
+  const rows = database
+    .prepare(
+      `select NAME as name, HOEHE_BODEN as height, BEDEUTUNG as weight, geom from "${PEAKS_TABLE}" ` +
+        `where F_CODE = ? and HOEHE_BODEN > 0 and NAME is not null order by OBJECTID`,
+    )
+    .all(PEAK_CODE);
+  database.close();
+
+  const grid = readGrid();
+  const kept = [];
+  for (const row of rows) {
+    const [x, y] = project(...gpkgPoint(row.geom));
+    const column = Math.floor(x);
+    const line = Math.floor(y);
+    if (column < 0 || line < 0 || column >= grid.columns || line >= grid.rows) continue;
+    if (Number.isNaN(grid.values[line * grid.columns + column])) continue;
+    const major = row.weight === "Bedeutend" ? 1 : 0;
+    kept.push({ name: row.name.trim(), height: Math.round(row.height), major, x: x.toFixed(2), y: y.toFixed(2) });
+  }
+  kept.sort((p, q) => q.height - p.height || byCodeUnit(p.name, q.name) || Number(p.x) - Number(q.x));
+  const lines = header(
+    PLACES,
+    [
+      `Summits (Berggipfel) with a height: name, metres, 1 if the BEV marks it as major, x, y in the`,
+      `view-box units of src/map/projection.ts. Highest first.`,
+    ],
+    "--refresh-peaks",
+  );
+  for (const peak of kept) lines.push([peak.name, peak.height, peak.major, peak.x, peak.y].join("\t"));
+  writeInput(PEAKS_FILE, lines);
+  console.log(`  kept ${kept.length} of ${rows.length} summits`);
+}
+
+function readPeaks() {
+  return readInput(PEAKS_FILE).map((line) => {
+    const [name, height, major, x, y] = line.split("\t");
+    return { name, height: Number(height), major: Number(major), x: Number(x), y: Number(y) };
+  });
 }
 
 function readPlaces() {
@@ -1056,6 +1166,7 @@ function build(settings = {}) {
     },
     places: { ...head("places", [PLACES, POPULATION]), places: placeTable },
     relief: { ...head("relief", [TERRAIN]), relief: packRelief(grid, RELIEF) },
+    peaks: { ...head("peaks", [PLACES]), peaks: packPeaks(readPeaks(), PEAKS) },
   };
 
   const files = new Map();
@@ -1113,6 +1224,8 @@ if (everything || args.has("--refresh-population")) await refreshPopulation();
 // These two read the committed mesh, so they come after the borders.
 if (everything || args.has("--refresh-rivers")) await refreshRivers();
 if (everything || args.has("--refresh-places")) await refreshPlaces();
+// Reads the committed terrain grid, so after the terrain.
+if (everything || args.has("--refresh-peaks")) await refreshPeaks();
 
 if (args.has("--measure")) {
   measure();

@@ -28,6 +28,7 @@ export const LAYER_IDS = [
   "municipalities",
   "districts",
   "provinces",
+  "peaks",
   "cities",
 ] as const;
 export type LayerId = (typeof LAYER_IDS)[number];

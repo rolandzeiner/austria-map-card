@@ -14,6 +14,7 @@ export interface InfoFact {
   /** Translation key of the label. */
   readonly label: string;
   readonly value: number;
+  readonly format: Fact["format"];
   readonly source: SourceInfo | undefined;
 }
 
@@ -29,7 +30,12 @@ export interface FeatureInfo {
 /** The facts of one table row. A value of zero means "not known" and is left out. */
 function factsOf(store: MapStore, facts: readonly Fact[], row: number): InfoFact[] {
   return facts
-    .map((fact) => ({ label: fact.label, value: fact.values[row] ?? 0, source: store.source(fact.source) }))
+    .map((fact) => ({
+      label: fact.label,
+      value: fact.values[row] ?? 0,
+      format: fact.format,
+      source: store.source(fact.source),
+    }))
     .filter((fact) => fact.value !== 0);
 }
 
@@ -85,6 +91,26 @@ export function describeFeature(store: MapStore, feature: Feature): FeatureInfo 
         facts: factsOf(store, places.facts, feature.row),
       };
     }
+    case "peak": {
+      const peaks = store.peaks;
+      if (peaks === undefined) return null;
+      const x = peaks.at[feature.row * 2] as number;
+      const y = peaks.at[feature.row * 2 + 1] as number;
+      const parents: string[] = [];
+      const municipality = store.municipalityIndex?.locate(x, y) ?? -1;
+      if (detail !== undefined && provinces !== undefined && municipality >= 0) {
+        const district = detail.municipalities.parent?.[municipality] ?? -1;
+        parents.push(
+          detail.municipalities.names[municipality] ?? "",
+          detail.districts.names[district] ?? "",
+          provinces.names[detail.provinceOf[municipality] ?? -1] ?? "",
+        );
+      } else if (provinces !== undefined && store.overview !== undefined) {
+        const province = store.overview.index.locate(x, y);
+        if (province >= 0) parents.push(provinces.names[province] ?? "");
+      }
+      return { name: peaks.names[feature.row] ?? "", kind: "kinds.peak", parents, facts: factsOf(store, peaks.facts, feature.row) };
+    }
     case "river": {
       const source = store.sources().find((entry) => entry.id === "bmluk-ggn");
       return {
@@ -92,7 +118,7 @@ export function describeFeature(store: MapStore, feature: Feature): FeatureInfo 
         // Stream order 5 is where the map's overview starts: a river from there up.
         kind: feature.order >= 5 ? "kinds.river" : "kinds.stream",
         parents: [],
-        facts: [{ label: "facts.stream_order", value: feature.order, source }],
+        facts: [{ label: "facts.stream_order", value: feature.order, format: "integer", source }],
       };
     }
   }

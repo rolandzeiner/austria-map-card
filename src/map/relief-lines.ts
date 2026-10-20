@@ -161,7 +161,7 @@ export function reliefLines(
         width: grown(2.6, scale),
       });
     }
-  } else if (selection !== null && selection.kind !== "city") {
+  } else if (selection !== null && selection.kind !== "city" && selection.kind !== "peak") {
     const index =
       selection.kind === "province"
         ? fine

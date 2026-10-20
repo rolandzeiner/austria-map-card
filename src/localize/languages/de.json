@@ -11,7 +11,9 @@
     "retry": "Erneut versuchen",
     "outdated": "Die Karte wurde aktualisiert. Lade die Seite neu, um sie anzuzeigen.",
     "reload": "Seite neu laden",
-    "credit": "Daten: {holders}"
+    "credit": "Daten: {holders}",
+    "map_help_tilt": "Umschalt und die Pfeiltasten neigen und drehen die Karte.",
+    "loading_relief": "Gelände wird geladen…"
   },
   "controls": {
     "group": "Kartensteuerung",
@@ -21,7 +23,9 @@
     "reset": "Ansicht zurücksetzen",
     "zoom_here": "Hierher zoomen",
     "clear": "Auswahl aufheben",
-    "my_location": "Deinen Standort zeigen"
+    "my_location": "Deinen Standort zeigen",
+    "tilt": "3D-Ansicht",
+    "north": "Nach Norden ausrichten"
   },
   "layers": {
     "terrain": "Gelände",

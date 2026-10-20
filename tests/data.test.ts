@@ -9,8 +9,8 @@
 import { describe, expect, it } from "vitest";
 
 import { CHUNK_IDS, DATA_FORMAT, chunkFile, decodeInts, type ChunkId } from "../src/data/format.ts";
-import type { Rivers, Table } from "../src/layers/store.ts";
-import { MAP_HEIGHT, MAP_WIDTH } from "../src/map/projection.ts";
+import { heightAt, type Rivers, type Table } from "../src/layers/store.ts";
+import { MAP_HEIGHT, MAP_WIDTH, project } from "../src/map/projection.ts";
 import { CHUNK_TEXT, chunk, storeWith } from "./chunks.ts";
 
 const store = storeWith();
@@ -65,7 +65,31 @@ describe("the chunk files", () => {
     const bytes = Object.fromEntries(CHUNK_IDS.map((id) => [id, CHUNK_TEXT[id].length]));
     // The base chunk loads with every map; the others only when asked for.
     expect(bytes.base).toBeLessThan(100_000);
-    for (const id of CHUNK_IDS) expect(bytes[id], id).toBeLessThan(350_000);
+    // The relief is the full 585 m grid and loads only for the tilted map:
+    // 523 KB as written, 162 KB as served gzipped.
+    for (const id of CHUNK_IDS) expect(bytes[id], id).toBeLessThan(id === "relief" ? 600_000 : 350_000);
+  });
+});
+
+describe("the relief", () => {
+  const relief = storeWith("relief").relief!;
+
+  it("is the grid of the projection, one cell per unit", () => {
+    expect([relief.columns, relief.rows]).toEqual([1000, 530]);
+    expect(relief.metres).toHaveLength(1000 * 530);
+  });
+
+  it("rises to the Glockner group and stays low by the Neusiedler See", () => {
+    expect(relief.peak).toBeGreaterThan(3400);
+    expect(relief.peak).toBeLessThan(3800);
+    const [gx, gy] = project(47.0742, 12.6947);
+    const [nx, ny] = project(47.83, 16.76);
+    expect(heightAt(relief, gx, gy)).toBeGreaterThan(2500);
+    expect(heightAt(relief, nx, ny)).toBeLessThan(250);
+  });
+
+  it("holds no data far outside the country", () => {
+    expect(heightAt(relief, 2, 2)).toBe(0);
   });
 });
 

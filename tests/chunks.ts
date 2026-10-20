@@ -4,6 +4,7 @@ import baseText from "../dist/austria-map-data-base.js?raw";
 import bordersText from "../dist/austria-map-data-borders.js?raw";
 import gemeindenText from "../dist/austria-map-data-gemeinden.js?raw";
 import placesText from "../dist/austria-map-data-places.js?raw";
+import reliefText from "../dist/austria-map-data-relief.js?raw";
 import riversText from "../dist/austria-map-data-rivers-detail.js?raw";
 import terrainText from "../dist/austria-map-data-terrain-detail.js?raw";
 import type { Chunk, ChunkId, ChunkMap } from "../src/data/format.ts";
@@ -16,6 +17,7 @@ export const CHUNK_TEXT: Record<ChunkId, string> = {
   "terrain-detail": terrainText,
   "rivers-detail": riversText,
   places: placesText,
+  relief: reliefText,
 };
 
 const MARK = "export default ";
@@ -27,7 +29,7 @@ export function chunk<K extends ChunkId>(id: K): ChunkMap[K] {
   return JSON.parse(json) as ChunkMap[K];
 }
 
-/** A store holding the given chunks, or all six. */
+/** A store holding the given chunks, or all seven. */
 export function storeWith(...ids: ChunkId[]): MapStore {
   const store = new MapStore();
   const wanted: ChunkId[] = ids.length > 0 ? ids : (Object.keys(CHUNK_TEXT) as ChunkId[]);

@@ -20,7 +20,8 @@ import { toMap, toScreen, visibleBox, type Box, type Camera, type Size } from ".
 import { drawLabels, type DrawnCity, type Feature } from "./labels.ts";
 import type { Palette } from "./palette.ts";
 import { drawPin } from "./pin.ts";
-import type { MapPoint } from "./projection.ts";
+import { MAP_HEIGHT, MAP_WIDTH, type MapPoint } from "./projection.ts";
+import type { View3D } from "./view3d.ts";
 import { ShapeCache, traceLines, traceRings, type PathFactory } from "./tiles.ts";
 
 export interface RenderState {
@@ -55,6 +56,8 @@ export class MapRenderer {
   private height = 0;
   private dpr = 1;
   private cities: DrawnCity[] = [];
+  /** The 3D view of the last frame, if it was tilted: taps are picked through it. */
+  private tilted: View3D | null = null;
 
   public constructor(canvas: CanvasLike, store: MapStore, createPath: PathFactory) {
     const ctx = canvas.getContext("2d");
@@ -78,10 +81,11 @@ export class MapRenderer {
     return { width: this.width, height: this.height };
   }
 
-  public resize(width: number, height: number, devicePixelRatio: number): void {
+  /** `maxPixels` caps the backing store's width; the 3D drape asks for more. */
+  public resize(width: number, height: number, devicePixelRatio: number, maxPixels = 2400): void {
     // Cap the backing store: a 1600 px wide card at DPR 3 would be 14 MP to
     // fill on every frame of a pinch.
-    const dpr = Math.min(devicePixelRatio || 1, 2, 2400 / Math.max(width, 1));
+    const dpr = Math.min(devicePixelRatio || 1, 2, maxPixels / Math.max(width, 1));
     this.width = width;
     this.height = height;
     this.dpr = dpr;
@@ -94,6 +98,7 @@ export class MapRenderer {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     this.cities = [];
+    this.tilted = null;
     const overview = store.overview;
     if (palette === undefined || overview === undefined || this.width === 0) return;
 
@@ -176,6 +181,50 @@ export class MapRenderer {
     if (state.here !== null) drawPin(ctx, ...toScreen(camera, size, ...state.here), palette);
   }
 
+  /**
+   * The canvas over the tilted map: only the names, the towns and the pin,
+   * upright in screen pixels, each placed where its ground point is seen.
+   * The map itself is the WebGL canvas underneath.
+   */
+  public drawTilted(state: RenderState, view: View3D): void {
+    const { ctx, store, palette, dpr } = this;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this.cities = [];
+    this.tilted = view;
+    if (palette === undefined || store.overview === undefined || this.width === 0) return;
+    const relief = store.relief;
+    const project = (x: number, y: number): [number, number] | null => view.projectGround(relief, x, y);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.cities = drawLabels({
+      ctx,
+      store,
+      palette,
+      camera: state.camera,
+      size: this.size,
+      box: [0, 0, MAP_WIDTH, MAP_HEIGHT],
+      layers: state.layers,
+      showLabels: state.showLabels,
+      selection: state.selection,
+      project,
+    });
+    if (state.selection?.kind === "city") {
+      const row = state.selection.row;
+      const city = this.cities.find((entry) => entry.row === row);
+      if (city !== undefined) {
+        ctx.beginPath();
+        ctx.arc(city.x, city.y, city.radius + 4.5, 0, Math.PI * 2);
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = palette.accent;
+        ctx.stroke();
+      }
+    }
+    if (state.here !== null) {
+      const tip = project(...state.here);
+      if (tip !== null) drawPin(ctx, tip[0], tip[1], palette);
+    }
+  }
+
   /** Mark the selected area or river. A selected town is ringed with the labels. */
   private highlight(dc: DrawContext, selection: Feature): void {
     const { ctx, store, palette, scale } = dc;
@@ -250,7 +299,15 @@ export class MapRenderer {
     }
     if (nearest !== undefined) return { kind: "city", row: nearest.row };
 
-    const [x, y] = toMap(camera, this.size, px, py);
+    let x: number;
+    let y: number;
+    if (this.tilted !== null) {
+      const picked = this.tilted.pick(px, py, store.relief);
+      if (picked === null) return null;
+      [x, y] = picked;
+    } else {
+      [x, y] = toMap(camera, this.size, px, py);
+    }
     if (layers.has("rivers")) {
       const river = riverNear(store, scale, x, y, RIVER_REACH / scale);
       if (river !== undefined) return { kind: "river", name: river.name, order: river.order };

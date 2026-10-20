@@ -11,7 +11,9 @@
     "retry": "Try again",
     "outdated": "The card was updated. Reload the page to show the map.",
     "reload": "Reload page",
-    "credit": "Data: {holders}"
+    "credit": "Data: {holders}",
+    "map_help_tilt": "Shift and the arrow keys tilt and turn the map.",
+    "loading_relief": "Loading terrain…"
   },
   "controls": {
     "group": "Map controls",
@@ -21,7 +23,9 @@
     "reset": "Reset view",
     "zoom_here": "Zoom here",
     "clear": "Clear selection",
-    "my_location": "Show your location"
+    "my_location": "Show your location",
+    "tilt": "3D view",
+    "north": "Face north"
   },
   "layers": {
     "terrain": "Terrain",

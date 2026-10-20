@@ -89,6 +89,8 @@ export const cardStyles = css`
     min-block-size: calc(4 * var(--amc-control) + 3 * var(--ha-space-1, 4px) + var(--ha-space-5, 20px));
     aspect-ratio: 1000 / 530;
     margin: var(--ha-space-2, 8px) var(--ha-space-2, 8px) 0;
+    /* The relief canvas sits under the map canvas, inside the stage. */
+    isolation: isolate;
   }
   canvas {
     position: absolute;
@@ -103,7 +105,17 @@ export const cardStyles = css`
     touch-action: pan-y;
     -webkit-tap-highlight-color: transparent;
   }
-  canvas.zoomed {
+  /* The tilted map, drawn with WebGL under the canvas that takes the
+     pointer and carries the names. */
+  canvas.relief {
+    z-index: -1;
+    pointer-events: none;
+  }
+  canvas.relief[hidden] {
+    display: none;
+  }
+  canvas.zoomed,
+  canvas.tilted {
     touch-action: none;
   }
   canvas.dragging {

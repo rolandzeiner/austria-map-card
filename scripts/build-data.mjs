@@ -211,6 +211,17 @@ const TERRAIN_DETAIL = {
   q: 0.05,
 };
 
+// The relief for the tilted map: the grid as it is, one cell per unit, in
+// steps of 16 m (the highest cell, 3637 m, is step 227), carried three
+// cells past the border so the ground does not drop to sea level along it.
+//
+//   step   reach   relief chunk
+//   8 m    3       552 KB (200)
+//   16 m   0       523 KB (157)
+//   16 m   3       523 KB (162)   this one
+//   16 m   8       523 KB (167)
+const RELIEF = { step: 16, reach: 3 };
+
 // Rivers, by stream order (Flussordnungszahl). 9 is the Danube; 7 and 8 the
 // Inn, Salzach, Mur, Drau, March, Thaya and Rhine; 6 the Enns, Traun, Mürz
 // and their like; 5 the larger side valleys; 4 and 3 are streams.
@@ -568,6 +579,21 @@ function terrainRings(grid, settings) {
   return settings.levels.map((level) =>
     generaliseRings(isoRings(terrain, level, settings.cell), settings.tolerance, settings.minArea),
   );
+}
+
+function packRelief(grid, settings) {
+  const grown = growOutwards(grid, settings.reach);
+  const steps = [];
+  for (let row = 0; row < grid.rows; row += 1) {
+    let previous = 0;
+    for (let column = 0; column < grid.columns; column += 1) {
+      const metres = grown.values[row * grid.columns + column];
+      const value = Number.isNaN(metres) ? 0 : Math.max(1, Math.round(metres / settings.step));
+      steps.push(value - previous);
+      previous = value;
+    }
+  }
+  return { columns: grid.columns, rows: grid.rows, step: settings.step, d: encodeInts(steps) };
 }
 
 const packTerrain = (grid, settings) => ({
@@ -1029,6 +1055,7 @@ function build(settings = {}) {
       rivers: packRivers(stretches, riversDetail, STREAM_LABELS, RIVERS_OVERVIEW.minOrder),
     },
     places: { ...head("places", [PLACES, POPULATION]), places: placeTable },
+    relief: { ...head("relief", [TERRAIN]), relief: packRelief(grid, RELIEF) },
   };
 
   const files = new Map();

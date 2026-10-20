@@ -26,7 +26,8 @@ describe("motion", () => {
 describe("touch", () => {
   it("lets the page scroll over the whole-country view and takes over only when zoomed in", () => {
     expect(css).toMatch(/canvas\s*{[^}]*touch-action:\s*pan-y/);
-    expect(css).toMatch(/canvas\.zoomed\s*{[^}]*touch-action:\s*none/);
+    // A tilted map takes every gesture too: two fingers tilt and turn it.
+    expect(css).toMatch(/canvas\.zoomed,\s*canvas\.tilted\s*{[^}]*touch-action:\s*none/);
   });
 
   it("makes every control at least 40 px", () => {

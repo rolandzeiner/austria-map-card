@@ -75,13 +75,17 @@ void main() {
 `;
 
 // A line is a segment instance, drawn as a quad of four corners. Both ends
-// are lifted onto the ground (heights interpolated between cells, like the
-// mesh), projected, and pushed apart sideways on screen by half the width
-// and a pixel more for the soft edge.
+// are set on the ground exactly as the mesh has it: the same cells, the same
+// split of each cell into two triangles, at the same stride. (A smooth
+// interpolation instead differs from the mesh by up to hundreds of metres
+// on a steep slope, and the line sinks into the mountain in pieces.) The
+// ends are then projected and pushed apart sideways on screen by half the
+// width and a pixel more for the soft edge.
 const LINE_VERTEX = `#version 300 es
 uniform highp sampler2D u_height;
 uniform mat4 u_matrix;
 uniform ivec2 u_grid;
+uniform int u_stride;
 uniform float u_zscale;
 uniform float u_lift;
 uniform vec2 u_half;
@@ -94,13 +98,24 @@ float texel(ivec2 cell) {
 }
 
 float groundAt(vec2 at) {
-  vec2 f = at - 0.5;
+  float s = float(u_stride);
+  vec2 f = (at - 0.5) / s;
   vec2 base = floor(f);
   vec2 t = f - base;
-  ivec2 c = ivec2(base);
-  float top = mix(texel(c), texel(c + ivec2(1, 0)), t.x);
-  float bottom = mix(texel(c + ivec2(0, 1)), texel(c + ivec2(1, 1)), t.x);
-  return mix(top, bottom, t.y) * u_zscale + u_lift;
+  ivec2 c = ivec2(base) * u_stride;
+  ivec2 right = ivec2(u_stride, 0);
+  ivec2 down = ivec2(0, u_stride);
+  // The mesh's strip runs top, bottom, top, bottom: its triangles meet on
+  // the diagonal from the bottom-left corner to the top-right one.
+  float h;
+  if (t.x + t.y <= 1.0) {
+    float h00 = texel(c);
+    h = h00 + (texel(c + right) - h00) * t.x + (texel(c + down) - h00) * t.y;
+  } else {
+    float h11 = texel(c + right + down);
+    h = h11 + (texel(c + down) - h11) * (1.0 - t.x) + (texel(c + right) - h11) * (1.0 - t.y);
+  }
+  return h * u_zscale + u_lift;
 }
 
 void main() {
@@ -145,6 +160,9 @@ void main() {
   colour = vec4(u_colour * cover, cover);
 }
 `;
+
+/** Where a cell is under a pixel wide, every second one is enough. */
+const meshStride = (view: View3D): number => (view.scale < 1 ? 2 : 1);
 
 /** The shader pairs, for the tests: a browser is the only place they compile. */
 export const SHADERS = {
@@ -245,6 +263,7 @@ export class ReliefGL {
       "u_height",
       "u_matrix",
       "u_grid",
+      "u_stride",
       "u_zscale",
       "u_lift",
       "u_half",
@@ -359,10 +378,11 @@ export class ReliefGL {
     gl.uniform1i(u.u_height!, 0);
     gl.uniformMatrix4fv(u.u_matrix!, false, view.matrix());
     gl.uniform2i(u.u_grid!, relief.columns, relief.rows);
+    gl.uniform1i(u.u_stride!, meshStride(view));
     gl.uniform1f(u.u_zscale!, view.stretch / METRES_PER_UNIT);
-    // Just off the ground, so the mesh does not cover a line lying on it;
-    // further off the further away, where depth is coarser.
-    gl.uniform1f(u.u_lift!, view.distance * 0.004);
+    // A hair off the ground, so the mesh does not win the depth test against
+    // a line lying on it; more the further away, where depth is coarser.
+    gl.uniform1f(u.u_lift!, view.distance * 0.0015);
     gl.uniform2f(u.u_half!, gl.drawingBufferWidth / 2, gl.drawingBufferHeight / 2);
     for (const set of sets) {
       const buffer = this.lineBuffer(set);
@@ -392,8 +412,7 @@ export class ReliefGL {
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, this.drape);
     gl.uniform1i(u.u_drape!, 1);
-    // Where a cell is under a pixel wide, every second one is enough.
-    const stride = view.scale < 1 ? 2 : 1;
+    const stride = meshStride(view);
     gl.uniformMatrix4fv(u.u_matrix!, false, view.matrix());
     gl.uniform1i(u.u_stride!, stride);
     gl.uniform2i(u.u_grid!, relief.columns, relief.rows);

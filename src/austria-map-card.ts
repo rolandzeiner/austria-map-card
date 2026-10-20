@@ -5,7 +5,7 @@ import { classMap } from "lit/directives/class-map.js";
 import { normaliseConfig, type NormalisedConfig } from "./config.ts";
 import { CARD_NAME, CARD_TAG, CARD_VERSION, REPO_URL } from "./const.ts";
 import "./editor.ts";
-import { describeFeature, type FeatureInfo } from "./layers/info.ts";
+import { describeFeature, type FeatureInfo, type InfoFact } from "./layers/info.ts";
 import { sharedLoader, type ChunkLoader } from "./layers/loader.ts";
 import { LAYERS, chunksFor, type LayerDef } from "./layers/registry.ts";
 import { locate, locationKey, type Position } from "./location.ts";
@@ -886,11 +886,24 @@ export class AustriaMapCard extends LitElement {
     return this._toast ? html`<div class="toast" role="status">${this._t("card.zoom_hint")}</div>` : nothing;
   }
 
-  private _number(value: number): string {
+  private _number(value: number, options?: Intl.NumberFormatOptions): string {
     try {
-      return new Intl.NumberFormat(resolveLang(this.hass)).format(value);
+      return new Intl.NumberFormat(resolveLang(this.hass), options).format(value);
     } catch {
       return String(value);
+    }
+  }
+
+  /** A fact as it reads: "1,234", "3,798 m", "292 km". Lengths under
+   *  100 km keep their tenths: "12.4 km". */
+  private _factValue(fact: InfoFact): string {
+    switch (fact.format) {
+      case "metres":
+        return `${this._number(fact.value)} m`;
+      case "kilometres":
+        return `${this._number(fact.value / 10, { maximumFractionDigits: fact.value < 1000 ? 1 : 0 })} km`;
+      default:
+        return this._number(fact.value);
     }
   }
 
@@ -903,7 +916,7 @@ export class AustriaMapCard extends LitElement {
             <div>
               <dt>${this._t(fact.label)}</dt>
               <dd>
-                ${this._number(fact.value)}${fact.format === "metres" ? " m" : ""}
+                ${this._factValue(fact)}
                 ${fact.source
                   ? html`<span class="fact-source"
                       >${this._t("facts.source", { holder: fact.source.holder, stand: fact.source.stand })}</span

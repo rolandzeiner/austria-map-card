@@ -17,7 +17,7 @@
  */
 
 /** Bump when a chunk's shape or the packing changes. */
-export const DATA_FORMAT = 1;
+export const DATA_FORMAT = 2;
 
 export const CHUNK_IDS = [
   "base",
@@ -218,8 +218,11 @@ export interface FactColumn {
   readonly key: string;
   /** Translation key of the column's label. */
   readonly label: string;
-  /** How to print a value. Zero means "not known for this row". */
-  readonly format: "integer" | "metres";
+  /**
+   * How to print a value. Zero means "not known for this row".
+   * `kilometres` values are tenths of a kilometre.
+   */
+  readonly format: "integer" | "metres" | "kilometres";
   /** `SourceInfo.id` of where the values come from. */
   readonly source: string;
   /** Packed integers, one per row. */
@@ -260,6 +263,10 @@ export interface TerrainSet {
 export interface RiverSet {
   /** River names; the empty string is a stream the source does not name. */
   readonly names: readonly string[];
+  /** Per name: its length in Austria, among others. */
+  readonly facts: readonly FactColumn[];
+  /** Packed, per name: the provinces it runs through, bit n for row n of the provinces table; 0 where not known. */
+  readonly provinces: string;
   readonly lines: PackedLines;
   /** Packed, per line: index into `names`, and the stream order (9 is the Danube). */
   readonly name: string;
@@ -378,6 +385,10 @@ export interface RoadSet {
   readonly refs: readonly string[];
   /** Per route: "West Autobahn"; empty where the source has none. */
   readonly names: readonly string[];
+  /** Per route: its length, among others. */
+  readonly facts: readonly FactColumn[];
+  /** Packed, per route: the provinces it runs through, bit n for row n of the provinces table. */
+  readonly provinces: string;
   readonly lines: PackedLines;
   /** Packed, per line: index into `refs`. */
   readonly route: string;

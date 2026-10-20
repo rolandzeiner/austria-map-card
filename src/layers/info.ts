@@ -40,6 +40,12 @@ function factsOf(store: MapStore, facts: readonly Fact[], row: number): InfoFact
     .filter((fact) => fact.value !== 0);
 }
 
+/** The names of the provinces in a mask, bit n for province row n, in table order. */
+function provincesIn(store: MapStore, mask: number): string[] {
+  const names = store.overview?.provinces.names ?? [];
+  return names.filter((_, row) => (mask & (1 << row)) !== 0);
+}
+
 const rowInfo = (store: MapStore, table: Table, row: number, kind: string, parents: string[]): FeatureInfo => ({
   name: table.names[row] ?? "",
   kind,
@@ -122,18 +128,24 @@ export function describeFeature(store: MapStore, feature: Feature): FeatureInfo 
         // "A1 · West Autobahn"; a route without a name of its own is its number.
         name: name === "" ? feature.ref : `${feature.ref} · ${name}`,
         kind: kinds[feature.ref[0] ?? "A"] ?? "kinds.motorway",
-        parents: [],
-        facts: [],
+        parents: provincesIn(store, roads.provinces[route] ?? 0),
+        facts: factsOf(store, roads.facts, route),
       };
     }
     case "river": {
       const source = store.sources().find((entry) => entry.id === "bmluk-ggn");
+      // Either river set knows the name's facts; the detail set knows the streams too.
+      const rivers = [store.riversDetail, store.overview?.rivers].find((set) => set?.names.includes(feature.name));
+      const row = rivers?.names.indexOf(feature.name) ?? -1;
       return {
         name: feature.name,
         // Stream order 5 is where the map's overview starts: a river from there up.
         kind: feature.order >= 5 ? "kinds.river" : "kinds.stream",
-        parents: [],
-        facts: [{ label: "facts.stream_order", value: feature.order, format: "integer", source }],
+        parents: rivers === undefined || row < 0 ? [] : provincesIn(store, rivers.provinces[row] ?? 0),
+        facts: [
+          ...(rivers === undefined || row < 0 ? [] : factsOf(store, rivers.facts, row)),
+          { label: "facts.stream_order", value: feature.order, format: "integer", source },
+        ],
       };
     }
   }

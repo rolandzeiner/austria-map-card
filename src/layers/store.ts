@@ -63,6 +63,10 @@ export interface Terrain {
 
 export interface Rivers {
   readonly names: readonly string[];
+  /** Per name: its length in Austria, among others. */
+  readonly facts: readonly Fact[];
+  /** Per name: the provinces it runs through, bit n for province row n; 0 where not known. */
+  readonly provinces: Int32Array;
   readonly lines: Lines;
   readonly name: Int32Array;
   readonly order: Int32Array;
@@ -89,6 +93,10 @@ export interface Places {
 export interface Roads {
   readonly refs: readonly string[];
   readonly names: readonly string[];
+  /** Per route: its length, among others. */
+  readonly facts: readonly Fact[];
+  /** Per route: the provinces it runs through, bit n for province row n. */
+  readonly provinces: Int32Array;
   readonly lines: Lines;
   /** Per line: index into `refs`. */
   readonly route: Int32Array;
@@ -98,7 +106,15 @@ export interface Roads {
 
 function readRoads(set: RoadSet): Roads {
   const lines = decodeLines(set.lines);
-  return { refs: set.refs, names: set.names, lines, route: decodeInts(set.route), boxes: lineBoxes(lines) };
+  return {
+    refs: set.refs,
+    names: set.names,
+    facts: readFacts(set.facts),
+    provinces: decodeInts(set.provinces),
+    lines,
+    route: decodeInts(set.route),
+    boxes: lineBoxes(lines),
+  };
 }
 
 /** Summits, most prominent first. */
@@ -200,6 +216,8 @@ function readRivers(set: RiverSet): Rivers {
   const labels = decodeLines(set.labels);
   return {
     names: set.names,
+    facts: readFacts(set.facts),
+    provinces: decodeInts(set.provinces),
     lines,
     name: decodeInts(set.name),
     order: decodeInts(set.order),

@@ -61,6 +61,8 @@
     "population": "Einwohner",
     "municipality_population": "Einwohner der Gemeinde",
     "stream_order": "Flussordnungszahl",
+    "length": "Länge",
+    "length_in_austria": "Länge in Österreich",
     "source": "{holder}, Stand {stand}",
     "height": "Höhe"
   },

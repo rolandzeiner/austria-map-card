@@ -102,7 +102,10 @@ Population is one column of a table. Another fact (area, altitude) is
 another column: add it to the table in `scripts/build-data.mjs` with a
 `key`, a `label` translation key and its `source`, add the label under
 `facts` in both language files, and rebuild the data. The info panel
-shows whatever columns a table carries.
+shows whatever columns a table carries. River and road sets carry facts
+the same way, one value per river name or route (their length). A value
+prints as a plain number (`integer`), in metres (`metres`), or in
+kilometres from tenths of a kilometre (`kilometres`).
 
 ### Changing the chunk format
 

@@ -337,6 +337,58 @@ void main() {
   }
 
   /* ── Controls on the map ─────────────────────────────────────────── */
+  /* The compass. Its north half is the red of the Austrian flag, lifted a
+     little on a dark theme so it keeps 3:1 against the dial (WCAG 1.4.11);
+     the needle's shape tells north from south without the colour. */
+  .compass {
+    position: absolute;
+    inset-block-start: var(--ha-space-2, 8px);
+    inset-inline-start: var(--ha-space-2, 8px);
+    inline-size: var(--amc-control);
+    block-size: var(--amc-control);
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: none;
+    color: var(--amc-text);
+    cursor: pointer;
+    /* Lets the rose lean back with the tilted map. */
+    perspective: 90px;
+    --amc-north: #c8102e;
+    --amc-north: light-dark(#c8102e, #ff6b6b);
+  }
+  .compass svg {
+    display: block;
+    inline-size: 100%;
+    block-size: 100%;
+    overflow: visible;
+  }
+  .compass-ring {
+    fill: var(--amc-background);
+    stroke: var(--amc-line);
+    stroke-width: 1;
+  }
+  .compass-ticks {
+    stroke: var(--amc-muted);
+    stroke-width: 1.2;
+    stroke-linecap: round;
+  }
+  .compass-north {
+    fill: var(--amc-north);
+  }
+  .compass-south {
+    fill: var(--amc-muted);
+  }
+  .compass-n {
+    fill: var(--amc-north);
+    font-size: 7.5px;
+    font-weight: var(--ha-font-weight-bold, 700);
+    text-anchor: middle;
+    dominant-baseline: central;
+  }
+  .compass:focus-visible {
+    border-radius: 50%;
+  }
   .toolbar {
     position: absolute;
     inset-block-start: var(--ha-space-2, 8px);
@@ -606,6 +658,17 @@ void main() {
     .crosshair {
       forced-color-adjust: none;
     }
+    .compass-ring {
+      fill: Canvas;
+      stroke: CanvasText;
+    }
+    .compass-north,
+    .compass-n {
+      fill: Highlight;
+    }
+    .compass-south {
+      fill: CanvasText;
+    }
   }
   @media (prefers-reduced-motion: reduce) {
     *,
@@ -641,7 +704,8 @@ void main() {
           <span id="map-help" class="sr-only"
             >${this._t(`card.map_help`)}${this._canTilt?` ${this._t(`card.map_help_tilt`)}`:``}</span
           >
-          ${t?j:this._renderLoading()} ${this._renderReliefLoading()} ${this._renderToolbar(r)}
+          ${t?j:this._renderLoading()} ${this._renderReliefLoading()} ${this._renderCompass()}
+          ${this._renderToolbar(r)}
           ${this._layersOpen&&e.show_layer_control?this._renderLayers():j} ${this._renderNotice()}
         </div>
         ${this._renderInfo()} ${this._renderCredit()}
@@ -649,6 +713,20 @@ void main() {
     `}_renderLoading(){let e=this._loader.state(`base`);return e===`failed`||e===`outdated`?j:k`<div class="loading" role="status">${this._t(`card.loading`)}</div>`}_renderReliefLoading(){return this._flat||this._loader.state(`relief`)!==`loading`?j:k`<div class="toast" role="status">${this._t(`card.loading_relief`)}</div>`}_tool(e,t,n,r=!1){return k`
       <button type="button" class="tool" aria-label=${e} title=${e} ?disabled=${r} @click=${n}>
         <ha-icon icon=${t} aria-hidden="true"></ha-icon>
+      </button>
+    `}_renderCompass(){if(!this._canTilt)return j;let{pitch:e,bearing:t}=this._orientation,n=this._t(`controls.north`);return k`
+      <button type="button" class="compass" aria-label=${n} title=${n} @click=${()=>this._faceNorth()}>
+        <svg
+          viewBox="-20 -20 40 40"
+          aria-hidden="true"
+          style=${`transform: rotateX(${e*.75}rad) rotate(${-t}rad)`}
+        >
+          <circle class="compass-ring" r="18.5" />
+          <path class="compass-ticks" d="M18.5 0h-3M0 18.5v-3M-18.5 0h3" />
+          <path class="compass-south" d="M-3.4 0L0 10.5L3.4 0Z" />
+          <path class="compass-north" d="M-3.4 0L0 -10.5L3.4 0Z" />
+          <text class="compass-n" y="-14">N</text>
+        </svg>
       </button>
     `}_renderToolbar(e){let t=this._t(`controls.layers`);return k`
       <div class="toolbar" role="group" aria-label=${this._t(`controls.group`)}>
@@ -679,21 +757,6 @@ void main() {
                 @click=${()=>this._toggleTilt()}
               >
                 <ha-icon icon="mdi:rotate-3d-variant" aria-hidden="true"></ha-icon>
-              </button>
-            `:j}
-        ${this._canTilt&&this._orientation.bearing!==0?k`
-              <button
-                type="button"
-                class="tool compass"
-                aria-label=${this._t(`controls.north`)}
-                title=${this._t(`controls.north`)}
-                @click=${()=>this._faceNorth()}
-              >
-                <ha-icon
-                  icon="mdi:navigation"
-                  aria-hidden="true"
-                  style=${`transform: rotate(${-this._orientation.bearing}rad)`}
-                ></ha-icon>
               </button>
             `:j}
         ${this._config.show_location?this._tool(this._t(`controls.my_location`),`mdi:crosshairs-gps`,()=>this._goHere(),this._here()===null):j}

@@ -62,6 +62,9 @@ const LICENCE_URL = "https://creativecommons.org/licenses/by/4.0/";
 /** Pixels across of the flat map laid over the relief. */
 const DRAPE_WIDTH = 3072;
 const TILT_MS = 450;
+/** How far the compass leans back with the map: a share of the pitch, so the
+ *  rose stays readable at the steepest tilt. */
+const COMPASS_LEAN = 0.75;
 
 /** Whether this browser can draw the tilted map at all. */
 const canTilt = (): boolean => typeof WebGL2RenderingContext !== "undefined";
@@ -737,7 +740,8 @@ export class AustriaMapCard extends LitElement {
           <span id="map-help" class="sr-only"
             >${this._t("card.map_help")}${this._canTilt ? ` ${this._t("card.map_help_tilt")}` : ""}</span
           >
-          ${ready ? nothing : this._renderLoading()} ${this._renderReliefLoading()} ${this._renderToolbar(zoom)}
+          ${ready ? nothing : this._renderLoading()} ${this._renderReliefLoading()} ${this._renderCompass()}
+          ${this._renderToolbar(zoom)}
           ${this._layersOpen && config.show_layer_control ? this._renderLayers() : nothing} ${this._renderNotice()}
         </div>
         ${this._renderInfo()} ${this._renderCredit()}
@@ -760,6 +764,29 @@ export class AustriaMapCard extends LitElement {
     return html`
       <button type="button" class="tool" aria-label=${label} title=${label} ?disabled=${disabled} @click=${onClick}>
         <ha-icon icon=${icon} aria-hidden="true"></ha-icon>
+      </button>
+    `;
+  }
+
+  /** Where north is. The rose turns with the bearing and lies back with the
+   *  pitch, as if it sat on the ground under the map; a tap faces north. */
+  private _renderCompass(): TemplateResult | typeof nothing {
+    if (!this._canTilt) return nothing;
+    const { pitch, bearing } = this._orientation;
+    const label = this._t("controls.north");
+    return html`
+      <button type="button" class="compass" aria-label=${label} title=${label} @click=${() => this._faceNorth()}>
+        <svg
+          viewBox="-20 -20 40 40"
+          aria-hidden="true"
+          style=${`transform: rotateX(${pitch * COMPASS_LEAN}rad) rotate(${-bearing}rad)`}
+        >
+          <circle class="compass-ring" r="18.5" />
+          <path class="compass-ticks" d="M18.5 0h-3M0 18.5v-3M-18.5 0h3" />
+          <path class="compass-south" d="M-3.4 0L0 10.5L3.4 0Z" />
+          <path class="compass-north" d="M-3.4 0L0 -10.5L3.4 0Z" />
+          <text class="compass-n" y="-14">N</text>
+        </svg>
       </button>
     `;
   }
@@ -800,23 +827,6 @@ export class AustriaMapCard extends LitElement {
                 @click=${() => this._toggleTilt()}
               >
                 <ha-icon icon="mdi:rotate-3d-variant" aria-hidden="true"></ha-icon>
-              </button>
-            `
-          : nothing}
-        ${this._canTilt && this._orientation.bearing !== 0
-          ? html`
-              <button
-                type="button"
-                class="tool compass"
-                aria-label=${this._t("controls.north")}
-                title=${this._t("controls.north")}
-                @click=${() => this._faceNorth()}
-              >
-                <ha-icon
-                  icon="mdi:navigation"
-                  aria-hidden="true"
-                  style=${`transform: rotate(${-this._orientation.bearing}rad)`}
-                ></ha-icon>
               </button>
             `
           : nothing}

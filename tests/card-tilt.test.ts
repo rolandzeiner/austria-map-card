@@ -151,10 +151,10 @@ describe("the tilted map", () => {
     vi.stubGlobal("matchMedia", () => ({ matches: true }));
     await key(card, "ArrowLeft", { shiftKey: true });
     expect(card._orientation.bearing).toBeGreaterThan(0);
-    tool(card, "Nach Norden ausrichten").click();
+    $(card, "button.compass")!.click();
     await settle(card);
     expect(card._orientation).toEqual(FLAT);
-    expect(tool(card, "Nach Norden ausrichten")).toBeUndefined();
+    expect($(card, "button.compass")?.getAttribute("aria-label")).toBe("Nach Norden ausrichten");
   });
 
   it("goes flat again on reset", async () => {

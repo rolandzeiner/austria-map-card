@@ -8,6 +8,7 @@ import "./editor.ts";
 import { describeFeature, type FeatureInfo } from "./layers/info.ts";
 import { sharedLoader, type ChunkLoader } from "./layers/loader.ts";
 import { LAYERS, chunksFor, type LayerDef } from "./layers/registry.ts";
+import { locate, locationKey, type Position } from "./location.ts";
 import { localize, resolveLang } from "./localize/localize.ts";
 import {
   fitBox,
@@ -23,6 +24,7 @@ import {
 import { MapGesture, ZOOM_STEP, keyCommand, wheelFactor } from "./map/gestures.ts";
 import type { Feature } from "./map/labels.ts";
 import { derivePalette, readTheme } from "./map/palette.ts";
+import { project, type MapPoint } from "./map/projection.ts";
 import { MapRenderer, type RenderState } from "./map/renderer.ts";
 import { cardStyles } from "./styles.ts";
 import { PROVINCE_IDS, type HomeAssistant, type LayerId } from "./types.ts";
@@ -35,6 +37,8 @@ console.info(
 
 /** Pixels kept free round a feature that "zoom here" frames. */
 const FRAME_PADDING = 28;
+/** Map units shown on either side of the pin by "show your location". */
+const HERE_SURROUNDINGS = 14;
 const TOAST_MS = 1800;
 const LICENCE_URL = "https://creativecommons.org/licenses/by/4.0/";
 
@@ -57,6 +61,8 @@ export class AustriaMapCard extends LitElement {
   @state() private _nothingHere = false;
   /** Bumped when something the template shows changed outside Lit's view. */
   @state() private _revision = 0;
+  /** The browser's answer when the pin follows this device. */
+  @state() private _device: Position | null = null;
 
   @query("canvas") private _canvas?: HTMLCanvasElement;
   @query(".stage") private _stage?: HTMLElement;
@@ -74,6 +80,8 @@ export class AustriaMapCard extends LitElement {
   private _hassKey = "";
   private _paletteKey = "";
   private _viewKey = "";
+  private _locationKey = "";
+  private _watch: number | null = null;
 
   // ── HA card contract ───────────────────────────────────────────────────
 
@@ -86,6 +94,7 @@ export class AustriaMapCard extends LitElement {
     if (next.layers.join() !== previous.layers.join()) this._layers = new Set(next.layers);
     if (next.view !== previous.view) this._camera = this._openingCamera();
     if (!next.show_layer_control) this._layersOpen = false;
+    if (this.isConnected) this._syncDeviceWatch();
     this._requestDraw();
   }
 
@@ -113,6 +122,7 @@ export class AustriaMapCard extends LitElement {
     super.connectedCallback();
     this._unsubscribe = this._loader.subscribe(this._onData);
     document.addEventListener("pointerdown", this._onDocumentPointer, true);
+    this._syncDeviceWatch();
     if (this._renderer) {
       this._observe();
       // The theme may have changed while the card was detached, and a card
@@ -130,12 +140,15 @@ export class AustriaMapCard extends LitElement {
     this._raf = 0;
     clearTimeout(this._toastTimer);
     this._gesture.reset();
+    this._stopDeviceWatch();
   }
 
   /** Re-render only when something the card shows changed. Home Assistant
    *  reassigns `hass` on every state change in the house. */
   protected override shouldUpdate(changed: PropertyValues<this>): boolean {
-    if (changed.size === 1 && changed.has("hass")) return this._hassFingerprint() !== this._hassKey;
+    if (changed.size === 1 && changed.has("hass")) {
+      return this._hassFingerprint() !== this._hassKey || this._currentLocationKey() !== this._locationKey;
+    }
     return true;
   }
 
@@ -160,6 +173,11 @@ export class AustriaMapCard extends LitElement {
     // its own update; read once more after the next frame, when they are
     // certain to have landed.
     if (themeChanged) requestAnimationFrame(() => this._refreshPalette(true));
+    const location = this._currentLocationKey();
+    if (location !== this._locationKey) {
+      this._locationKey = location;
+      this._requestDraw();
+    }
   }
 
   private _observe(): void {
@@ -216,6 +234,55 @@ export class AustriaMapCard extends LitElement {
     this._requestDraw();
   }
 
+  // ── Location ───────────────────────────────────────────────────────────
+
+  private _currentLocationKey(): string {
+    const config = this._config;
+    return config.show_location ? locationKey(this.hass, config.location, this._device) : "";
+  }
+
+  /** Where the pin goes, in map units, or null for no pin. */
+  private _here(): MapPoint | null {
+    const config = this._config;
+    if (!config.show_location) return null;
+    const here = locate(this.hass, config.location, this._device);
+    return here === null ? null : project(here.latitude, here.longitude);
+  }
+
+  /** Follow the browser's position while the pin asks for this device, and
+   *  only then: the permission prompt comes from the first watch. */
+  private _syncDeviceWatch(): void {
+    const wanted = this._config.show_location && this._config.location === "device";
+    if (!wanted) {
+      this._stopDeviceWatch();
+      return;
+    }
+    const geolocation = typeof navigator === "undefined" ? undefined : navigator.geolocation;
+    if (this._watch !== null || geolocation === undefined) return;
+    this._watch = geolocation.watchPosition(
+      (fix) => (this._device = { latitude: fix.coords.latitude, longitude: fix.coords.longitude }),
+      // Refused, or no fix: the pin stays on the home (src/location.ts).
+      (error) => console.warn("[austria-map-card] no device position:", error.message),
+      { maximumAge: 60_000, timeout: 30_000 },
+    );
+  }
+
+  private _stopDeviceWatch(): void {
+    if (this._watch === null) return;
+    navigator.geolocation?.clearWatch(this._watch);
+    this._watch = null;
+  }
+
+  private _goHere(): void {
+    const here = this._here();
+    const size = this._renderer?.size;
+    if (here === null || !size) return;
+    const [x, y] = here;
+    this._setCamera(
+      fitBox([x - HERE_SURROUNDINGS, y - HERE_SURROUNDINGS, x + HERE_SURROUNDINGS, y + HERE_SURROUNDINGS], size, 0),
+    );
+  }
+
   // ── Camera ─────────────────────────────────────────────────────────────
 
   /** The view the card opens on and resets to: the country, or one province. */
@@ -254,6 +321,7 @@ export class AustriaMapCard extends LitElement {
       layers: this._layers,
       showLabels: this._config.show_labels,
       selection: this._selection,
+      here: this._here(),
     };
   }
 
@@ -506,6 +574,9 @@ export class AustriaMapCard extends LitElement {
         ${this._tool(this._t("controls.zoom_in"), "mdi:plus", () => this._zoomBy(ZOOM_STEP), zoom >= MAX_ZOOM - 0.0001)}
         ${this._tool(this._t("controls.zoom_out"), "mdi:minus", () => this._zoomBy(1 / ZOOM_STEP), zoom <= 1.0001)}
         ${this._tool(this._t("controls.reset"), "mdi:fit-to-screen-outline", () => this._resetView())}
+        ${this._config.show_location
+          ? this._tool(this._t("controls.my_location"), "mdi:crosshairs-gps", () => this._goHere(), this._here() === null)
+          : nothing}
       </div>
     `;
   }

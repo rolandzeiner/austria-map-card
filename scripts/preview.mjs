@@ -23,6 +23,7 @@ import { CHUNK_IDS, chunkFile } from "../src/data/format.ts";
 import { MapStore } from "../src/layers/store.ts";
 import { clampCamera, fitBox, fitScale, homeCamera } from "../src/map/camera.ts";
 import { DARK_THEME, LIGHT_THEME, derivePalette } from "../src/map/palette.ts";
+import { project } from "../src/map/projection.ts";
 import { MapRenderer } from "../src/map/renderer.ts";
 
 const root = new URL("../", import.meta.url);
@@ -45,7 +46,8 @@ const province = (code) => store.overview.provinces.ids.indexOf(code);
 /**
  * Each scene: canvas size in CSS pixels, theme, layers, and a camera given
  * either as a province to fit or as a centre (a municipality's label point)
- * with a zoom factor.
+ * with a zoom factor. `here` puts the "you are here" pin at a latitude and
+ * longitude.
  */
 const scenes = [
   { name: "overview-phone", width: 400, height: 212, theme: LIGHT_THEME, layers: standard },
@@ -58,6 +60,8 @@ const scenes = [
   { name: "municipalities-dark", width: 760, height: 403, theme: DARK_THEME, layers: everything, at: "40709", zoom: 9 },
   { name: "deep-zoom", width: 760, height: 403, theme: LIGHT_THEME, layers: everything, at: "70101", zoom: 40 },
   { name: "selected", width: 760, height: 403, theme: LIGHT_THEME, layers: [...standard, "districts"], fit: "AT-6", select: "AT-6" },
+  { name: "location", width: 760, height: 403, theme: LIGHT_THEME, layers: standard, fit: "AT-4", here: [48.3069, 14.2858] },
+  { name: "location-dark", width: 760, height: 403, theme: DARK_THEME, layers: standard, here: [47.0707, 15.4395] },
   { name: "bare", width: 760, height: 403, theme: LIGHT_THEME, layers: [] },
 ];
 
@@ -84,6 +88,7 @@ function render(scene, pixelRatio) {
     layers: new Set(scene.layers),
     showLabels: scene.labels ?? true,
     selection: scene.select === undefined ? null : { kind: "province", row: province(scene.select) },
+    here: scene.here === undefined ? null : project(...scene.here),
   });
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.globalCompositeOperation = "destination-over";

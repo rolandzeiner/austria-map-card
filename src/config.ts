@@ -12,6 +12,7 @@ import {
   PROVINCE_IDS,
   type AustriaMapCardConfig,
   type LayerId,
+  type LocationSource,
   type MapView,
 } from "./types.ts";
 
@@ -22,7 +23,13 @@ export const DEFAULTS = {
   show_labels: true,
   show_layer_control: true,
   view: "austria" as MapView,
+  show_location: false,
+  location: "home" as LocationSource,
 } as const;
+
+/** What `location` accepts besides an entity id. */
+export const LOCATION_MODES = ["home", "device"] as const;
+const ENTITY_ID = /^[a-z_]+\.[a-z0-9_]+$/;
 
 /** The config as the card reads it: every DEFAULTS key is present. */
 export interface NormalisedConfig extends AustriaMapCardConfig {
@@ -31,6 +38,8 @@ export interface NormalisedConfig extends AustriaMapCardConfig {
   show_labels: boolean;
   show_layer_control: boolean;
   view: MapView;
+  show_location: boolean;
+  location: LocationSource;
 }
 
 /** "" is what a cleared text field or dropdown hands back. An empty list
@@ -51,7 +60,10 @@ function parseLayers(value: unknown): LayerId[] {
   return sortLayers(value as LayerId[]);
 }
 
-function parseFlag(config: Record<string, unknown>, key: "show_labels" | "show_layer_control"): boolean {
+function parseFlag(
+  config: Record<string, unknown>,
+  key: "show_labels" | "show_layer_control" | "show_location",
+): boolean {
   const value = config[key];
   if (isUnset(value)) return DEFAULTS[key];
   if (typeof value !== "boolean") throw new Error(`"${key}" must be true or false.`);
@@ -62,6 +74,14 @@ function parseView(value: unknown): MapView {
   if (isUnset(value)) return DEFAULTS.view;
   if (typeof value === "string" && (VIEWS as ReadonlyArray<string>).includes(value)) return value as MapView;
   throw new Error(`"view" must be one of: ${VIEWS.join(", ")}.`);
+}
+
+function parseLocation(value: unknown): LocationSource {
+  if (isUnset(value)) return DEFAULTS.location;
+  if (typeof value === "string" && ((LOCATION_MODES as ReadonlyArray<string>).includes(value) || ENTITY_ID.test(value))) {
+    return value;
+  }
+  throw new Error('"location" must be home, device or an entity id such as person.anna.');
 }
 
 function parseTitle(value: unknown): string {
@@ -90,6 +110,8 @@ export function normaliseConfig(raw: unknown): NormalisedConfig {
     show_labels: parseFlag(config, "show_labels"),
     show_layer_control: parseFlag(config, "show_layer_control"),
     view: parseView(config.view),
+    show_location: parseFlag(config, "show_location"),
+    location: parseLocation(config.location),
   };
   const out: Record<string, unknown> = {};
   for (const key of Object.keys(config)) out[key] = key in parsed ? parsed[key] : config[key];

@@ -71,6 +71,7 @@ describe("the editor", () => {
       "Ebenen beim Öffnen",
       "Namen auf der Karte anzeigen",
       "Ebenen-Schaltfläche anzeigen",
+      "Deinen Standort markieren",
     ]);
     expect(form.computeHelper({ name: "layers" })).toMatch(/Auf der Karte kannst du/);
     expect(form.computeHelper({ name: "show_layer_control" })).toMatch(/Wanddisplay/);
@@ -124,6 +125,58 @@ describe("the editor", () => {
     const { form } = await mount({ type: TYPE, view: "AT-12", layers: ["roads"] });
     expect(form).not.toBeNull();
     expect(form.data).toMatchObject({ view: "AT-12", layers: ["roads"] });
+  });
+
+  it("asks where the pin comes from once the pin is switched on", async () => {
+    const { editor, form } = await mount({ type: TYPE });
+    expect(form.schema.map((field) => field.name)).not.toContain("location");
+    expect(await change(editor, form, { ...form.data, show_location: true })).toEqual({ type: TYPE, show_location: true });
+    expect(form.schema.map((field) => field.name)).toContain("location");
+    expect(form.data.location).toBe("home");
+  });
+
+  it("saves the device as a source, and home by leaving the key out", async () => {
+    const { editor, form } = await mount({ type: TYPE, show_location: true });
+    expect(await change(editor, form, { ...form.data, location: "device" })).toEqual({
+      type: TYPE,
+      show_location: true,
+      location: "device",
+    });
+    expect(await change(editor, form, { ...form.data, location: "home" })).toEqual({ type: TYPE, show_location: true });
+  });
+
+  it("offers the entity picker for a person or tracker, and saves the entity as the source", async () => {
+    const { editor, form } = await mount({ type: TYPE, show_location: true });
+    // Chosen, nothing picked yet: the picker stays, the config stays on home.
+    expect(await change(editor, form, { ...form.data, location: "entity" })).toEqual({ type: TYPE, show_location: true });
+    expect(form.data.location).toBe("entity");
+    const picker = form.schema.find((field) => field.name === "location_entity");
+    expect(picker?.selector).toEqual({ entity: { filter: [{ domain: "person" }, { domain: "device_tracker" }] } });
+    expect(await change(editor, form, { ...form.data, location_entity: "person.anna" })).toEqual({
+      type: TYPE,
+      show_location: true,
+      location: "person.anna",
+    });
+  });
+
+  it("shows a saved entity as a person or tracker, with the entity picked", async () => {
+    const { editor, form } = await mount({ type: TYPE, show_location: true, location: "device_tracker.phone" });
+    expect(form.data).toMatchObject({ location: "entity", location_entity: "device_tracker.phone" });
+    // Unrelated edits keep the entity.
+    expect(await change(editor, form, { ...form.data, show_labels: false })).toEqual({
+      type: TYPE,
+      show_location: true,
+      location: "device_tracker.phone",
+      show_labels: false,
+    });
+    // Going back to a named source drops it.
+    expect(await change(editor, form, { ...form.data, location: "device" })).toEqual({
+      type: TYPE,
+      show_location: true,
+      location: "device",
+      show_labels: false,
+    });
+    expect(form.schema.map((field) => field.name)).not.toContain("location_entity");
   });
 
   it("stops the form's own event from reaching the dialog", async () => {

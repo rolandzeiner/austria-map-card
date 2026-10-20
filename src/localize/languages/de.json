@@ -20,7 +20,8 @@
     "zoom_out": "Herauszoomen",
     "reset": "Ansicht zurücksetzen",
     "zoom_here": "Hierher zoomen",
-    "clear": "Auswahl aufheben"
+    "clear": "Auswahl aufheben",
+    "my_location": "Deinen Standort zeigen"
   },
   "layers": {
     "terrain": "Gelände",
@@ -68,6 +69,14 @@
     "layers_helper": "Auf der Karte kannst du Ebenen weiterhin ein- und ausschalten. Diese Auswahl gilt, bis die Seite neu lädt.",
     "show_labels": "Namen auf der Karte anzeigen",
     "show_layer_control": "Ebenen-Schaltfläche anzeigen",
-    "show_layer_control_helper": "Schalte das aus, um die Ebenen zu sperren, zum Beispiel auf einem Wanddisplay."
+    "show_layer_control_helper": "Schalte das aus, um die Ebenen zu sperren, zum Beispiel auf einem Wanddisplay.",
+    "show_location": "Deinen Standort markieren",
+    "show_location_helper": "Setzt eine Stecknadel auf die Karte. Die Position bleibt in deinem Browser.",
+    "location": "Stecknadel zeigt",
+    "location_mode_home": "Dein Zuhause, aus den Home-Assistant-Einstellungen",
+    "location_mode_device": "Dieses Gerät",
+    "location_mode_entity": "Eine Person oder einen Tracker",
+    "location_helper": "„Dieses Gerät“ braucht HTTPS und deine Erlaubnis. Ohne beides markiert die Stecknadel dein Zuhause.",
+    "location_entity": "Person oder Tracker"
   }
 }

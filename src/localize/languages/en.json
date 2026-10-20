@@ -20,7 +20,8 @@
     "zoom_out": "Zoom out",
     "reset": "Reset view",
     "zoom_here": "Zoom here",
-    "clear": "Clear selection"
+    "clear": "Clear selection",
+    "my_location": "Show your location"
   },
   "layers": {
     "terrain": "Terrain",
@@ -68,6 +69,14 @@
     "layers_helper": "You can still switch layers on the map. That choice lasts until the page reloads.",
     "show_labels": "Show names on the map",
     "show_layer_control": "Show the layer button",
-    "show_layer_control_helper": "Turn this off to lock the layers, for example on a wall display."
+    "show_layer_control_helper": "Turn this off to lock the layers, for example on a wall display.",
+    "show_location": "Mark your location",
+    "show_location_helper": "Puts a pin on the map. The position stays in your browser.",
+    "location": "Pin shows",
+    "location_mode_home": "Your home, from the Home Assistant settings",
+    "location_mode_device": "This device",
+    "location_mode_entity": "A person or tracker",
+    "location_helper": "“This device” needs HTTPS and your permission. Without them, the pin marks your home.",
+    "location_entity": "Person or tracker"
   }
 }

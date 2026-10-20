@@ -5,6 +5,14 @@ export interface HomeAssistant {
   language?: string;
   themes?: { darkMode?: boolean; theme?: string } & Record<string, unknown>;
   selectedTheme?: { theme?: string; dark?: boolean } | null;
+  /** The home's position, from Settings → System → General. */
+  config?: { latitude?: number; longitude?: number };
+  states?: Record<string, HassEntity | undefined>;
+}
+
+export interface HassEntity {
+  state: string;
+  attributes: Record<string, unknown>;
 }
 
 /** Marker every card config extends. */
@@ -41,6 +49,10 @@ export type ProvinceId = (typeof PROVINCE_IDS)[number];
 /** What the card opens on: the whole country or one province. */
 export type MapView = "austria" | ProvinceId;
 
+/** Where the "you are here" pin comes from: the home, the device showing
+ *  the dashboard, or an entity id such as `person.anna`. */
+export type LocationSource = "home" | "device" | (string & {});
+
 /** The YAML the user writes. Every key but `type` is optional. */
 export interface AustriaMapCardConfig extends LovelaceCardConfig {
   title?: string;
@@ -52,6 +64,10 @@ export interface AustriaMapCardConfig extends LovelaceCardConfig {
   show_layer_control?: boolean;
   /** `austria` or a province code, `AT-1` to `AT-9`. Default `austria`. */
   view?: MapView;
+  /** Mark where you are with a pin. Default false. */
+  show_location?: boolean;
+  /** `home`, `device` or an entity id. Default `home`. */
+  location?: LocationSource;
 }
 
 // ── ha-form schema ──────────────────────────────────────────────────────
@@ -64,6 +80,7 @@ export interface SelectOption {
 export type HASelector =
   | { boolean: Record<string, never> }
   | { text: Record<string, never> }
+  | { entity: { filter?: ReadonlyArray<{ domain: string }> } }
   | {
       select: {
         mode?: "dropdown" | "list";

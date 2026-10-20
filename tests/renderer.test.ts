@@ -10,10 +10,11 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { MapStore } from "../src/layers/store.ts";
 import { clampCamera, fitBox, fitScale, homeCamera, toScreen, type Camera } from "../src/map/camera.ts";
 import { LIGHT_THEME, derivePalette } from "../src/map/palette.ts";
+import { project } from "../src/map/projection.ts";
 import { MapRenderer, type RenderState } from "../src/map/renderer.ts";
 import { LAYER_IDS, type LayerId } from "../src/types.ts";
 import { storeWith } from "./chunks.ts";
-import { fakeCanvas, fakeContext, fakePath, type FakeContext } from "./fake-canvas.ts";
+import { fakeCanvas, fakeContext, fakePath, pinTip, type FakeContext } from "./fake-canvas.ts";
 
 const palette = derivePalette(LIGHT_THEME);
 const size = { width: 760, height: 403 };
@@ -34,6 +35,7 @@ const state = (camera: Camera, layers: readonly LayerId[], extra: Partial<Render
   layers: new Set(layers),
   showLabels: true,
   selection: null,
+  here: null,
   ...extra,
 });
 
@@ -399,5 +401,48 @@ describe("zoom here", () => {
     expect(renderer.boxOf({ kind: "municipality", row: 0 })).toBeUndefined();
     expect(renderer.boxOf({ kind: "city", row: 0 })).toBeUndefined();
     expect(renderer.boxOf({ kind: "province", row: 0 })).toBeDefined();
+  });
+});
+
+describe("the pin", () => {
+  const linz = project(48.3069, 14.2858);
+
+  it("is not drawn without a position", () => {
+    const renderer = rendererFor(all);
+    renderer.draw(state(home, standard));
+    expect(pinTip(fake)).toBeUndefined();
+  });
+
+  it("puts its tip on the position, on top of everything, in the accent colour", () => {
+    const renderer = rendererFor(all);
+    renderer.draw(state(home, standard, { here: linz }));
+    const [x, y] = toScreen(home, size, ...linz);
+    const tip = pinTip(fake)!;
+    expect(tip[0]).toBeCloseTo(x);
+    expect(tip[1]).toBeCloseTo(y);
+    const fills = fake.named("fill");
+    // The head, then the hole: the last two fills of the frame.
+    expect(fills.at(-2)?.fillStyle).toBe(palette.accent);
+    expect(fills.at(-1)?.fillStyle).toBe(palette.land);
+    expect(fake.calls.findIndex((call) => call.name === "fillText")).toBeLessThan(fake.calls.indexOf(fills.at(-2)!));
+  });
+
+  it("is drawn with every layer off and names off", () => {
+    const renderer = rendererFor(all);
+    renderer.draw({ ...state(home, []), showLabels: false, here: linz });
+    expect(pinTip(fake)).toBeDefined();
+  });
+
+  it("stays the same size at any zoom", () => {
+    const renderer = rendererFor(all);
+    renderer.draw(state(home, standard, { here: linz }));
+    const near = clampCamera({ x: linz[0], y: linz[1], k: fitScale(size) * 20 }, size);
+    const first = fake.named("scale").at(-1)?.args;
+    fake.reset();
+    renderer.draw(state(near, standard, { here: linz }));
+    expect(fake.named("scale").at(-1)?.args).toEqual(first);
+    const tip = pinTip(fake)!;
+    expect(tip[0]).toBeCloseTo(size.width / 2);
+    expect(tip[1]).toBeCloseTo(size.height / 2);
   });
 });

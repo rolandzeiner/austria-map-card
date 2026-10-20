@@ -7,7 +7,8 @@ import { css } from "lit";
 // their computed values through a probe element and mixes the map's colours
 // out of them (src/map/palette.ts). One override is read from a theme or
 // card-mod:
-//   --austria-map-accent-color   the selection and the focus ring
+//   --austria-map-accent-color   the selection, the location pin and the
+//                                focus ring
 //                                (default: the theme's primary colour)
 export const cardStyles = css`
   :host {

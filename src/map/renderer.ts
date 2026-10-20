@@ -16,9 +16,11 @@ import { riverBox, riverLines, riverNear } from "../layers/rivers.ts";
 import { grown } from "../layers/scales.ts";
 import type { MapStore } from "../layers/store.ts";
 import type { LayerId } from "../types.ts";
-import { toMap, visibleBox, type Box, type Camera, type Size } from "./camera.ts";
+import { toMap, toScreen, visibleBox, type Box, type Camera, type Size } from "./camera.ts";
 import { drawLabels, type DrawnCity, type Feature } from "./labels.ts";
 import type { Palette } from "./palette.ts";
+import { drawPin } from "./pin.ts";
+import type { MapPoint } from "./projection.ts";
 import { ShapeCache, traceLines, traceRings, type PathFactory } from "./tiles.ts";
 
 export interface RenderState {
@@ -26,6 +28,8 @@ export interface RenderState {
   readonly layers: ReadonlySet<LayerId>;
   readonly showLabels: boolean;
   readonly selection: Feature | null;
+  /** Where the "you are here" pin goes, in map units; null for no pin. */
+  readonly here: MapPoint | null;
 }
 
 /** The part of a canvas element the renderer uses. */
@@ -168,6 +172,8 @@ export class MapRenderer {
         ctx.stroke();
       }
     }
+    // On top of everything: it is the one mark that is about you.
+    if (state.here !== null) drawPin(ctx, ...toScreen(camera, size, ...state.here), palette);
   }
 
   /** Mark the selected area or river. A selected town is ringed with the labels. */

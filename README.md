@@ -19,6 +19,7 @@ A map of Austria for your Home Assistant dashboard. Switch layers on and off, zo
 - **Loads only what you look at** *(0.1.0)*: the card itself is small. Map data arrives in six separate files, each fetched the first time a layer or zoom level needs it.
 - **Follows your theme** *(0.1.0)*: light and dark, with its own terrain shading for each.
 - **Open one province** *(0.1.0)*: start on all of Austria or on a single province.
+- **Mark where you are** *(0.2.0)*: a pin shows your home, the device you're on, or a person or tracker as they move. One button takes you there.
 - **Keyboard and screen reader support** *(0.1.0)*: every gesture has a button and a key.
 - **English and German** *(0.1.0)*.
 
@@ -62,6 +63,8 @@ Every option is optional. Use the visual editor or YAML.
 | `layers` | list | `terrain`, `rivers`, `provinces`, `cities` | The layers that are on when the card opens. See [Layers](#layers). An empty list shows only the country's outline. |
 | `show_labels` | boolean | `true` | Names on the map. |
 | `show_layer_control` | boolean | `true` | The layer button. Turn it off to lock the layers, for example on a wall display. |
+| `show_location` | boolean | `false` | A pin that marks where you are, and a button that goes to it. |
+| `location` | `home`, `device`, or an entity id | `home` | Where the pin goes. See [Your location](#your-location). |
 
 Layers you switch on the map stay that way until the page reloads. To change what the card opens with, edit `layers`.
 
@@ -75,6 +78,16 @@ Layers you switch on the map stay that way until the page reloads. To change wha
 | `districts` | The 94 district borders | |
 | `municipalities` | The 2,092 municipality borders | Appears once you zoom in. On the whole country they would be a grey smear. |
 | `cities` | Towns and villages | The capitals and the six cities over 100,000 always show. Others appear by size as you zoom in. |
+
+### Your location
+
+| `location` | Pin marks | Good to know |
+| --- | --- | --- |
+| `home` | Your home | The position set in **Settings → System → General**. |
+| `device` | The phone, tablet or computer showing the dashboard | Needs HTTPS. The browser asks once for permission. Until it answers, or if you say no, the pin marks your home. |
+| `person.anna`, `device_tracker.phone` | That person or tracker | Moves when they do. Works with any entity that has `latitude` and `longitude`, such as a Companion app tracker. Without GPS, an entity that reports `home` shows at your home. |
+
+The position stays in your browser. The card draws it and sends it nowhere.
 
 ### Province codes
 
@@ -99,6 +112,14 @@ layers:
   - districts
 ```
 
+Follow a person on their phone:
+
+```yaml
+type: custom:austria-map-card
+show_location: true
+location: person.anna
+```
+
 A fixed map for a wall display:
 
 ```yaml
@@ -118,6 +139,7 @@ layers:
 | Zoom | Pinch, double-tap, `+` / `−` buttons, Ctrl or ⌘ + scroll | `+` / `−` |
 | Return to the opening view | **Reset view** button | `0` |
 | See what is at a spot | Tap or click it | `Enter` reads out what is under the crosshair |
+| Go to your location | **Show your location** button | Tab to the button, then `Enter` |
 
 On the whole-country view there is nothing to drag, so a vertical swipe scrolls your dashboard. Once you zoom in, the map takes the swipe.
 
@@ -127,7 +149,7 @@ A dashboard resource loads on every dashboard, whether it shows a map or not. So
 
 | File | Holds | Loaded | Size (compressed) |
 | --- | --- | --- | --- |
-| `austria-map-card.js` | The card | Always | 82 KB (28 KB) |
+| `austria-map-card.js` | The card | Always | 86 KB (29 KB) |
 | `austria-map-data-base.js` | Country and province borders, terrain overview, larger rivers | With the first map | 62 KB (42 KB) |
 | `austria-map-data-places.js` | 2,029 towns and villages | Towns layer on | 61 KB (29 KB) |
 | `austria-map-data-borders.js` | Fine borders down to districts, names and population of all districts and municipalities | Zoomed in, or districts or municipalities on | 142 KB (81 KB) |
@@ -157,7 +179,7 @@ The map takes its colours from your theme. One variable is the card's own:
 
 | Variable | Sets | Default |
 | --- | --- | --- |
-| `--austria-map-accent-color` | The selection and the focus ring | Your theme's primary colour |
+| `--austria-map-accent-color` | The selection, the location pin and the focus ring | Your theme's primary colour |
 
 ## Accessibility
 
@@ -171,7 +193,8 @@ The map takes its colours from your theme. One variable is the card's own:
 
 - **The map is not for navigation.** Borders come from a 1:250 000 dataset and are simplified further. Positions are on Austria's MGI datum, about 100 m off GPS coordinates.
 - **No lakes yet.** Rivers are lines; Lake Constance and Lake Neusiedl are not drawn.
-- **No Home Assistant entities yet.** This version shows geography and population only.
+- **Entities only place the pin.** Apart from your location, the card shows geography and population.
+- **The pin shows only inside the map.** A position outside Austria and its border margin falls off the map's edge.
 - **Names are the official ones.** Towns carry the BEV's spelling, municipalities the register's, so "St. Pölten" and "Sankt Johann" both occur.
 - **A town shows its municipality's population**, and only where the two share a name.
 - **Pinch to zoom from the whole-country view** depends on the browser. If it does not respond, zoom in once with the `+` button or a double-tap.

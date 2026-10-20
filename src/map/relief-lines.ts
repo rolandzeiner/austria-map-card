@@ -32,22 +32,44 @@ export interface LineSet {
   readonly width: number;
 }
 
-/** No segment is longer than this, in map units, so lines follow the ground between cells. */
-const STEP = 0.5;
+/**
+ * Where a step from (x1, y1) to (x2, y2) crosses an edge of the relief's
+ * triangles, as fractions of the way, in order.
+ *
+ * The mesh has a vertex at every cell centre (k + 0.5) and splits each
+ * cell along the diagonal where x + y is a whole number (relief-gl.ts). A
+ * straight piece inside one triangle lies exactly on its plane; a piece
+ * across a ridge between two would cut through the mountain and vanish.
+ * Every second line of the grid is also an edge of the coarser mesh drawn
+ * for the whole country, so these cuts serve both.
+ */
+function crossings(x1: number, y1: number, x2: number, y2: number): number[] {
+  const cuts: number[] = [];
+  const across = (from: number, to: number): void => {
+    if (from === to) return;
+    const low = Math.min(from, to);
+    const high = Math.max(from, to);
+    for (let edge = Math.floor(low) + 1; edge < high; edge += 1) cuts.push((edge - from) / (to - from));
+  };
+  across(x1 - 0.5, x2 - 0.5);
+  across(y1 - 0.5, y2 - 0.5);
+  across(x1 + y1, x2 + y2);
+  return cuts.sort((a, b) => a - b);
+}
 
 /**
- * Segments as x1, y1, x2, y2 for the chosen lines, cut into steps of at
- * most `STEP`. Rings are closed.
+ * Segments as x1, y1, x2, y2 for the chosen lines, cut at every edge of the
+ * relief's triangles, so each lies flat on the ground. Rings are closed.
  */
 export function segmentsOf(lines: Lines, keep: (line: number) => boolean, closed = lines.closed): Float32Array {
   const { xy, start } = lines;
   const out: number[] = [];
   const push = (x1: number, y1: number, x2: number, y2: number): void => {
-    const pieces = Math.max(1, Math.ceil(Math.hypot(x2 - x1, y2 - y1) / STEP));
-    for (let piece = 0; piece < pieces; piece += 1) {
-      const t0 = piece / pieces;
-      const t1 = (piece + 1) / pieces;
+    let t0 = 0;
+    for (const t1 of [...crossings(x1, y1, x2, y2), 1]) {
+      if (t1 - t0 < 1e-6) continue;
       out.push(x1 + (x2 - x1) * t0, y1 + (y2 - y1) * t0, x1 + (x2 - x1) * t1, y1 + (y2 - y1) * t1);
+      t0 = t1;
     }
   };
   for (let line = 0; line < lines.count; line += 1) {

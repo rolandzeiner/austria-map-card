@@ -23,6 +23,31 @@ describe("segments", () => {
     expect([...segments.slice(-4)]).toEqual([1.5, 0, 2, 0]);
   });
 
+  it("cuts every piece to lie inside one triangle of the relief, so none cuts through a ridge", () => {
+    // The mesh's triangle under a point: its cell, and which side of the cell's diagonal.
+    const triangle = (x: number, y: number, stride: number): string => {
+      const fx = (x - 0.5) / stride;
+      const fy = (y - 0.5) / stride;
+      const cx = Math.floor(fx);
+      const cy = Math.floor(fy);
+      return `${cx},${cy},${fx - cx + (fy - cy) <= 1 ? "a" : "b"}`;
+    };
+    const line: Lines = {
+      xy: Float32Array.from([10.1, 20.3, 13.7, 18.2, 12.2, 23.9, 9.4, 21.05]),
+      start: Uint32Array.from([0, 4]),
+      count: 1,
+      closed: false,
+    };
+    const segments = segmentsOf(line, () => true);
+    expect(segments.length / 4).toBeGreaterThan(10);
+    for (let at = 0; at < segments.length; at += 4) {
+      const [x1, y1, x2, y2] = segments.slice(at, at + 4) as unknown as [number, number, number, number];
+      const point = (t: number): [number, number] => [x1 + (x2 - x1) * t, y1 + (y2 - y1) * t];
+      // The coarse mesh of the whole-country view too.
+      for (const stride of [1, 2]) expect(triangle(...point(0.25), stride)).toBe(triangle(...point(0.75), stride));
+    }
+  });
+
   it("closes rings and leaves out lines not asked for", () => {
     const ring: Lines = {
       xy: Float32Array.from([0, 0, 0.3, 0, 0.3, 0.3, 9, 9, 9.2, 9]),

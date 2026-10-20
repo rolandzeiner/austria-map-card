@@ -753,7 +753,10 @@ function packRoads(strokes, q, provincesOf) {
       },
     ],
     provinces: encodeInts(routes.map((route) => provincesOf(route.map((stroke) => stroke.points)))),
-    lines: encodeLines(strokes.map((stroke) => stroke.points), q, { closed: false }),
+    // keepShort: `route` runs parallel to the lines, so none may go missing.
+    // A stroke that shrinks to one grid point would otherwise be dropped and
+    // every later line would carry the route of the one after it.
+    lines: encodeLines(strokes.map((stroke) => stroke.points), q, { closed: false, keepShort: true }),
     route: encodeInts(strokes.map((stroke) => refs.indexOf(stroke.ref))),
   };
 }

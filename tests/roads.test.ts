@@ -119,6 +119,17 @@ describe("motorways on the tilted map", () => {
 describe("main roads", () => {
   const roads = store.mainRoads!;
 
+  it.each([
+    ["motorways", motorways],
+    ["main roads", roads],
+  ] as const)("%s: every line has its route, none lost in packing", (_, set) => {
+    // A short stroke dropped from the lines but not from the route table
+    // shifted every later line onto the next route: tapping the road near
+    // Melk named and lit up the B211 at Rohrau.
+    expect(set.route).toHaveLength(set.lines.count);
+    for (const route of set.route) expect(set.refs[route]).toBeTypeOf("string");
+  });
+
   it("hold the B roads by number, with the names they carry furthest", () => {
     expect(roads.refs).toContain("B317");
     expect(roads.refs).toContain("B1");

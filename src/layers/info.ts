@@ -111,6 +111,19 @@ export function describeFeature(store: MapStore, feature: Feature): FeatureInfo 
       }
       return { name: peaks.names[feature.row] ?? "", kind: "kinds.peak", parents, facts: factsOf(store, peaks.facts, feature.row) };
     }
+    case "motorway": {
+      const motorways = store.motorways;
+      const route = motorways?.refs.indexOf(feature.ref) ?? -1;
+      if (motorways === undefined || route < 0) return null;
+      const name = motorways.names[route] ?? "";
+      return {
+        // "A1 · West Autobahn"; a route without a name of its own is its number.
+        name: name === "" ? feature.ref : `${feature.ref} · ${name}`,
+        kind: feature.ref.startsWith("S") ? "kinds.expressway" : "kinds.motorway",
+        parents: [],
+        facts: [],
+      };
+    }
     case "river": {
       const source = store.sources().find((entry) => entry.id === "bmluk-ggn");
       return {

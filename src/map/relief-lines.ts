@@ -14,6 +14,7 @@
  */
 import type { Lines } from "../data/format.ts";
 import { BORDER_WIDTHS } from "../layers/borders.ts";
+import { MOTORWAY_CASING, MOTORWAY_WIDTH, motorwayLines } from "../layers/motorways.ts";
 import { useFineBorders } from "../layers/registry.ts";
 import { RIVER_WIDTHS, riverLines, riversAt } from "../layers/rivers.ts";
 import { SCALES, grown } from "../layers/scales.ts";
@@ -149,8 +150,32 @@ export function reliefLines(
     border(0, "borders:coarse:0", () => segmentsOf(arcs.lines, (line) => (arcs.a[line] as number) < 0));
   }
 
+  // As on the flat map: over the inner borders, under the national one.
+  const motorways = layers.has("motorways") ? store.motorways : undefined;
+  if (motorways !== undefined) {
+    const all = (): Float32Array => segmentsOf(motorways.lines, () => true);
+    const national = sets.findIndex((set) => set.key.startsWith("borders:") && set.key.endsWith(":0"));
+    sets.splice(
+      national < 0 ? sets.length : national,
+      0,
+      { key: "motorways", segments: all, colour: rgb(palette.motorwayCasing), width: grown(MOTORWAY_CASING, scale) },
+      { key: "motorways", segments: all, colour: rgb(palette.motorway), width: grown(MOTORWAY_WIDTH, scale) },
+    );
+  }
+
   const accent = rgb(palette.accent);
-  if (selection?.kind === "river") {
+  if (selection?.kind === "motorway") {
+    const route = motorwayLines(store, selection.ref);
+    if (route !== undefined) {
+      const which = new Set(route.which);
+      sets.push({
+        key: `selected:motorway:${selection.ref}`,
+        segments: () => segmentsOf(route.lines, (line) => which.has(line)),
+        colour: accent,
+        width: grown(3.2, scale),
+      });
+    }
+  } else if (selection?.kind === "river") {
     const river = riverLines(store, scale, selection.name);
     if (river !== undefined) {
       const which = new Set(river.which);

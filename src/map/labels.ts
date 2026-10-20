@@ -10,7 +10,7 @@
 import type { ArcIndex } from "../data/arcs.ts";
 import { minimumRank, placeTier } from "../layers/places.ts";
 import { riversAt } from "../layers/rivers.ts";
-import type { MapStore, Places, Rivers, Table } from "../layers/store.ts";
+import type { MapStore, Motorways, Places, Rivers, Table } from "../layers/store.ts";
 import type { LayerId } from "../types.ts";
 import { toScreen, type Box, type Camera, type Size } from "./camera.ts";
 import {
@@ -20,6 +20,7 @@ import {
   glyphBoxes,
   longestInside,
   measure,
+  pointAlong,
   setAlong,
   type Glyph,
   type Rect,
@@ -33,7 +34,8 @@ export type Feature =
   | { readonly kind: "municipality"; readonly row: number }
   | { readonly kind: "city"; readonly row: number }
   | { readonly kind: "peak"; readonly row: number }
-  | { readonly kind: "river"; readonly name: string; readonly order: number };
+  | { readonly kind: "river"; readonly name: string; readonly order: number }
+  | { readonly kind: "motorway"; readonly ref: string };
 
 /** A town or a summit as drawn in a frame: what a tap is tested against. */
 export interface DrawnCity {
@@ -98,6 +100,11 @@ export const shortTownName = (name: string): string => name.replace(/ (am|an der
 
 const MAX_CITIES = 90;
 const MAX_PEAKS = 40;
+const MAX_SHIELDS = 16;
+/** Pixels between candidate spots for a route shield, along its line. */
+const SHIELD_STEP = 180;
+/** Two shields of the same route keep at least this far apart. */
+const SHIELD_REPEAT = 240;
 /** A summit is named once its isolation spans this many pixels. */
 export const PEAK_SPACING = 40;
 /** Half the width of a summit's triangle, in pixels. */
@@ -146,6 +153,26 @@ function alwaysShown(places: Places): number[] {
       if (placeTier(places, row) <= 1) rows.push(row);
     }
     always.set(places, rows);
+  }
+  return rows;
+}
+
+/** Motorway strokes, longest first: the main carriageways get their shields before the stubs. */
+const strokes = new WeakMap<Motorways, number[]>();
+function longestStrokes(motorways: Motorways): number[] {
+  let rows = strokes.get(motorways);
+  if (rows === undefined) {
+    const { xy, start } = motorways.lines;
+    const length = (line: number): number => {
+      let sum = 0;
+      for (let point = (start[line] as number) + 1; point < (start[line + 1] as number); point += 1) {
+        sum += Math.hypot((xy[point * 2] as number) - (xy[point * 2 - 2] as number), (xy[point * 2 + 1] as number) - (xy[point * 2 - 1] as number));
+      }
+      return sum;
+    };
+    const lengths = Array.from({ length: motorways.lines.count }, (_, line) => length(line));
+    rows = lengths.map((_, line) => line).sort((p, q) => (lengths[q] as number) - (lengths[p] as number) || p - q);
+    strokes.set(motorways, rows);
   }
   return rows;
 }
@@ -308,6 +335,46 @@ export function drawLabels(input: LabelInput): DrawnCity[] {
     for (let row = 0; row < places.count && drawn.length < MAX_CITIES; row += 1) {
       if ((places.rank[row] as number) < least) break;
       town(row, false);
+    }
+  }
+
+  // ── Route shields along the motorways ─────────────────────────────────
+  const motorways = layers.has("motorways") ? store.motorways : undefined;
+  if (showLabels && motorways !== undefined) {
+    const font = `700 10px ${family}`;
+    const placed: Array<{ ref: string; x: number; y: number }> = [];
+    const { xy, start } = motorways.lines;
+    for (const line of longestStrokes(motorways)) {
+      if (placed.length >= MAX_SHIELDS) break;
+      const ref = motorways.refs[motorways.route[line] as number] as string;
+      const screen: number[] = [];
+      for (let point = start[line] as number; point < (start[line + 1] as number); point += 1) {
+        const at = pixels(xy[point * 2] as number, xy[point * 2 + 1] as number);
+        if (at !== null) screen.push(at[0], at[1]);
+      }
+      if (screen.length < 4) continue;
+      const measured = measure(screen);
+      const total = measured.along[measured.along.length - 1] as number;
+      const width = widthOf(ctx, font, ref) + 8;
+      for (let distance = SHIELD_STEP / 2; distance < total && placed.length < MAX_SHIELDS; distance += SHIELD_STEP) {
+        const [x, y] = pointAlong(measured, distance);
+        if (x < 0 || y < 0 || x > size.width || y > size.height) continue;
+        if (placed.some((other) => other.ref === ref && Math.hypot(other.x - x, other.y - y) < SHIELD_REPEAT)) continue;
+        const box = centredOn(x, y, width, 15);
+        if (!placer.place([box])) continue;
+        placed.push({ ref, x, y });
+        ctx.beginPath();
+        ctx.roundRect(box.x, box.y, box.w, box.h, 3);
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = palette.halo;
+        ctx.stroke();
+        ctx.fillStyle = palette.shield;
+        ctx.fill();
+        ctx.font = font;
+        ctx.textAlign = "center";
+        ctx.fillStyle = palette.shieldText;
+        ctx.fillText(ref, x, y + 0.5);
+      }
     }
   }
 

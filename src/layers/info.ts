@@ -46,6 +46,19 @@ function provincesIn(store: MapStore, mask: number): string[] {
   return names.filter((_, row) => (mask & (1 << row)) !== 0);
 }
 
+/** A municipality's name, then its district's and its province's; empty without the borders. */
+function municipalityParents(store: MapStore, municipality: number): string[] {
+  const provinces = store.overview?.provinces;
+  const detail = store.detail;
+  if (detail === undefined || provinces === undefined || municipality < 0) return [];
+  const district = detail.municipalities.parent?.[municipality] ?? -1;
+  return [
+    detail.municipalities.names[municipality] ?? "",
+    detail.districts.names[district] ?? "",
+    provinces.names[detail.provinceOf[municipality] ?? -1] ?? "",
+  ];
+}
+
 const rowInfo = (
   store: MapStore,
   table: Table,
@@ -90,21 +103,10 @@ export function describeFeature(store: MapStore, feature: Feature): FeatureInfo 
     case "city": {
       const places = store.places;
       if (places === undefined) return null;
-      const name = places.names[feature.row] ?? "";
-      const parents: string[] = [];
-      const municipality = places.municipality[feature.row] ?? -1;
-      if (detail !== undefined && provinces !== undefined && municipality >= 0) {
-        const district = detail.municipalities.parent?.[municipality] ?? -1;
-        parents.push(
-          detail.municipalities.names[municipality] ?? "",
-          detail.districts.names[district] ?? "",
-          provinces.names[detail.provinceOf[municipality] ?? -1] ?? "",
-        );
-      }
       return {
-        name,
+        name: places.names[feature.row] ?? "",
         kind: `kinds.town_${places.kind[feature.row] ?? 2}`,
-        parents,
+        parents: municipalityParents(store, places.municipality[feature.row] ?? -1),
         facts: factsOf(store, places.facts, feature.row),
       };
     }
@@ -113,16 +115,8 @@ export function describeFeature(store: MapStore, feature: Feature): FeatureInfo 
       if (peaks === undefined) return null;
       const x = peaks.at[feature.row * 2] as number;
       const y = peaks.at[feature.row * 2 + 1] as number;
-      const parents: string[] = [];
-      const municipality = store.municipalityIndex?.locate(x, y) ?? -1;
-      if (detail !== undefined && provinces !== undefined && municipality >= 0) {
-        const district = detail.municipalities.parent?.[municipality] ?? -1;
-        parents.push(
-          detail.municipalities.names[municipality] ?? "",
-          detail.districts.names[district] ?? "",
-          provinces.names[detail.provinceOf[municipality] ?? -1] ?? "",
-        );
-      } else if (provinces !== undefined && store.overview !== undefined) {
+      const parents = municipalityParents(store, store.municipalityIndex?.locate(x, y) ?? -1);
+      if (parents.length === 0 && provinces !== undefined && store.overview !== undefined) {
         const province = store.overview.index.locate(x, y);
         if (province >= 0) parents.push(provinces.names[province] ?? "");
       }

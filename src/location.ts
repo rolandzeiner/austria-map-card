@@ -26,7 +26,7 @@ const position = (latitude: unknown, longitude: unknown): Position | null =>
     ? { latitude, longitude }
     : null;
 
-export const homePosition = (hass: HomeAssistant | undefined): Position | null =>
+const homePosition = (hass: HomeAssistant | undefined): Position | null =>
   position(hass?.config?.latitude, hass?.config?.longitude);
 
 /**

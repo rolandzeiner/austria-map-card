@@ -7,10 +7,10 @@ import { panBy, zoomAbout, type Camera, type Size } from "./camera.ts";
 import { isFlat, orient, panTilted, zoomTilted, type Orientation } from "./view3d.ts";
 
 /** Movement in pixels below which a press still counts as a tap. */
-export const TAP_SLOP = 6;
+const TAP_SLOP = 6;
 /** A second tap this soon and this near is a double tap. */
 export const DOUBLE_TAP_MS = 320;
-export const DOUBLE_TAP_SLOP = 30;
+const DOUBLE_TAP_SLOP = 30;
 
 interface Pointer {
   x: number;
@@ -90,11 +90,7 @@ export class MapGesture {
     const { camera, orientation } = pose;
     const flat = isFlat(orientation);
     if (this.pointers.size === 1) {
-      const dx = x - pointer.x;
-      const dy = y - pointer.y;
-      pointer.x = x;
-      pointer.y = y;
-      this.travelled += Math.abs(dx) + Math.abs(dy);
+      const [dx, dy] = this.drag(pointer, x, y);
       if (this.travelled <= TAP_SLOP) return pose;
       if (turn)
         return { camera, orientation: orient(orientation, -dy * TILT_RATE, -dx * TURN_RATE) };
@@ -155,16 +151,22 @@ export class MapGesture {
     return upright(a) && upright(b) && Math.sign(a.dy) === Math.sign(b.dy) ? "tilt" : "pinch";
   }
 
+  /** Moves the one pointer down to (x, y) and counts the way; the step it made. */
+  private drag(pointer: Pointer, x: number, y: number): [dx: number, dy: number] {
+    const dx = x - pointer.x;
+    const dy = y - pointer.y;
+    pointer.x = x;
+    pointer.y = y;
+    this.travelled += Math.abs(dx) + Math.abs(dy);
+    return [dx, dy];
+  }
+
   /** The camera after this move, or null when the pointer is not ours. */
   public move(id: number, x: number, y: number, camera: Camera, size: Size): Camera | null {
     const pointer = this.pointers.get(id);
     if (pointer === undefined) return null;
     if (this.pointers.size === 1) {
-      const dx = x - pointer.x;
-      const dy = y - pointer.y;
-      pointer.x = x;
-      pointer.y = y;
-      this.travelled += Math.abs(dx) + Math.abs(dy);
+      const [dx, dy] = this.drag(pointer, x, y);
       // Below the slop nothing moves, so a tap with a shaky finger stays a tap.
       return this.travelled > TAP_SLOP ? panBy(camera, size, dx, dy) : camera;
     }

@@ -32,7 +32,7 @@ export const MAX_PITCH = 65 * DEGREES;
 /** What the 3D button tilts to. */
 export const TILT_PITCH = 55 * DEGREES;
 /** Vertical field of view. Narrow, so the tilted map is not distorted much. */
-export const FIELD_OF_VIEW = 36 * DEGREES;
+const FIELD_OF_VIEW = 36 * DEGREES;
 /** Ground metres per view-box unit (see projection.ts). */
 export const METRES_PER_UNIT = 585;
 /**

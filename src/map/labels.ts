@@ -113,7 +113,7 @@ const SHIELD_STEP = 180;
 /** Two shields of the same route keep at least this far apart. */
 const SHIELD_REPEAT = 240;
 /** A summit is named once its isolation spans this many pixels. */
-export const PEAK_SPACING = 40;
+const PEAK_SPACING = 40;
 /** Half the width of a summit's triangle, in pixels. */
 const PEAK_SIZE = 4.5;
 const MAX_RIVER_NAMES = 14;

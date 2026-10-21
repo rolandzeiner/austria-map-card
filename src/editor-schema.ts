@@ -2,8 +2,7 @@ import { LOCATION_MODES, VIEWS } from "./config.ts";
 import { LAYER_IDS, type HaFormSchema } from "./types.ts";
 
 /** How the editor offers `location`: the two named sources, or an entity. */
-export const LOCATION_CHOICES = [...LOCATION_MODES, "entity"] as const;
-export type LocationChoice = (typeof LOCATION_CHOICES)[number];
+const LOCATION_CHOICES = [...LOCATION_MODES, "entity"] as const;
 
 /** What the form shows of the location options. */
 export interface LocationFields {

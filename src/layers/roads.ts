@@ -11,6 +11,7 @@ import { traceLines } from "../map/tiles.ts";
 import type { LayerId } from "../types.ts";
 import type { DrawContext, LayerDef } from "./registry.ts";
 import { grown } from "./scales.ts";
+import { distanceToLine } from "./nearest.ts";
 import type { MapStore, Roads } from "./store.ts";
 
 export type RoadClass = "motorway" | "main";
@@ -121,7 +122,6 @@ function nearIn(
   y: number,
   reach: number,
 ): { ref: string; distance: number } | undefined {
-  const { xy, start } = roads.lines;
   let best = reach;
   let found: string | undefined;
   for (let line = 0; line < roads.lines.count; line += 1) {
@@ -129,19 +129,10 @@ function nearIn(
     if (x < (b[line * 4] as number) - reach || x > (b[line * 4 + 2] as number) + reach) continue;
     if (y < (b[line * 4 + 1] as number) - reach || y > (b[line * 4 + 3] as number) + reach)
       continue;
-    for (let point = start[line] as number; point + 1 < (start[line + 1] as number); point += 1) {
-      const x1 = xy[point * 2] as number;
-      const y1 = xy[point * 2 + 1] as number;
-      const dx = (xy[point * 2 + 2] as number) - x1;
-      const dy = (xy[point * 2 + 3] as number) - y1;
-      const length = dx * dx + dy * dy;
-      const t =
-        length === 0 ? 0 : Math.max(0, Math.min(1, ((x - x1) * dx + (y - y1) * dy) / length));
-      const distance = Math.hypot(x - (x1 + t * dx), y - (y1 + t * dy));
-      if (distance < best) {
-        best = distance;
-        found = roads.refs[roads.route[line] as number];
-      }
+    const distance = distanceToLine(roads.lines, line, x, y);
+    if (distance < best) {
+      best = distance;
+      found = roads.refs[roads.route[line] as number];
     }
   }
   return found === undefined ? undefined : { ref: found, distance: best };

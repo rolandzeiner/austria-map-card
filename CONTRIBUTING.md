@@ -14,27 +14,33 @@ cd austria-map-card
 npm install
 ```
 
+The toolchain is [Vite+](https://viteplus.dev/) (`vp`): it builds, tests,
+lints, formats and type-checks, from one config in `vite.config.ts`.
+`npx vp` runs the copy in `node_modules`.
+
 Day to day:
 
 ```bash
-npm run dev          # rolldown watch: rebuilds dist/austria-map-card.js on save
-npm run build        # one production build of the card
-npm run build:data   # rebuilds the six data chunks from scripts/data/
+npm run dev          # watch build: rebuilds dist/austria-map-card.js on save
+npm run build        # one production build of the card (vp build)
+npm run build:data   # rebuilds the ten data chunks from scripts/data/
 npm run preview      # draws the map to PNG files in .cache/preview/
-npm test
+npm test             # vp test run
+npm run check        # vp check: format, lint and type-check
+npx vp check --fix   # applies the formatter and the lint autofixes
 ```
 
-## Two builds, seven files
+## Two builds, eleven files
 
 `dist/` holds everything a user installs, and it is committed:
 
 | File | Written by | From |
 | --- | --- | --- |
-| `austria-map-card.js` | `npm run build` (Rolldown) | `src/` |
-| `austria-map-data-*.js` (six) | `npm run build:data` | `scripts/data/*.gz` |
+| `austria-map-card.js` | `npm run build` (Vite+) | `src/` |
+| `austria-map-data-*.js` (ten) | `npm run build:data` | `scripts/data/*.gz` |
 
 The card's file holds code only. A dashboard resource loads on every
-dashboard, so the geometry lives in the six chunks and the card imports
+dashboard, so the geometry lives in the ten chunks and the card imports
 each one the first time a layer or zoom level needs it.
 
 Change `src/` and you rebuild the card. Change the data script, the
@@ -44,10 +50,10 @@ checks both against a fresh build.
 ## Verification gate (must pass before a PR)
 
 ```bash
-npx tsc --noEmit                     # strict type-check: the only one in the pipeline
-npm test                             # vitest
+npx vp check                         # format, lint, strict type-check: the only type-check
+npx vp test run                      # the test suites
 node scripts/build-data.mjs --check  # dist/austria-map-data-*.js match their inputs
-npm run build                        # rolldown must succeed clean
+npx vp build                         # must succeed clean
 git diff --exit-code -- dist/        # the committed dist/ matches that build
 for f in dist/*.js; do node -c "$f"; done
 ```
@@ -125,8 +131,11 @@ node scripts/build-data.mjs --refresh-borders      # BEV, 3 MB
 node scripts/build-data.mjs --refresh-terrain      # BEV, 1.5 MB
 node scripts/build-data.mjs --refresh-rivers       # BMLUK, 59 MB
 node scripts/build-data.mjs --refresh-places       # BEV, 58 MB
+node scripts/build-data.mjs --refresh-peaks        # BEV, the same 58 MB file as the places
+node scripts/build-data.mjs --refresh-motorways    # BEV, 1.3 GB
+node scripts/build-data.mjs --refresh-main-roads   # BEV, the same 1.3 GB file as the motorways
 node scripts/build-data.mjs --refresh-population   # Statistik Austria, 18 MB
-node scripts/build-data.mjs --refresh              # all five
+node scripts/build-data.mjs --refresh              # all of them
 ```
 
 Downloads are kept in `.cache/` (ignored by git); add `--download` to
@@ -140,8 +149,9 @@ them when you change a setting.
 
 ## Tests
 
-The suites are in `tests/` and beside the code in `scripts/lib/` (vitest,
-no config file). Those that need a DOM opt in with an
+The suites are in `tests/` and beside the code in `scripts/lib/` (Vitest,
+bundled in Vite+; tests import from `vite-plus/test`). Those that need a
+DOM opt in with an
 `@vitest-environment happy-dom` docblock; the rest run in plain node.
 
 - `scripts/lib/*.test.ts`: the build's pure functions.
@@ -157,10 +167,22 @@ no config file). Those that need a DOM opt in with an
   stays refused.
 - `tests/editor.test.ts`, `tests/editor-defaults.test.ts`: the editor
   shows the real defaults and saves only what changed.
+- `tests/toolchain.test.ts`: the `vite` override in `package.json` names
+  the same version as `vite-plus`. Dependabot bumps only `vite-plus`;
+  bump both together with `npx vp migrate`.
 
 A change to what the card does should come with a test that fails
-without it. `npm run test:coverage` prints a summary and writes
-`coverage/coverage-final.json` (ignored by git).
+without it. Coverage needs the V8 provider at the Vitest version Vite+
+bundles, installed without touching `package.json`:
+
+```bash
+V=$(npx vp toolchain vitest | grep -oE 'vitest@[0-9.]+' | head -1 | cut -d@ -f2)
+npm i --no-save @vitest/coverage-v8@"$V"
+npx vp test run --coverage --coverage.provider=v8 --coverage.reporter=json \
+  --coverage.reporter=text-summary '--coverage.include=src/**/*.ts'
+```
+
+It writes `coverage/coverage-final.json` (ignored by git).
 
 ## Branching
 
@@ -170,7 +192,7 @@ without it. `npm run test:coverage` prints a summary and writes
 
 ## Releases
 
-A release carries seven assets, not one: `.github/workflows/release.yml`
+A release carries eleven assets, not one: `.github/workflows/release.yml`
 attaches every `dist/*.js`. HACS downloads exactly the assets of a
 release, so one that carried only the card would install a map with no
 data. The workflow also refuses a tag that differs from `package.json`'s
@@ -190,25 +212,36 @@ Missing keys fall back to English. German uses "du", never "Sie".
 
 ## Card build
 
-The bundle is built by **Rolldown** (`rolldown.config.mjs`), which
-transpiles, minifies and resolves modules natively: no plugins. Three
-things in that config fail silently if you change them:
+`vp build` runs Vite 8 in library mode on Rolldown, configured in
+`vite.config.ts`. Five things in that config fail silently if you change
+them:
 
+- **`emptyOutDir` stays `false`.** `dist/` also holds the ten data
+  chunks, which this build does not write. Vite empties its output
+  directory before each build by default and would delete them.
 - The banner must be a **legal** comment, `/*! ... */`, with
   `comments: { legal: true }`. The minifier strips a `//` banner without a
   word.
-- **`dropConsole` stays `false`.** It is all-or-nothing, and the card's
+- **`minify` sits on the Rolldown output**, not on `build.minify`: Vite's
+  library mode skips whitespace minification for ES output. Inside it,
+  **`dropConsole` stays `false`.** It is all-or-nothing, and the card's
   console calls sit in `catch` blocks.
 - **`codeSplitting` stays `false`.** The card is one file. The data
-  chunks are not part of Rolldown's graph: their URL is worked out at run
-  time from `import.meta.url`.
+  chunks are not part of the bundler's graph: their URL is worked out at
+  run time from `import.meta.url`.
+- **`fmt.embeddedLanguageFormatting` stays `"off"`.** Formatting Lit's
+  `html` and `css` templates changes the whitespace inside rendered
+  elements, which changes the DOM.
 
-Rolldown does not type-check. `npx tsc --noEmit` is the only thing
-between a type error and a green build.
+The build does not type-check. `vp check` is the only thing between a
+type error and a green build.
 
 ## Style
 
-- TypeScript strict; the `tsconfig.json` flags are not negotiable.
+- TypeScript strict; the `tsconfig.json` flags are not negotiable, and
+  `vp check` must report no warnings (`denyWarnings`).
+- Sort a copy with `sorted()` from `src/sorted.ts`. `toSorted()` is
+  ES2023 and the build targets ES2022; the Node-only scripts may use it.
 - Imports carry their `.ts` extension. The build scripts load the same
   files through Node, which needs it. For the same reason, files under
   `src/data/`, `src/layers/` and `src/map/` use no enums, no parameter

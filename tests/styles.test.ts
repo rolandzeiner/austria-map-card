@@ -1,6 +1,6 @@
 /** Guards on the stylesheet's text: what a missing rule would cost cannot be
  *  seen in a DOM that does no layout. */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import { cardStyles } from "../src/styles.ts";
 
@@ -14,7 +14,9 @@ describe("motion", () => {
     expect(rest).toMatch(/transition-duration:\s*0\.01ms\s*!important/);
     expect(rest).toMatch(/animation-duration:\s*0\.01ms\s*!important/);
     // Nothing after the block but its own closing braces.
-    expect(css.slice(css.indexOf("}", css.indexOf("scroll-behavior", block))).replace(/[\s}]/g, "")).toBe("");
+    expect(
+      css.slice(css.indexOf("}", css.indexOf("scroll-behavior", block))).replace(/[\s}]/g, ""),
+    ).toBe("");
   });
 
   it("animates nothing but the layer switch", () => {
@@ -26,7 +28,8 @@ describe("motion", () => {
 describe("touch", () => {
   it("lets the page scroll over the whole-country view and takes over only when zoomed in", () => {
     expect(css).toMatch(/canvas\s*{[^}]*touch-action:\s*pan-y/);
-    expect(css).toMatch(/canvas\.zoomed\s*{[^}]*touch-action:\s*none/);
+    // A tilted map takes every gesture too: two fingers tilt and turn it.
+    expect(css).toMatch(/canvas\.zoomed,\s*canvas\.tilted\s*{[^}]*touch-action:\s*none/);
   });
 
   it("makes every control at least 40 px", () => {
@@ -55,7 +58,7 @@ describe("the stage", () => {
     expect(css).toMatch(/\.stage\s*{[^}]*flex:\s*1 1 auto/);
   });
 
-  it("is never shorter than the column of buttons on it", () => {
+  it("is never shorter than the buttons on it, wrapped on a narrow card", () => {
     // Without an explicit minimum a flex item cannot shrink below its
     // aspect-ratio height; with a minimum of 0 a narrow card would be
     // shorter than its own toolbar.

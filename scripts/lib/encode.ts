@@ -24,7 +24,7 @@ export function encodeInts(values: Iterable<number>): string {
 }
 
 /** A point on the integer grid of step `q`. */
-export const toGrid = (point: Point, q: number): [number, number] => [
+const toGrid = (point: Point, q: number): [number, number] => [
   Math.round(point[0] / q),
   Math.round(point[1] / q),
 ];
@@ -64,7 +64,13 @@ export function encodeLines(
       // A ring given with its first point repeated at the end.
       const first = points[0];
       const last = points[points.length - 1];
-      if (points.length > 1 && first !== undefined && last !== undefined && first[0] === last[0] && first[1] === last[1]) {
+      if (
+        points.length > 1 &&
+        first !== undefined &&
+        last !== undefined &&
+        first[0] === last[0] &&
+        first[1] === last[1]
+      ) {
         points.pop();
       }
     }

@@ -10,7 +10,8 @@
 import type { ArcIndex } from "../data/arcs.ts";
 import { minimumRank, placeTier } from "../layers/places.ts";
 import { riversAt } from "../layers/rivers.ts";
-import type { MapStore, Places, Rivers, Table } from "../layers/store.ts";
+import { ROAD_LAYER, roadSet, type RoadClass } from "../layers/roads.ts";
+import type { MapStore, Places, Rivers, Roads, Table } from "../layers/store.ts";
 import type { LayerId } from "../types.ts";
 import { toScreen, type Box, type Camera, type Size } from "./camera.ts";
 import {
@@ -20,11 +21,13 @@ import {
   glyphBoxes,
   longestInside,
   measure,
+  pointAlong,
   setAlong,
   type Glyph,
   type Rect,
 } from "./label-placer.ts";
 import type { Palette } from "./palette.ts";
+import { sorted } from "../sorted.ts";
 
 /** Something on the map that can be tapped and described. */
 export type Feature =
@@ -32,10 +35,13 @@ export type Feature =
   | { readonly kind: "district"; readonly row: number }
   | { readonly kind: "municipality"; readonly row: number }
   | { readonly kind: "city"; readonly row: number }
-  | { readonly kind: "river"; readonly name: string; readonly order: number };
+  | { readonly kind: "peak"; readonly row: number }
+  | { readonly kind: "river"; readonly name: string; readonly order: number }
+  | { readonly kind: "road"; readonly ref: string };
 
-/** A town as drawn in a frame: what a tap is tested against. */
+/** A town or a summit as drawn in a frame: what a tap is tested against. */
 export interface DrawnCity {
+  readonly kind: "city" | "peak";
   readonly row: number;
   readonly x: number;
   readonly y: number;
@@ -54,6 +60,12 @@ export interface LabelInput {
   readonly layers: ReadonlySet<LayerId>;
   readonly showLabels: boolean;
   readonly selection: Feature | null;
+  /**
+   * Where a map point lands on the canvas, or null when it cannot be seen
+   * (behind a tilted camera). Without it, the flat camera's `toScreen`.
+   * `box` must then cover every map point that may land on the canvas.
+   */
+  readonly project?: (x: number, y: number) => readonly [number, number] | null;
 }
 
 /** The scales, in pixels per map unit, between which each kind of name is shown. */
@@ -86,9 +98,24 @@ export function riverLabelLevel(scale: number): number {
 export const riverLabel = (name: string): string => name.replace(/\s*[[(].*$/, "");
 
 /** A town's name without what follows "am", "an der", "im": for the capitals on a small map. */
-export const shortTownName = (name: string): string => name.replace(/ (am|an der|im|in|bei|ob) .*$/, "");
+export const shortTownName = (name: string): string =>
+  name.replace(/ (am|an der|im|in|bei|ob) .*$/, "");
 
 const MAX_CITIES = 90;
+const MAX_PEAKS = 40;
+/** Shields per class of road, and the scale from which a class gets them. */
+const SHIELDS: Readonly<Record<RoadClass, { readonly most: number; readonly from: number }>> = {
+  motorway: { most: 16, from: 0 },
+  main: { most: 20, from: 2.5 },
+};
+/** Pixels between candidate spots for a route shield, along its line. */
+const SHIELD_STEP = 180;
+/** Two shields of the same route keep at least this far apart. */
+const SHIELD_REPEAT = 240;
+/** A summit is named once its isolation spans this many pixels. */
+const PEAK_SPACING = 40;
+/** Half the width of a summit's triangle, in pixels. */
+const PEAK_SIZE = 4.5;
 const MAX_RIVER_NAMES = 14;
 /** Two names of the same river keep at least this many pixels apart. */
 const RIVER_REPEAT = 260;
@@ -137,6 +164,36 @@ function alwaysShown(places: Places): number[] {
   return rows;
 }
 
+/** Road strokes, longest first: the main carriageways get their shields before the stubs. */
+const strokes = new WeakMap<Roads, number[]>();
+function longestStrokes(roads: Roads): number[] {
+  let rows = strokes.get(roads);
+  if (rows === undefined) {
+    const { xy, start } = roads.lines;
+    const length = (line: number): number => {
+      let sum = 0;
+      for (
+        let point = (start[line] as number) + 1;
+        point < (start[line + 1] as number);
+        point += 1
+      ) {
+        sum += Math.hypot(
+          (xy[point * 2] as number) - (xy[point * 2 - 2] as number),
+          (xy[point * 2 + 1] as number) - (xy[point * 2 - 1] as number),
+        );
+      }
+      return sum;
+    };
+    const lengths = Array.from({ length: roads.lines.count }, (_, line) => length(line));
+    rows = sorted(
+      lengths.map((_, line) => line),
+      (p, q) => (lengths[q] as number) - (lengths[p] as number) || p - q,
+    );
+    strokes.set(roads, rows);
+  }
+  return rows;
+}
+
 /** A river set's label stretches, most important first: by order, then by length. */
 const ranked = new WeakMap<Rivers, number[]>();
 function rankedStretches(rivers: Rivers): number[] {
@@ -147,8 +204,12 @@ function rankedStretches(rivers: Rivers): number[] {
         (rivers.labelBoxes[line * 4 + 2] as number) - (rivers.labelBoxes[line * 4] as number),
         (rivers.labelBoxes[line * 4 + 3] as number) - (rivers.labelBoxes[line * 4 + 1] as number),
       );
-    rows = Array.from({ length: rivers.labels.count }, (_, line) => line).sort(
-      (p, q) => (rivers.labelOrder[q] as number) - (rivers.labelOrder[p] as number) || span(q) - span(p) || p - q,
+    rows = sorted(
+      Array.from({ length: rivers.labels.count }, (_, line) => line),
+      (p, q) =>
+        (rivers.labelOrder[q] as number) - (rivers.labelOrder[p] as number) ||
+        span(q) - span(p) ||
+        p - q,
     );
     ranked.set(rivers, rows);
   }
@@ -161,12 +222,29 @@ export function drawLabels(input: LabelInput): DrawnCity[] {
   const family = palette.font;
   const placer = new LabelPlacer({ x: 0, y: 0, w: size.width, h: size.height }, 3);
   const drawn: DrawnCity[] = [];
-  const inView = (x: number, y: number): boolean => x >= box[0] && x <= box[2] && y >= box[1] && y <= box[3];
+  const pixels =
+    input.project ??
+    ((x: number, y: number): readonly [number, number] => toScreen(camera, size, x, y));
+  /** Where a map point is on the canvas, or null when it is off it. */
+  const onCanvas = (x: number, y: number): readonly [number, number] | null => {
+    if (x < box[0] || x > box[2] || y < box[1] || y > box[3]) return null;
+    const at = pixels(x, y);
+    return at !== null && at[0] >= 0 && at[0] <= size.width && at[1] >= 0 && at[1] <= size.height
+      ? at
+      : null;
+  };
 
   ctx.textBaseline = "middle";
   ctx.lineJoin = "round";
 
-  const text = (value: string, font: string, colour: string, x: number, y: number, align: CanvasTextAlign): void => {
+  const text = (
+    value: string,
+    font: string,
+    colour: string,
+    x: number,
+    y: number,
+    align: CanvasTextAlign,
+  ): void => {
     ctx.font = font;
     ctx.textAlign = align;
     ctx.lineWidth = 3;
@@ -186,11 +264,17 @@ export function drawLabels(input: LabelInput): DrawnCity[] {
     if (places === undefined || cityDone.has(row)) return false;
     const mapX = places.at[row * 2] as number;
     const mapY = places.at[row * 2 + 1] as number;
-    if (!inView(mapX, mapY)) return false;
-    const [x, y] = toScreen(camera, size, mapX, mapY);
+    const at = onCanvas(mapX, mapY);
+    if (at === null) return false;
+    const [x, y] = at;
     const style = TOWN_STYLES[placeTier(places, row)] as TownStyle;
     const font = `${style.font} ${family}`;
-    const dot: Rect = { x: x - style.radius - 1, y: y - style.radius - 1, w: style.radius * 2 + 2, h: style.radius * 2 + 2 };
+    const dot: Rect = {
+      x: x - style.radius - 1,
+      y: y - style.radius - 1,
+      w: style.radius * 2 + 2,
+      h: style.radius * 2 + 2,
+    };
     let label: Rect | null = null;
     const tier = placeTier(places, row);
     const name =
@@ -231,7 +315,7 @@ export function drawLabels(input: LabelInput): DrawnCity[] {
       // The town already says its municipality's name.
       if ((seats?.[row] as number) > 0) namedMunicipalities.add(places.municipality[row] as number);
     }
-    drawn.push({ row, x, y, radius: style.radius, label });
+    drawn.push({ kind: "city", row, x, y, radius: style.radius, label });
     return true;
   };
 
@@ -259,25 +343,35 @@ export function drawLabels(input: LabelInput): DrawnCity[] {
       if (skip?.has(row)) continue;
       const mapX = table.at[row * 2] as number;
       const mapY = table.at[row * 2 + 1] as number;
-      if (!inView(mapX, mapY)) continue;
-      const name = upper ? (table.names[row] as string).toUpperCase() : (table.names[row] as string);
+      const at = onCanvas(mapX, mapY);
+      if (at === null) continue;
+      const name = upper
+        ? (table.names[row] as string).toUpperCase()
+        : (table.names[row] as string);
       const width = widthOf(ctx, fullFont, name, withSpacing ? `spaced ${spacing}` : "");
       if (index !== undefined) {
         // A name much wider than its area belongs to a deeper zoom.
         const [left, , right] = index.box(row);
         if ((right - left) * scale < width * 0.7) continue;
       }
-      const [x, y] = toScreen(camera, size, mapX, mapY);
+      const [x, y] = at;
       // On its label point, or failing that a line or two above or below it.
       const shifts = [0, -1.3, 1.3, -2.6, 2.6].map((lines) => lines * (height + 2));
-      const spot = placer.placeFirst(shifts.map((shift) => centredOn(x, y + shift, width, height + 2)));
+      const spot = placer.placeFirst(
+        shifts.map((shift) => centredOn(x, y + shift, width, height + 2)),
+      );
       if (spot < 0) continue;
       text(name, fullFont, colour, x, y + (shifts[spot] as number), "center");
     }
     if (withSpacing) ctx.letterSpacing = "0px";
   };
 
-  if (showLabels && layers.has("provinces") && scale < LABEL_SCALES.provincesBelow && store.overview !== undefined) {
+  if (
+    showLabels &&
+    layers.has("provinces") &&
+    scale < LABEL_SCALES.provincesBelow &&
+    store.overview !== undefined
+  ) {
     areas(store.overview.provinces, undefined, "600 11px", 11, palette.labelMuted, true, 1.2);
   }
 
@@ -287,6 +381,118 @@ export function drawLabels(input: LabelInput): DrawnCity[] {
     for (let row = 0; row < places.count && drawn.length < MAX_CITIES; row += 1) {
       if ((places.rank[row] as number) < least) break;
       town(row, false);
+    }
+  }
+
+  // ── Route shields: motorways first, then main roads ───────────────────
+  const shieldFont = `700 10px ${family}`;
+  for (const kind of ["motorway", "main"] as const) {
+    const roads = layers.has(ROAD_LAYER[kind]) ? roadSet(store, kind) : undefined;
+    const limits = SHIELDS[kind];
+    if (!showLabels || roads === undefined || scale < limits.from) continue;
+    const fill = kind === "motorway" ? palette.shield : palette.mainShield;
+    const ink = kind === "motorway" ? palette.shieldText : palette.mainShieldText;
+    const placed: Array<{ ref: string; x: number; y: number }> = [];
+    const { xy, start } = roads.lines;
+    for (const line of longestStrokes(roads)) {
+      if (placed.length >= limits.most) break;
+      const ref = roads.refs[roads.route[line] as number] as string;
+      const screen: number[] = [];
+      for (let point = start[line] as number; point < (start[line + 1] as number); point += 1) {
+        const at = pixels(xy[point * 2] as number, xy[point * 2 + 1] as number);
+        if (at !== null) screen.push(at[0], at[1]);
+      }
+      if (screen.length < 4) continue;
+      const measured = measure(screen);
+      const total = measured.along[measured.along.length - 1] as number;
+      const width = widthOf(ctx, shieldFont, ref) + 8;
+      for (
+        let distance = SHIELD_STEP / 2;
+        distance < total && placed.length < limits.most;
+        distance += SHIELD_STEP
+      ) {
+        const [x, y] = pointAlong(measured, distance);
+        if (x < 0 || y < 0 || x > size.width || y > size.height) continue;
+        if (
+          placed.some(
+            (other) => other.ref === ref && Math.hypot(other.x - x, other.y - y) < SHIELD_REPEAT,
+          )
+        )
+          continue;
+        const shield = centredOn(x, y, width, 15);
+        if (!placer.place([shield])) continue;
+        placed.push({ ref, x, y });
+        ctx.beginPath();
+        ctx.roundRect(shield.x, shield.y, shield.w, shield.h, 3);
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = kind === "motorway" ? palette.halo : ink;
+        ctx.stroke();
+        ctx.fillStyle = fill;
+        ctx.fill();
+        ctx.font = shieldFont;
+        ctx.textAlign = "center";
+        ctx.fillStyle = ink;
+        ctx.fillText(ref, x, y + 0.5);
+      }
+    }
+  }
+
+  // ── Summits, the most isolated first ──────────────────────────────────
+  const peaks = layers.has("peaks") ? store.peaks : undefined;
+  if (peaks !== undefined) {
+    const nameFont = `italic 500 11px ${family}`;
+    const heightFont = `400 10px ${family}`;
+    const summit = (row: number, force: boolean): boolean => {
+      const at = onCanvas(peaks.at[row * 2] as number, peaks.at[row * 2 + 1] as number);
+      if (at === null) return false;
+      const [x, y] = at;
+      const mark: Rect = {
+        x: x - PEAK_SIZE - 1,
+        y: y - PEAK_SIZE - 1,
+        w: PEAK_SIZE * 2 + 2,
+        h: PEAK_SIZE * 2 + 1,
+      };
+      const name = peaks.names[row] as string;
+      const height = `${peaks.height[row] as number}`;
+      const nameWidth = widthOf(ctx, nameFont, name);
+      const width = nameWidth + 4 + widthOf(ctx, heightFont, height);
+      let label: Rect | null = null;
+      if (!placer.fits([mark]) && !force) return false;
+      if (showLabels) {
+        const spots = aroundDot(x, y, PEAK_SIZE, width, 13);
+        const spot = placer.placeFirst(spots);
+        if (spot >= 0) label = spots[spot] as Rect;
+        else if (!force) return false;
+      }
+      placer.take([mark]);
+
+      ctx.beginPath();
+      ctx.moveTo(x, y - PEAK_SIZE);
+      ctx.lineTo(x + PEAK_SIZE, y + PEAK_SIZE * 0.75);
+      ctx.lineTo(x - PEAK_SIZE, y + PEAK_SIZE * 0.75);
+      ctx.closePath();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = palette.halo;
+      ctx.stroke();
+      ctx.fillStyle = palette.label;
+      ctx.fill();
+      if (label !== null) {
+        const middle = label.y + label.h / 2;
+        text(name, nameFont, palette.label, label.x, middle, "left");
+        text(height, heightFont, palette.labelMuted, label.x + nameWidth + 4, middle, "left");
+      }
+      drawn.push({ kind: "peak", row, x, y, radius: PEAK_SIZE, label });
+      return true;
+    };
+    if (selection?.kind === "peak") summit(selection.row, true);
+    let named = 0;
+    for (let row = 0; row < peaks.count && named < MAX_PEAKS; row += 1) {
+      const rank =
+        ((peaks.isolation[row] as number) / 10) * ((peaks.major[row] as number) > 0 ? 2 : 1);
+      // Most isolated first: the first one that does not stand out ends the list.
+      if (rank * scale < PEAK_SPACING) break;
+      if (selection?.kind === "peak" && selection.row === row) continue;
+      if (summit(row, false)) named += 1;
     }
   }
 
@@ -307,24 +513,32 @@ export function drawLabels(input: LabelInput): DrawnCity[] {
         if (scale < (LABEL_SCALES.rivers[order] ?? Infinity)) continue;
         // The detail set has one level; the overview's rivers have three.
         if (rivers === store.overview.rivers && rivers.labelLevel[line] !== level) continue;
-        const at = line * 4;
+        const corner = line * 4;
         const boxes = rivers.labelBoxes;
         if (
-          (boxes[at] as number) > box[2] ||
-          (boxes[at + 2] as number) < box[0] ||
-          (boxes[at + 1] as number) > box[3] ||
-          (boxes[at + 3] as number) < box[1]
+          (boxes[corner] as number) > box[2] ||
+          (boxes[corner + 2] as number) < box[0] ||
+          (boxes[corner + 1] as number) > box[3] ||
+          (boxes[corner + 3] as number) < box[1]
         ) {
           continue;
         }
         const from = rivers.labels.start[line] as number;
         const to = rivers.labels.start[line + 1] as number;
         const screen = new Float32Array((to - from) * 2);
-        for (let point = from; point < to; point += 1) {
-          const [x, y] = toScreen(camera, size, rivers.labels.xy[point * 2] as number, rivers.labels.xy[point * 2 + 1] as number);
-          screen[(point - from) * 2] = x;
-          screen[(point - from) * 2 + 1] = y;
+        let seen = true;
+        for (let point = from; point < to && seen; point += 1) {
+          const at = pixels(
+            rivers.labels.xy[point * 2] as number,
+            rivers.labels.xy[point * 2 + 1] as number,
+          );
+          if (at === null) seen = false;
+          else {
+            screen[(point - from) * 2] = at[0];
+            screen[(point - from) * 2 + 1] = at[1];
+          }
         }
+        if (!seen) continue;
         const measured = measure(screen);
         const visible = longestInside(measured, canvas);
         if (visible === null) continue;
@@ -332,10 +546,13 @@ export function drawLabels(input: LabelInput): DrawnCity[] {
         const name = riverLabel(rivers.names[nameRow] as string);
         const fontSize = order >= 7 ? 12 : 11;
         const font = `italic 400 ${fontSize}px ${family}`;
-        const chars = [...name];
+        // One glyph per code point: river names are plain Latin text, umlauts
+        // precomposed, so nothing here needs grapheme clusters.
+        const chars = Array.from(name);
         const charWidths = chars.map((char) => widthOf(ctx, font, char));
         const spacing = 1.2;
-        const total = charWidths.reduce((sum, width) => sum + width, 0) + spacing * (chars.length - 1);
+        const total =
+          charWidths.reduce((sum, width) => sum + width, 0) + spacing * (chars.length - 1);
         // Room to slide the name along the stretch, out of the way of a town.
         const slack = (visible[1] - visible[0] - total) / 2 - 8;
         if (slack < 0) continue;
@@ -382,11 +599,32 @@ export function drawLabels(input: LabelInput): DrawnCity[] {
   if (showLabels && store.detail !== undefined) {
     if (layers.has("districts") && scale >= LABEL_SCALES.districtsFrom) {
       // Capitals and spaced, like the provinces but smaller: an area, not a town.
-      areas(store.detail.districts, store.detail.districtIndex, "500 9.5px", 9.5, palette.labelMuted, true, 0.7);
+      areas(
+        store.detail.districts,
+        store.detail.districtIndex,
+        "500 9.5px",
+        9.5,
+        palette.labelMuted,
+        true,
+        0.7,
+      );
     }
     const municipal = store.municipalityIndex;
-    if (layers.has("municipalities") && scale >= LABEL_SCALES.municipalitiesFrom && municipal !== undefined) {
-      areas(store.detail.municipalities, municipal, "400 10px", 10, palette.labelMuted, false, 0, namedMunicipalities);
+    if (
+      layers.has("municipalities") &&
+      scale >= LABEL_SCALES.municipalitiesFrom &&
+      municipal !== undefined
+    ) {
+      areas(
+        store.detail.municipalities,
+        municipal,
+        "400 10px",
+        10,
+        palette.labelMuted,
+        false,
+        0,
+        namedMunicipalities,
+      );
     }
   }
 

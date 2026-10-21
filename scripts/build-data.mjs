@@ -1,12 +1,13 @@
 #!/usr/bin/env node
-// Builds the card's map data: the six files dist/austria-map-data-*.js.
+// Builds the card's map data: the files dist/austria-map-data-*.js.
 //
 //   node scripts/build-data.mjs                 from the committed inputs
 //   node scripts/build-data.mjs --check         fail if dist/ is not current
 //   node scripts/build-data.mjs --measure       print the size tables the settings below were picked from
 //   node scripts/build-data.mjs --refresh       rebuild every committed input from its download
 //   node scripts/build-data.mjs --refresh-borders | --refresh-terrain | --refresh-rivers
-//                               | --refresh-places | --refresh-population
+//                               | --refresh-places | --refresh-peaks | --refresh-motorways | --refresh-main-roads
+//                               | --refresh-population
 //                               add --download to fetch a file again that is already in .cache/
 //
 // Two stages. The downloads are large (a 59 MB river network, 58 MB of place
@@ -19,6 +20,7 @@
 //   Terrain     BEV, Digitales Geländehöhenmodell, Höhenraster 500 m
 //   Rivers      BMLUK, Flussordnungszahlen NGP 2021 (Gesamtgewässernetz)
 //   Places      BEV, Digitales Landschaftsmodell, Namen
+//   Roads       BEV, Digitales Landschaftsmodell, Verkehr
 //   Population  Statistik Austria, Bevölkerung zu Jahresbeginn
 //
 // Everything is drawn in the view-box units of src/map/projection.ts, from
@@ -35,13 +37,28 @@ import { fileURLToPath } from "node:url";
 import { gunzipSync, gzipSync, inflateRawSync } from "node:zlib";
 
 import { ArcIndex, groupSides } from "../src/data/arcs.ts";
-import { CHUNK_IDS, DATA_FORMAT, chunkFile, concatLines, decodeInts, decodeLines } from "../src/data/format.ts";
+import {
+  CHUNK_IDS,
+  DATA_FORMAT,
+  chunkFile,
+  concatLines,
+  decodeInts,
+  decodeLines,
+} from "../src/data/format.ts";
 import { MAP_HEIGHT, MAP_WIDTH, project } from "../src/map/projection.ts";
 import { gaussKruegerToGeographic } from "./lib/datum.ts";
 import { encodeInts, encodeLines, encodePoints } from "./lib/encode.ts";
+import { parseGeoPackageLines } from "./lib/geopackage.ts";
 import { labelStretches } from "./lib/label-lines.ts";
 import { PLACE_KINDS, classFloor, nameKey, rankPlaces } from "./lib/places.ts";
-import { parseGeoPackageLine, runsInside, simplifyRiver } from "./lib/rivers.ts";
+import {
+  lengthWhere,
+  networks,
+  parseGeoPackageLine,
+  runsInside,
+  simplifyRiver,
+} from "./lib/rivers.ts";
+import { joinPieces, routeLength, simplifyRoad } from "./lib/roads.ts";
 import { parseDbf, parseShapefilePolygons } from "./lib/shapefile.ts";
 import {
   GridAccumulator,
@@ -114,6 +131,20 @@ const PLACES = {
 };
 const PLACES_URL = "https://data.bev.gv.at/download/DLM/DLM_20260323/DLM_7000_NAMEN_20260323.gpkg";
 const PLACES_TABLE = "NAM_7100_SIEDLUNG_P";
+/** Summits come from the same names file: its landforms, class Berggipfel. */
+const PEAKS_TABLE = "NAM_7300_GELAENDEFORM_P";
+const PEAK_CODE = 7302;
+
+const ROADS = {
+  id: "bev-dlm-verkehr",
+  holder: "BEV",
+  name: "Digitales Landschaftsmodell, Verkehr",
+  licence: LICENCE,
+  stand: "23.03.2026",
+  url: "https://data.bev.gv.at/download/DLM/DLM_20260323/",
+};
+const ROADS_URL = "https://data.bev.gv.at/download/DLM/DLM_20260323/DLM_1000_VERKEHR_20260323.gpkg";
+const ROADS_TABLE = "VER_1100_STRASSE_L";
 
 const POPULATION = {
   id: "statistik-bev",
@@ -131,12 +162,17 @@ const cache = (name) => new URL(`.cache/${name}`, root);
 const MESH_FILE = input("bev_vgd_mesh.txt.gz");
 const GRID_FILE = input("bev_dgm_grid.txt.gz");
 const RIVERS_FILE = input("ggn_rivers.txt.gz");
+const RIVER_LENGTHS_FILE = input("ggn_river_lengths.txt.gz");
 const PLACES_FILE = input("bev_places.txt.gz");
+const PEAKS_FILE = input("bev_peaks.txt.gz");
+const MOTORWAYS_FILE = input("bev_motorways.txt.gz");
+const MAIN_ROADS_FILE = input("bev_main_roads.txt.gz");
 const POPULATION_FILE = input("statistik_population.txt.gz");
 const BORDERS_CACHE = cache("borders/VGD_Oesterreich_gen_250.zip");
 const TERRAIN_CACHE = cache("terrain/DGM_Rasterweite_500m.zip");
 const RIVERS_CACHE = cache("rivers/FlussordnungszahlenNGP21.gpkg");
 const PLACES_CACHE = cache("places/DLM_7000_NAMEN_20260323.gpkg");
+const ROADS_CACHE = cache("roads/DLM_1000_VERKEHR_20260323.gpkg");
 const POPULATION_CACHE = cache("population/OGD_bevstandjbab2002_BevStand_2026.csv");
 const DIST = new URL("dist/", root);
 
@@ -211,6 +247,80 @@ const TERRAIN_DETAIL = {
   q: 0.05,
 };
 
+// The relief for the tilted map: the grid as it is, one cell per unit, in
+// steps of 16 m (the highest cell, 3637 m, is step 227), carried three
+// cells past the border so the ground does not drop to sea level along it.
+//
+//   step   reach   relief chunk
+//   8 m    3       552 KB (200)
+//   16 m   0       523 KB (157)
+//   16 m   3       523 KB (162)   this one
+//   16 m   8       523 KB (167)
+const RELIEF = { step: 16, reach: 3 };
+
+// Summits, by isolation: the distance to the nearest higher summit. A name
+// is drawn once its isolation spans about 40 px (src/map/labels.ts), so on
+// a card of ordinary size a summit less isolated than 2 units (1.2 km)
+// would never be named, even at the deepest zoom.
+//
+//   isolation at least     summits   peaks chunk
+//   0.6 units (351 m)      13 550    458 KB (176)
+//   1.0 (585 m)            12 389    417 KB (161)
+//   1.5 (878 m)            10 091    338 KB (132)
+//   2.0 (1170 m)            7 789    260 KB (102)   this one
+const PEAKS = { minIsolation: 2 };
+
+// Roads: see refreshRoads.
+//
+//   main roads: shortest stroke   main-roads chunk (tolerance 0.1, grid 0.05)
+//   all                           108.1 KB (63.6)
+//   0.1 units (60 m)               76.9 KB (49.2)   this one
+//   0.2 units (120 m)              65.3 KB (42.9)
+const ROAD_KINDS = {
+  motorways: {
+    what: "Motorways (A) and expressways (S)",
+    // Bundesstraße A and S: ASFINAG's network.
+    codes: [1101, 1102],
+    ref: /^[AS]\d+$/,
+    name: /Autobahn|Schnellstraße|[Tt]angente/,
+    tolerance: 0.05,
+    minLength: 1,
+    q: 0.05,
+    minRoutes: 20,
+    flag: "--refresh-motorways",
+    get file() {
+      return MOTORWAYS_FILE;
+    },
+  },
+  "main-roads": {
+    what: "Main roads (Landesstraße B, the former Bundesstraßen)",
+    codes: [1103],
+    ref: /^B\d+[a-z]?$/,
+    name: /Straße$/,
+    tolerance: 0.1,
+    minLength: 0.1,
+    q: 0.05,
+    minRoutes: 200,
+    flag: "--refresh-main-roads",
+    get file() {
+      return MAIN_ROADS_FILE;
+    },
+  },
+};
+/**
+ * Two lines of a route closer than this many metres, side by side, are the
+ * two carriageways of one road, and its length counts them once. Measured
+ * against the published lengths: A1 292.5 km (292), A10 194 (192),
+ * S6 107 (105), B3 195 (195). At 40 m the tunnels' two tubes, further
+ * apart, would count twice.
+ */
+const CARRIAGEWAY_PAIR = 80;
+/** How far a road or a river runs in a province before it lists it: 1 unit, 585 m. */
+const PROVINCE_REACH = 1;
+
+/** Isolation of the highest summit, which has none: as good as infinite. */
+const UNRIVALLED = 9999;
+
 // Rivers, by stream order (Flussordnungszahl). 9 is the Danube; 7 and 8 the
 // Inn, Salzach, Mur, Drau, March, Thaya and Rhine; 6 the Enns, Traun, Mürz
 // and their like; 5 the larger side valleys; 4 and 3 are streams.
@@ -228,6 +338,20 @@ const TERRAIN_DETAIL = {
 // The committed stretches are kept at 0.06, so the drawn tolerance can go
 // down to there without a new download.
 const RIVER_KEEP = { minOrder: 3, tolerance: 0.06, reach: 1 };
+/**
+ * A river's length in Austria counts the stretches inside the country and
+ * those within `reach` units (about 150 m) of the border: the Inn below
+ * Braunau and the Salzach run on it, a few metres to one side or the other.
+ *
+ * Its stretches belong to one river where their ends come within `snap`
+ * metres. Side arms and channels (a negative stream order) are left out,
+ * and so is a network shorter than `minNetwork` metres: the network has
+ * stubs of a river's name at its confluences, and they would make the
+ * Ybbs and the Gail look like several rivers. A name on more than one
+ * network longer than that is several rivers, like the two Krems, and gets
+ * no length.
+ */
+const RIVER_LENGTH = { reach: 0.25, snap: 10, minNetwork: 1000 };
 const RIVERS_OVERVIEW = { minOrder: 5, tolerance: 0.5, q: 0.1 };
 const RIVERS_DETAIL = { minOrder: 3, tolerance: 0.08, q: 0.05 };
 // A name is set along a smoothed stretch of its river, and how much
@@ -242,7 +366,9 @@ const RIVER_LABELS = [
   { step: 1, smoothing: 6, maxTurn: 55, turnSpan: 7, minLength: 24, tolerance: 0.3 },
   { step: 1, smoothing: 14, maxTurn: 60, turnSpan: 14, minLength: 50, tolerance: 0.5 },
 ];
-const STREAM_LABELS = [{ step: 0.5, smoothing: 1.5, maxTurn: 55, turnSpan: 2, minLength: 7, tolerance: 0.12 }];
+const STREAM_LABELS = [
+  { step: 0.5, smoothing: 1.5, maxTurn: 55, turnSpan: 2, minLength: 7, tolerance: 0.12 },
+];
 const LABEL_Q = 0.1;
 
 // Label points and places sit on the same grid as the fine borders.
@@ -376,13 +502,14 @@ async function refreshBorders() {
     }
     byCode.set(record.GKZ, unit);
   }
-  const units = [...byCode.values()].sort((p, q) => byCodeUnit(p.code, q.code));
+  const units = [...byCode.values()].toSorted((p, q) => byCodeUnit(p.code, q.code));
   const row = new Map(units.map((unit, index) => [unit.code, index]));
 
   const { edges, strays } = borderEdges(
     shapes.map((rings, index) => ({ unit: row.get(records[index].GKZ), rings })),
   );
-  if (strays > 0) throw new Error(`${strays} border edges are claimed more than twice or run the same way twice`);
+  if (strays > 0)
+    throw new Error(`${strays} border edges are claimed more than twice or run the same way twice`);
   const metres = chain(edges);
   const arcs = sortArcs(
     metres.map((arc) => ({ a: arc.a, b: arc.b, points: arc.points.map(fromLambert) })),
@@ -401,7 +528,17 @@ async function refreshBorders() {
     "--refresh-borders",
   );
   for (const unit of units) {
-    lines.push(["unit", unit.code, unit.name, unit.district, unit.districtName, unit.province, unit.provinceName].join("\t"));
+    lines.push(
+      [
+        "unit",
+        unit.code,
+        unit.name,
+        unit.district,
+        unit.districtName,
+        unit.province,
+        unit.provinceName,
+      ].join("\t"),
+    );
   }
   let vertices = 0;
   for (const arc of arcs) {
@@ -452,8 +589,8 @@ function readMesh() {
 
 /** Districts and provinces as tables of their own, and each unit's row in them. */
 function levels(units) {
-  const districtCodes = [...new Set(units.map((unit) => unit.district))].sort();
-  const provinceCodes = [...new Set(units.map((unit) => unit.province))].sort();
+  const districtCodes = [...new Set(units.map((unit) => unit.district))].toSorted(byCodeUnit);
+  const provinceCodes = [...new Set(units.map((unit) => unit.province))].toSorted(byCodeUnit);
   const districts = districtCodes.map((code) => {
     const member = units.find((unit) => unit.district === code);
     return { code, name: member.districtName, province: provinceCodes.indexOf(member.province) };
@@ -496,7 +633,8 @@ async function refreshTerrain() {
       }
     }
   }
-  if (samples < 300000) throw new Error(`only ${samples} elevation samples; expected about 362 000`);
+  if (samples < 300000)
+    throw new Error(`only ${samples} elevation samples; expected about 362 000`);
   const grid = accumulator.toGrid();
   const lines = header(
     TERRAIN,
@@ -570,9 +708,108 @@ function terrainRings(grid, settings) {
   );
 }
 
+function packRelief(grid, settings) {
+  const grown = growOutwards(grid, settings.reach);
+  const steps = [];
+  for (let row = 0; row < grid.rows; row += 1) {
+    let previous = 0;
+    for (let column = 0; column < grid.columns; column += 1) {
+      const metres = grown.values[row * grid.columns + column];
+      const value = Number.isNaN(metres) ? 0 : Math.max(1, Math.round(metres / settings.step));
+      steps.push(value - previous);
+      previous = value;
+    }
+  }
+  return { columns: grid.columns, rows: grid.rows, step: settings.step, d: encodeInts(steps) };
+}
+
+/**
+ * The summits worth naming, most prominent first. A major summit (the
+ * BEV's own judgement) counts as twice as isolated, so the Dachstein is
+ * named before a lone hill of the same isolation in the Waldviertel.
+ */
+function packPeaks(peaks, settings) {
+  // Highest first, so every higher summit comes before.
+  const isolation = peaks.map((peak, index) => {
+    let nearest = Infinity;
+    for (let other = 0; other < index; other += 1) {
+      const distance = Math.hypot(peaks[other].x - peak.x, peaks[other].y - peak.y);
+      if (distance < nearest) nearest = distance;
+    }
+    return Math.min(UNRIVALLED, Math.round(nearest * 10));
+  });
+  const rank = (index) => isolation[index] * (peaks[index].major ? 2 : 1);
+  const kept = peaks
+    .map((_, index) => index)
+    .filter((index) => isolation[index] >= settings.minIsolation * 10 || peaks[index].major)
+    .toSorted((p, q) => rank(q) - rank(p) || peaks[q].height - peaks[p].height || p - q);
+  return {
+    names: kept.map((index) => peaks[index].name),
+    at: encodePoints(
+      kept.map((index) => [onGrid(peaks[index].x), onGrid(peaks[index].y)]),
+      POINT_Q,
+    ),
+    isolation: encodeInts(kept.map((index) => isolation[index])),
+    major: encodeInts(kept.map((index) => peaks[index].major)),
+    facts: [
+      {
+        key: "height",
+        label: "facts.height",
+        format: "metres",
+        source: PLACES.id,
+        values: encodeInts(kept.map((index) => peaks[index].height)),
+      },
+    ],
+  };
+}
+
+/**
+ * Road strokes and the route each belongs to, in route order, with each
+ * route's length and the provinces it runs through.
+ */
+function packRoads(strokes, q, provincesOf) {
+  const refs = [...new Set(strokes.map((stroke) => stroke.ref))];
+  const names = refs.map(
+    (ref) => strokes.find((stroke) => stroke.ref === ref && stroke.name !== "")?.name ?? "",
+  );
+  const routes = refs.map((ref) => strokes.filter((stroke) => stroke.ref === ref));
+  return {
+    refs,
+    names,
+    facts: [
+      {
+        key: "length",
+        label: "facts.length",
+        format: "kilometres",
+        source: ROADS.id,
+        values: encodeInts(routes.map((route) => Math.round(route[0].metres / 100))),
+      },
+    ],
+    provinces: encodeInts(routes.map((route) => provincesOf(route.map((stroke) => stroke.points)))),
+    // keepShort: `route` runs parallel to the lines, so none may go missing.
+    // A stroke that shrinks to one grid point would otherwise be dropped and
+    // every later line would carry the route of the one after it.
+    lines: encodeLines(
+      strokes.map((stroke) => stroke.points),
+      q,
+      { closed: false, keepShort: true },
+    ),
+    route: encodeInts(strokes.map((stroke) => refs.indexOf(stroke.ref))),
+  };
+}
+
 const packTerrain = (grid, settings) => ({
   levels: settings.levels,
-  bands: terrainRings(grid, settings).map((rings) => encodeLines(sortArcs(rings.map((points) => ({ points })), SORT_TILE).map((ring) => ring.points), settings.q, { closed: true })),
+  bands: terrainRings(grid, settings).map((rings) =>
+    encodeLines(
+      sortArcs(
+        rings.map((points) => ({ points })),
+        SORT_TILE,
+      ).map((ring) => ring.points),
+      settings.q,
+      { closed: true },
+    ),
+  ),
 });
 
 // ---------------------------------------------------------------------------
@@ -600,13 +837,22 @@ async function refreshRivers() {
   const { DatabaseSync } = await import("node:sqlite");
   const database = new DatabaseSync(fileURLToPath(RIVERS_CACHE), { readOnly: true });
   const rows = database
-    .prepare(`select FLOZ as "order", GEW_NAME as name, geom from "${RIVERS_TABLE}" where FLOZ >= ? order by fid`)
+    .prepare(
+      `select FLOZ as "order", GEW_NAME as name, geom from "${RIVERS_TABLE}" where FLOZ >= ? order by fid`,
+    )
     .all(RIVER_KEEP.minOrder);
+  // Every stretch of a named river, of any order, for its length.
+  const named = database
+    .prepare(
+      `select GEW_NAME as name, geom from "${RIVERS_TABLE}" where FLOZ >= 0 and trim(coalesce(GEW_NAME, '')) <> '' order by fid`,
+    )
+    .all();
   database.close();
 
   const border = countryRings(readMesh());
   const insideCountry = insideTest(border);
   const nearBorder = nearTest(border, RIVER_KEEP.reach);
+  const onBorder = nearTest(border, RIVER_LENGTH.reach);
   const lines = header(
     RIVERS,
     [
@@ -622,20 +868,86 @@ async function refreshRivers() {
     for (const run of runsInside(projected, ([x, y]) => insideCountry(x, y) || nearBorder(x, y))) {
       const points = simplifyRiver(run, RIVER_KEEP.tolerance);
       lines.push(
-        [row.order, (row.name ?? "").trim(), points.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join(" ")].join("\t"),
+        [
+          row.order,
+          (row.name ?? "").trim(),
+          points.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join(" "),
+        ].join("\t"),
       );
       stretches += 1;
     }
   }
   if (stretches < 1000) throw new Error(`only ${stretches} river stretches; expected thousands`);
   writeInput(RIVERS_FILE, lines);
-  console.log(`  kept ${stretches} stretches of ${rows.length} river segments of order ${RIVER_KEEP.minOrder} and up`);
+  console.log(
+    `  kept ${stretches} stretches of ${rows.length} river segments of order ${RIVER_KEEP.minOrder} and up`,
+  );
+
+  // Lengths in Austria, measured on the network in Lambert metres, before
+  // any simplifying: the meanders are the length.
+  const byName = new Map();
+  for (const row of named) {
+    const name = row.name.trim();
+    if (!byName.has(name)) byName.set(name, []);
+    byName.get(name).push(parseGeoPackageLine(row.geom));
+  }
+  const keptNames = new Set(readRivers().map((stretch) => stretch.name));
+  const inAustria = (point) => {
+    const [x, y] = fromLambert(point);
+    return insideCountry(x, y) || onBorder(x, y);
+  };
+  const lengths = header(
+    RIVERS,
+    [
+      `The length of every named river on the map inside Austria, in metres, rounded to 100 m: name, metres.`,
+      `Stretches within ${RIVER_LENGTH.reach} units of the border count. 0 where the name belongs to more than`,
+      `one river: its stretches form separate networks.`,
+    ],
+    "--refresh-rivers",
+  );
+  let shared = 0;
+  for (const name of [...byName.keys()].filter((key) => keptNames.has(key)).toSorted(byCodeUnit)) {
+    const members = byName.get(name);
+    const rivers = networks(members, RIVER_LENGTH.snap)
+      .map((network) => network.map((line) => members[line]))
+      .filter(
+        (network) =>
+          network.reduce((sum, points) => sum + lengthOf(points), 0) >= RIVER_LENGTH.minNetwork,
+      );
+    let metres = 0;
+    if (rivers.length > 1) shared += 1;
+    else if (rivers.length === 1) {
+      metres =
+        Math.round(
+          rivers[0].reduce((sum, points) => sum + lengthWhere(points, inAustria), 0) / 100,
+        ) * 100;
+    }
+    lengths.push(`${name}\t${metres}`);
+  }
+  writeInput(RIVER_LENGTHS_FILE, lengths);
+  console.log(
+    `  measured ${keptNames.size - 1} rivers; ${shared} names are shared by several rivers and get no length`,
+  );
+}
+
+/** Metres in Austria per river name; 0 where it is not known. */
+function readRiverLengths() {
+  return new Map(
+    readInput(RIVER_LENGTHS_FILE).map((line) => {
+      const [name, metres] = line.split("\t");
+      return [name, Number(metres)];
+    }),
+  );
 }
 
 function readRivers() {
   return readInput(RIVERS_FILE).map((line) => {
     const [order, name, points] = line.split("\t");
-    return { order: Number(order), name, points: points.split(" ").map((pair) => pair.split(",").map(Number)) };
+    return {
+      order: Number(order),
+      name,
+      points: points.split(" ").map((pair) => pair.split(",").map(Number)),
+    };
   });
 }
 
@@ -646,9 +958,9 @@ function readRivers() {
  * first. `labelBelow` limits them to rivers below that order, for the detail
  * chunk, whose larger rivers are already named by the base chunk.
  */
-function packRivers(stretches, settings, labelLevels, labelBelow = Infinity) {
+function packRivers(stretches, settings, labelLevels, about, labelBelow = Infinity) {
   const wanted = stretches.filter((stretch) => stretch.order >= settings.minOrder);
-  const names = [...new Set(wanted.map((stretch) => stretch.name))].sort(byCodeUnit);
+  const names = [...new Set(wanted.map((stretch) => stretch.name))].toSorted(byCodeUnit);
   const nameRow = new Map(names.map((name, index) => [name, index]));
 
   // Join per river and order, so a line has one name and one width. Within
@@ -663,7 +975,11 @@ function packRivers(stretches, settings, labelLevels, labelBelow = Infinity) {
   for (const members of groups.values()) {
     const { name, order } = members[0];
     for (const arc of chain(members.map((stretch) => ({ a: 0, b: 1, points: stretch.points })))) {
-      lines.push({ name: nameRow.get(name), order, points: simplifyRiver(arc.points, settings.tolerance) });
+      lines.push({
+        name: nameRow.get(name),
+        order,
+        points: simplifyRiver(arc.points, settings.tolerance),
+      });
     }
   }
   const sorted = sortArcs(lines, SORT_TILE);
@@ -677,7 +993,10 @@ function packRivers(stretches, settings, labelLevels, labelBelow = Infinity) {
     const order = Math.max(...members.map((stretch) => stretch.order));
     if (order >= labelBelow) continue;
     labelLevels.forEach((labelSettings, level) => {
-      for (const points of labelStretches(members.map((stretch) => stretch.points), labelSettings)) {
+      for (const points of labelStretches(
+        members.map((stretch) => stretch.points),
+        labelSettings,
+      )) {
         labels.push({ name: nameRow.get(name), order, level, points });
       }
     });
@@ -686,10 +1005,28 @@ function packRivers(stretches, settings, labelLevels, labelBelow = Infinity) {
 
   return {
     names,
-    lines: encodeLines(sorted.map((line) => line.points), settings.q, { closed: false, keepShort: true }),
+    facts: [
+      {
+        key: "length",
+        label: "facts.length_in_austria",
+        format: "kilometres",
+        source: RIVERS.id,
+        values: encodeInts(names.map((name) => Math.round((about.lengths.get(name) ?? 0) / 100))),
+      },
+    ],
+    provinces: encodeInts(names.map((name) => about.provinces.get(name) ?? 0)),
+    lines: encodeLines(
+      sorted.map((line) => line.points),
+      settings.q,
+      { closed: false, keepShort: true },
+    ),
     name: encodeInts(sorted.map((line) => line.name)),
     order: encodeInts(sorted.map((line) => line.order)),
-    labels: encodeLines(sortedLabels.map((label) => label.points), LABEL_Q, { closed: false, keepShort: true }),
+    labels: encodeLines(
+      sortedLabels.map((label) => label.points),
+      LABEL_Q,
+      { closed: false, keepShort: true },
+    ),
     labelName: encodeInts(sortedLabels.map((label) => label.name)),
     labelOrder: encodeInts(sortedLabels.map((label) => label.order)),
     labelLevel: encodeInts(sortedLabels.map((label) => label.level)),
@@ -725,7 +1062,8 @@ async function refreshPopulation() {
     "--refresh-population",
   );
   lines.push(`total\t${total}`);
-  for (const code of [...sums.keys()].sort()) lines.push(`${code}\t${sums.get(code)}`);
+  for (const code of [...sums.keys()].toSorted(byCodeUnit))
+    lines.push(`${code}\t${sums.get(code)}`);
   writeInput(POPULATION_FILE, lines);
   console.log(`  ${sums.size} municipalities, ${total} residents`);
 }
@@ -748,7 +1086,11 @@ function readPopulation() {
 /** An index over the municipalities on the committed mesh, at full resolution. */
 function meshIndex(mesh) {
   const lines = decodeLines(
-    encodeLines(mesh.arcs.map((arc) => arc.points), MESH_Q, { closed: false, keepShort: true }),
+    encodeLines(
+      mesh.arcs.map((arc) => arc.points),
+      MESH_Q,
+      { closed: false, keepShort: true },
+    ),
   );
   return new ArcIndex(
     lines,
@@ -770,7 +1112,8 @@ async function refreshPlaces() {
   const [{ srs }] = database
     .prepare(`select srs_id as srs from gpkg_geometry_columns where table_name = ?`)
     .all(PLACES_TABLE);
-  if (srs !== 31255) throw new Error(`place names are in EPSG:${srs}, not MGI / Austria GK Central (31255)`);
+  if (srs !== 31255)
+    throw new Error(`place names are in EPSG:${String(srs)}, not MGI / Austria GK Central (31255)`);
   const rows = database
     .prepare(
       `select NAME as name, F_CODE as code, EINWOHNER_KLASSE as size, geom from "${PLACES_TABLE}" ` +
@@ -784,13 +1127,7 @@ async function refreshPlaces() {
   const kept = [];
   let outside = 0;
   for (const row of rows) {
-    // A GeoPackage point: the header, then byte order, type, x, y.
-    const blob = row.geom;
-    const envelope = [0, 32, 48, 48, 64][(blob[3] >> 1) & 7];
-    const view = new DataView(blob.buffer, blob.byteOffset + 8 + envelope);
-    const little = view.getUint8(0) === 1;
-    const [latitude, longitude] = gaussKruegerToGeographic(view.getFloat64(5, little), view.getFloat64(13, little));
-    const [x, y] = project(latitude, longitude);
+    const [x, y] = project(...gpkgPoint(row.geom));
     const municipality = index.locate(x, y);
     if (municipality < 0) {
       outside += 1;
@@ -801,7 +1138,9 @@ async function refreshPlaces() {
     if (kind === 2 && !named && classFloor(row.size) < 2000) continue;
     kept.push({ kind, name: row.name.trim(), size: row.size, x: x.toFixed(2), y: y.toFixed(2) });
   }
-  kept.sort((p, q) => byCodeUnit(p.name, q.name) || Number(p.x) - Number(q.x) || Number(p.y) - Number(q.y));
+  kept.sort(
+    (p, q) => byCodeUnit(p.name, q.name) || Number(p.x) - Number(q.x) || Number(p.y) - Number(q.y),
+  );
   const lines = header(
     PLACES,
     [
@@ -811,9 +1150,181 @@ async function refreshPlaces() {
     ],
     "--refresh-places",
   );
-  for (const place of kept) lines.push([place.kind, place.name, place.size, place.x, place.y].join("\t"));
+  for (const place of kept)
+    lines.push([place.kind, place.name, place.size, place.x, place.y].join("\t"));
   writeInput(PLACES_FILE, lines);
-  console.log(`  kept ${kept.length} of ${rows.length} settlements (${outside} lie outside every municipality)`);
+  console.log(
+    `  kept ${kept.length} of ${rows.length} settlements (${outside} lie outside every municipality)`,
+  );
+}
+
+/** A GeoPackage point in MGI / Austria GK Central as latitude and longitude: the header, then byte order, type, x, y. */
+function gpkgPoint(blob) {
+  const envelope = [0, 32, 48, 48, 64][(blob[3] >> 1) & 7];
+  const view = new DataView(blob.buffer, blob.byteOffset + 8 + envelope);
+  const little = view.getUint8(0) === 1;
+  return gaussKruegerToGeographic(view.getFloat64(5, little), view.getFloat64(13, little));
+}
+
+/**
+ * Every named summit with a height, from the BEV's landforms: 14 000 of
+ * them, 102 marked as major. Kept where the relief grid has ground, so the
+ * peaks on the border (Weißkugel, Similaun) stay in.
+ */
+async function refreshPeaks() {
+  await download(PLACES_URL, PLACES_CACHE, "BEV");
+  const { DatabaseSync } = await import("node:sqlite");
+  const database = new DatabaseSync(fileURLToPath(PLACES_CACHE), { readOnly: true });
+  const [{ srs }] = database
+    .prepare(`select srs_id as srs from gpkg_geometry_columns where table_name = ?`)
+    .all(PEAKS_TABLE);
+  if (srs !== 31255)
+    throw new Error(`landforms are in EPSG:${String(srs)}, not MGI / Austria GK Central (31255)`);
+  const rows = database
+    .prepare(
+      `select NAME as name, HOEHE_BODEN as height, BEDEUTUNG as weight, geom from "${PEAKS_TABLE}" ` +
+        `where F_CODE = ? and HOEHE_BODEN > 0 and NAME is not null order by OBJECTID`,
+    )
+    .all(PEAK_CODE);
+  database.close();
+
+  const grid = readGrid();
+  const kept = [];
+  for (const row of rows) {
+    const [x, y] = project(...gpkgPoint(row.geom));
+    const column = Math.floor(x);
+    const line = Math.floor(y);
+    if (column < 0 || line < 0 || column >= grid.columns || line >= grid.rows) continue;
+    if (Number.isNaN(grid.values[line * grid.columns + column])) continue;
+    const major = row.weight === "Bedeutend" ? 1 : 0;
+    kept.push({
+      name: row.name.trim(),
+      height: Math.round(row.height),
+      major,
+      x: x.toFixed(2),
+      y: y.toFixed(2),
+    });
+  }
+  kept.sort(
+    (p, q) => q.height - p.height || byCodeUnit(p.name, q.name) || Number(p.x) - Number(q.x),
+  );
+  const lines = header(
+    PLACES,
+    [
+      `Summits (Berggipfel) with a height: name, metres, 1 if the BEV marks it as major, x, y in the`,
+      `view-box units of src/map/projection.ts. Highest first.`,
+    ],
+    "--refresh-peaks",
+  );
+  for (const peak of kept)
+    lines.push([peak.name, peak.height, peak.major, peak.x, peak.y].join("\t"));
+  writeInput(PEAKS_FILE, lines);
+  console.log(`  kept ${kept.length} of ${rows.length} summits`);
+}
+
+/**
+ * Motorways and main roads, one route per stroke set. The BEV draws each
+ * carriageway, slip road and junction loop as pieces of a few hundred
+ * metres; per route they are joined end to end into long strokes and
+ * simplified. Motorway strokes shorter than a unit (585 m) are dropped:
+ * slip roads and loops, a blot at any scale the map shows. Main-road
+ * strokes are cut short by every junction and roundabout, and dropping
+ * those would leave gaps; only the bits under 60 m go, roundabout arcs
+ * mostly, a gap of 3 px at the deepest zoom. The two carriageways of a
+ * motorway, 20 to 40 m apart, stay two strokes that draw as one.
+ */
+async function refreshRoads(kind) {
+  const settings = ROAD_KINDS[kind];
+  await download(ROADS_URL, ROADS_CACHE, "BEV");
+  const { DatabaseSync } = await import("node:sqlite");
+  const database = new DatabaseSync(fileURLToPath(ROADS_CACHE), { readOnly: true });
+  const [{ srs }] = database
+    .prepare(`select srs_id as srs from gpkg_geometry_columns where table_name = ?`)
+    .all(ROADS_TABLE);
+  if (srs !== 31255)
+    throw new Error(`roads are in EPSG:${String(srs)}, not MGI / Austria GK Central (31255)`);
+  const rows = database
+    .prepare(
+      `select KURZBEZ_NAT as ref, NAME as name, SHAPE_LEN as length, geom from "${ROADS_TABLE}" ` +
+        `where F_CODE in (${settings.codes.join(",")}) and KURZBEZ_NAT is not null order by OBJECTID`,
+    )
+    .all();
+  database.close();
+
+  const byRef = new Map();
+  for (const row of rows) {
+    const ref = row.ref.replace(/\s+/g, "");
+    if (!settings.ref.test(ref)) continue;
+    let route = byRef.get(ref);
+    if (route === undefined) byRef.set(ref, (route = { pieces: [], metres: [], names: new Map() }));
+    for (const line of parseGeoPackageLines(row.geom)) {
+      if (line.length < 2) continue;
+      route.metres.push(line);
+      route.pieces.push(line.map(([e, n]) => project(...gaussKruegerToGeographic(e, n))));
+    }
+    // The route's own name is the one carried furthest; slip roads and
+    // town streets carry others.
+    const name = (row.name ?? "").trim();
+    if (settings.name.test(name)) route.names.set(name, (route.names.get(name) ?? 0) + row.length);
+  }
+  const lines = header(
+    ROADS,
+    [
+      `${settings.what}: route, name, the route's length in metres, points in the view-box units of`,
+      `src/map/projection.ts. The length is the whole route's, on every stroke of it: measured along the`,
+      `road before simplifying, rounded to 100 m, a motorway's two carriageways counted once.`,
+      `Pieces joined per route, simplified to ${settings.tolerance} units` +
+        (settings.minLength > 0
+          ? `, strokes shorter than ${settings.minLength} units dropped.`
+          : "."),
+    ],
+    settings.flag,
+  );
+  const number = (ref) => Number.parseInt(ref.slice(1), 10);
+  let strokes = 0;
+  for (const ref of [...byRef.keys()].toSorted(
+    (p, q) => byCodeUnit(p[0], q[0]) || number(p) - number(q) || byCodeUnit(p, q),
+  )) {
+    const route = byRef.get(ref);
+    const name = [...route.names].toSorted((p, q) => q[1] - p[1])[0]?.[0] ?? "";
+    const metres = Math.round(routeLength(joinPieces(route.metres), CARRIAGEWAY_PAIR) / 100) * 100;
+    for (const line of joinPieces(route.pieces)) {
+      if (lengthOf(line) < settings.minLength) continue;
+      const points = simplifyRoad(line, settings.tolerance);
+      lines.push(
+        [
+          ref,
+          name,
+          metres,
+          points.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join(" "),
+        ].join("\t"),
+      );
+      strokes += 1;
+    }
+  }
+  if (byRef.size < settings.minRoutes)
+    throw new Error(`only ${byRef.size} ${kind} routes; expected ${settings.minRoutes} or more`);
+  writeInput(settings.file, lines);
+  console.log(`  kept ${strokes} strokes on ${byRef.size} routes from ${rows.length} road pieces`);
+}
+
+function readRoads(kind) {
+  return readInput(ROAD_KINDS[kind].file).map((line) => {
+    const [ref, name, metres, points] = line.split("\t");
+    return {
+      ref,
+      name,
+      metres: Number(metres),
+      points: points.split(" ").map((pair) => pair.split(",").map(Number)),
+    };
+  });
+}
+
+function readPeaks() {
+  return readInput(PEAKS_FILE).map((line) => {
+    const [name, height, major, x, y] = line.split("\t");
+    return { name, height: Number(height), major: Number(major), x: Number(x), y: Number(y) };
+  });
 }
 
 function readPlaces() {
@@ -828,7 +1339,11 @@ function readPlaces() {
 // ---------------------------------------------------------------------------
 
 const packArcs = (arcs, q) => ({
-  lines: encodeLines(arcs.map((arc) => arc.points), q, { closed: false, keepShort: true }),
+  lines: encodeLines(
+    arcs.map((arc) => arc.points),
+    q,
+    { closed: false, keepShort: true },
+  ),
   a: encodeInts(arcs.map((arc) => arc.a)),
   b: encodeInts(arcs.map((arc) => arc.b)),
 });
@@ -857,9 +1372,18 @@ function labelPoints(index, names) {
 
 /** The fine borders, split by level, and the index the card will build from them. */
 function fineBorders(mesh, level, settings) {
-  const simplified = mesh.arcs.map((arc) => ({ ...arc, points: simplifyArc(arc.points, settings.tolerance) }));
-  const upper = sortArcs(simplified.filter((arc) => level(arc) < 3), SORT_TILE);
-  const lower = sortArcs(simplified.filter((arc) => level(arc) === 3), SORT_TILE);
+  const simplified = mesh.arcs.map((arc) => ({
+    ...arc,
+    points: simplifyArc(arc.points, settings.tolerance),
+  }));
+  const upper = sortArcs(
+    simplified.filter((arc) => level(arc) < 3),
+    SORT_TILE,
+  );
+  const lower = sortArcs(
+    simplified.filter((arc) => level(arc) === 3),
+    SORT_TILE,
+  );
   return { upper: packArcs(upper, settings.q), lower: packArcs(lower, settings.q) };
 }
 
@@ -874,8 +1398,12 @@ function build(settings = {}) {
 
   // Population, one to one with the borders or not at all.
   const population = readPopulation();
-  const missing = mesh.units.filter((unit) => !population.byCode.has(unit.code)).map((unit) => unit.code);
-  const extra = [...population.byCode.keys()].filter((code) => !mesh.units.some((unit) => unit.code === code));
+  const missing = mesh.units
+    .filter((unit) => !population.byCode.has(unit.code))
+    .map((unit) => unit.code);
+  const extra = [...population.byCode.keys()].filter(
+    (code) => !mesh.units.some((unit) => unit.code === code),
+  );
   if (missing.length > 0 || extra.length > 0) {
     throw new Error(
       `borders and population disagree about the municipalities: ` +
@@ -884,7 +1412,7 @@ function build(settings = {}) {
   }
   const residents = mesh.units.map((unit) => population.byCode.get(unit.code));
   const sumBy = (groupOf, count) => {
-    const sums = new Array(count).fill(0);
+    const sums = Array.from({ length: count }, () => 0);
     residents.forEach((value, unit) => {
       sums[groupOf[unit]] += value;
     });
@@ -896,7 +1424,13 @@ function build(settings = {}) {
 
   // --- Fine borders, as the card will read them back ---
   const level = (arc) =>
-    arc.a < 0 ? 0 : provinceOf[arc.a] !== provinceOf[arc.b] ? 1 : districtOf[arc.a] !== districtOf[arc.b] ? 2 : 3;
+    arc.a < 0
+      ? 0
+      : provinceOf[arc.a] !== provinceOf[arc.b]
+        ? 1
+        : districtOf[arc.a] !== districtOf[arc.b]
+          ? 2
+          : 3;
   const { upper, lower } = fineBorders(mesh, level, fine);
   const upperLines = decodeLines(upper.lines);
   const lowerLines = decodeLines(lower.lines);
@@ -933,34 +1467,59 @@ function build(settings = {}) {
   const [left, top, right, bottom] = coarse.reduce(
     (box, arc) =>
       arc.points.reduce(
-        (inner, [x, y]) => [Math.min(inner[0], x), Math.min(inner[1], y), Math.max(inner[2], x), Math.max(inner[3], y)],
+        (inner, [x, y]) => [
+          Math.min(inner[0], x),
+          Math.min(inner[1], y),
+          Math.max(inner[2], x),
+          Math.max(inner[3], y),
+        ],
         box,
       ),
     [Infinity, Infinity, -Infinity, -Infinity],
   );
   if (left < 10 || top < 10 || right > MAP_WIDTH - 10 || bottom > MAP_HEIGHT - 10) {
-    throw new Error(`the outline leaves the ${MAP_WIDTH}x${MAP_HEIGHT} view box margin; refit src/map/projection.ts`);
+    throw new Error(
+      `the outline leaves the ${MAP_WIDTH}x${MAP_HEIGHT} view box margin; refit src/map/projection.ts`,
+    );
   }
 
   // --- Tables ---
   const provinceTable = {
     ids: provinces.map((province) => province.code),
     names: provinces.map((province) => province.name),
-    at: encodePoints(labelPoints(provinceIndex, provinces.map((province) => province.name)), POINT_Q),
+    at: encodePoints(
+      labelPoints(
+        provinceIndex,
+        provinces.map((province) => province.name),
+      ),
+      POINT_Q,
+    ),
     facts: [populationFact(sumBy(provinceOf, provinces.length))],
   };
   const districtTable = {
     ids: districts.map((district) => district.code),
     names: districts.map((district) => district.name),
     parent: encodeInts(provinceOfDistrict),
-    at: encodePoints(labelPoints(districtIndex, districts.map((district) => district.name)), POINT_Q),
+    at: encodePoints(
+      labelPoints(
+        districtIndex,
+        districts.map((district) => district.name),
+      ),
+      POINT_Q,
+    ),
     facts: [populationFact(sumBy(districtOf, districts.length))],
   };
   const municipalityTable = {
     ids: mesh.units.map((unit) => unit.code),
     names: mesh.units.map((unit) => unit.name),
     parent: encodeInts(districtOf),
-    at: encodePoints(labelPoints(municipalityIndex, mesh.units.map((unit) => `${unit.name} (${unit.code})`)), POINT_Q),
+    at: encodePoints(
+      labelPoints(
+        municipalityIndex,
+        mesh.units.map((unit) => `${unit.name} (${unit.code})`),
+      ),
+      POINT_Q,
+    ),
     facts: [populationFact(residents)],
   };
 
@@ -975,19 +1534,26 @@ function build(settings = {}) {
     if (municipality < 0) adrift += 1;
     else located.push({ ...place, x, y, municipality });
   }
-  if (adrift > located.length / 100) throw new Error(`${adrift} places lie outside every municipality`);
+  if (adrift > located.length / 100)
+    throw new Error(`${adrift} places lie outside every municipality`);
   const places = rankPlaces(located, municipalityTable.names, residents);
   const seated = new Set(places.filter((place) => place.seat).map((place) => place.municipality));
   if (seated.size < mesh.units.length * 0.8) {
-    throw new Error(`only ${seated.size} of ${mesh.units.length} municipalities have a place of their name in them`);
+    throw new Error(
+      `only ${seated.size} of ${mesh.units.length} municipalities have a place of their name in them`,
+    );
   }
-  const capitalOf = (place) => (place.seat ? (CAPITALS.get(mesh.units[place.municipality].code) ?? 0) : 0);
+  const capitalOf = (place) =>
+    place.seat ? (CAPITALS.get(mesh.units[place.municipality].code) ?? 0) : 0;
   if (places.filter((place) => capitalOf(place) > 0).length !== CAPITALS.size) {
     throw new Error("not every capital was found among the places");
   }
   const placeTable = {
     names: places.map((place) => place.name),
-    at: encodePoints(places.map((place) => [place.x, place.y]), POINT_Q),
+    at: encodePoints(
+      places.map((place) => [place.x, place.y]),
+      POINT_Q,
+    ),
     kind: encodeInts(places.map((place) => place.kind)),
     capital: encodeInts(places.map(capitalOf)),
     municipality: encodeInts(places.map((place) => place.municipality)),
@@ -1003,9 +1569,43 @@ function build(settings = {}) {
     ],
   };
 
+  // --- Which provinces a line runs through ---
+  // By district: the municipality index would test two thousand outlines
+  // for every point. A province counts once a line runs PROVINCE_REACH
+  // units in it, so a road that grazes a border or a river that is its
+  // border for a few metres does not list the province next door.
+  const provincesOf = (lines) => {
+    const inProvince = Array.from({ length: provinces.length }, () => 0);
+    for (const points of lines) {
+      for (let index = 1; index < points.length; index += 1) {
+        const [ax, ay] = points[index - 1];
+        const [bx, by] = points[index];
+        const district = districtIndex.locate((ax + bx) / 2, (ay + by) / 2);
+        if (district >= 0) inProvince[provinceOfDistrict[district]] += Math.hypot(bx - ax, by - ay);
+      }
+    }
+    return inProvince.reduce(
+      (mask, length, province) => (length >= PROVINCE_REACH ? mask | (1 << province) : mask),
+      0,
+    );
+  };
+
   // --- Terrain and rivers ---
   const grid = readGrid();
   const stretches = readRivers();
+  const riverLengths = readRiverLengths();
+  const riverProvinces = new Map();
+  for (const name of new Set(stretches.map((stretch) => stretch.name))) {
+    // A shared name has no length, and its provinces would be two rivers'.
+    if ((riverLengths.get(name) ?? 0) === 0) continue;
+    riverProvinces.set(
+      name,
+      provincesOf(
+        stretches.filter((stretch) => stretch.name === name).map((stretch) => stretch.points),
+      ),
+    );
+  }
+  const aboutRivers = { lengths: riverLengths, provinces: riverProvinces };
 
   const head = (id, sources) => ({ format: DATA_FORMAT, id, sources });
   const chunks = {
@@ -1014,7 +1614,7 @@ function build(settings = {}) {
       provinces: provinceTable,
       arcs: coarsePacked,
       terrain: packTerrain(grid, TERRAIN_OVERVIEW),
-      rivers: packRivers(stretches, RIVERS_OVERVIEW, RIVER_LABELS),
+      rivers: packRivers(stretches, RIVERS_OVERVIEW, RIVER_LABELS, aboutRivers),
     },
     borders: {
       ...head("borders", [BORDERS, POPULATION]),
@@ -1023,18 +1623,39 @@ function build(settings = {}) {
       arcs: upper,
     },
     gemeinden: { ...head("gemeinden", [BORDERS]), arcs: lower },
-    "terrain-detail": { ...head("terrain-detail", [TERRAIN]), terrain: packTerrain(grid, terrainDetail) },
+    "terrain-detail": {
+      ...head("terrain-detail", [TERRAIN]),
+      terrain: packTerrain(grid, terrainDetail),
+    },
     "rivers-detail": {
       ...head("rivers-detail", [RIVERS]),
-      rivers: packRivers(stretches, riversDetail, STREAM_LABELS, RIVERS_OVERVIEW.minOrder),
+      rivers: packRivers(
+        stretches,
+        riversDetail,
+        STREAM_LABELS,
+        aboutRivers,
+        RIVERS_OVERVIEW.minOrder,
+      ),
     },
     places: { ...head("places", [PLACES, POPULATION]), places: placeTable },
+    relief: { ...head("relief", [TERRAIN]), relief: packRelief(grid, RELIEF) },
+    peaks: { ...head("peaks", [PLACES]), peaks: packPeaks(readPeaks(), PEAKS) },
+    motorways: {
+      ...head("motorways", [ROADS]),
+      motorways: packRoads(readRoads("motorways"), ROAD_KINDS.motorways.q, provincesOf),
+    },
+    "main-roads": {
+      ...head("main-roads", [ROADS]),
+      roads: packRoads(readRoads("main-roads"), ROAD_KINDS["main-roads"].q, provincesOf),
+    },
   };
 
   const files = new Map();
   for (const id of CHUNK_IDS) {
     const chunk = chunks[id];
-    const credit = chunk.sources.map((source) => `${source.holder}, ${source.name} (${source.stand})`).join("; ");
+    const credit = chunk.sources
+      .map((source) => `${source.holder}, ${source.name} (${source.stand})`)
+      .join("; ");
     files.set(
       id,
       `/*! Austria Map Card, map data "${id}". ${credit}. ${LICENCE}. ` +
@@ -1057,23 +1678,50 @@ function build(settings = {}) {
 }
 
 const kb = (bytes) => `${(bytes / 1024).toFixed(1)} KB`;
-const sizes = (text) => `${kb(Buffer.byteLength(text))} (${kb(gzipSync(text, { level: 9 }).length)})`;
+const sizes = (text) =>
+  `${kb(Buffer.byteLength(text))} (${kb(gzipSync(text, { level: 9 }).length)})`;
 
 /** The tables behind the settings at the top of this file. */
 function measure() {
   const size = (settings, id) => sizes(build(settings).files.get(id));
   console.log("Fine borders: tolerance, grid -> borders chunk, gemeinden chunk");
-  for (const [tolerance, q] of [[0.03, 0.02], [0.03, 0.05], [0.06, 0.05], [0.1, 0.05], [0.1, 0.1], [0.2, 0.1]]) {
+  for (const [tolerance, q] of [
+    [0.03, 0.02],
+    [0.03, 0.05],
+    [0.06, 0.05],
+    [0.1, 0.05],
+    [0.1, 0.1],
+    [0.2, 0.1],
+  ]) {
     const { files } = build({ fine: { tolerance, q } });
-    console.log(`  ${tolerance}  ${q}  ${sizes(files.get("borders"))}  ${sizes(files.get("gemeinden"))}`);
+    console.log(
+      `  ${tolerance}  ${q}  ${sizes(files.get("borders"))}  ${sizes(files.get("gemeinden"))}`,
+    );
   }
   console.log("Terrain detail: tolerance, smallest ring, grid -> chunk");
-  for (const [tolerance, minArea, q] of [[0.08, 0.6, 0.05], [0.14, 1.2, 0.05], [0.2, 2, 0.05], [0.2, 2, 0.1], [0.3, 3, 0.1]]) {
-    console.log(`  ${tolerance}  ${minArea}  ${q}  ${size({ terrainDetail: { ...TERRAIN_DETAIL, tolerance, minArea, q } }, "terrain-detail")}`);
+  for (const [tolerance, minArea, q] of [
+    [0.08, 0.6, 0.05],
+    [0.14, 1.2, 0.05],
+    [0.2, 2, 0.05],
+    [0.2, 2, 0.1],
+    [0.3, 3, 0.1],
+  ]) {
+    console.log(
+      `  ${tolerance}  ${minArea}  ${q}  ${size({ terrainDetail: { ...TERRAIN_DETAIL, tolerance, minArea, q } }, "terrain-detail")}`,
+    );
   }
   console.log("Rivers detail: lowest order, tolerance, grid -> chunk");
-  for (const [minOrder, tolerance, q] of [[4, 0.08, 0.05], [4, 0.12, 0.05], [4, 0.2, 0.1], [3, 0.08, 0.05], [3, 0.12, 0.05], [3, 0.2, 0.1]]) {
-    console.log(`  ${minOrder}  ${tolerance}  ${q}  ${size({ riversDetail: { minOrder, tolerance, q } }, "rivers-detail")}`);
+  for (const [minOrder, tolerance, q] of [
+    [4, 0.08, 0.05],
+    [4, 0.12, 0.05],
+    [4, 0.2, 0.1],
+    [3, 0.08, 0.05],
+    [3, 0.12, 0.05],
+    [3, 0.2, 0.1],
+  ]) {
+    console.log(
+      `  ${minOrder}  ${tolerance}  ${q}  ${size({ riversDetail: { minOrder, tolerance, q } }, "rivers-detail")}`,
+    );
   }
 }
 
@@ -1086,6 +1734,10 @@ if (everything || args.has("--refresh-population")) await refreshPopulation();
 // These two read the committed mesh, so they come after the borders.
 if (everything || args.has("--refresh-rivers")) await refreshRivers();
 if (everything || args.has("--refresh-places")) await refreshPlaces();
+// Reads the committed terrain grid, so after the terrain.
+if (everything || args.has("--refresh-peaks")) await refreshPeaks();
+if (everything || args.has("--refresh-motorways")) await refreshRoads("motorways");
+if (everything || args.has("--refresh-main-roads")) await refreshRoads("main-roads");
 
 if (args.has("--measure")) {
   measure();

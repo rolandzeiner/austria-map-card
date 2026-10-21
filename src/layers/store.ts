@@ -20,7 +20,10 @@ import {
   type ChunkId,
   type FactColumn,
   type Lines,
+  type RoadSet,
+  type PeakTable,
   type PlaceTable,
+  type ReliefGrid,
   type RiverSet,
   type SourceInfo,
   type TerrainSet,
@@ -60,6 +63,10 @@ export interface Terrain {
 
 export interface Rivers {
   readonly names: readonly string[];
+  /** Per name: its length in Austria, among others. */
+  readonly facts: readonly Fact[];
+  /** Per name: the provinces it runs through, bit n for province row n; 0 where not known. */
+  readonly provinces: Int32Array;
   readonly lines: Lines;
   readonly name: Int32Array;
   readonly order: Int32Array;
@@ -82,6 +89,107 @@ export interface Places {
   readonly facts: readonly Fact[];
 }
 
+/** One class of roads: strokes, and the route each belongs to. */
+export interface Roads {
+  readonly refs: readonly string[];
+  readonly names: readonly string[];
+  /** Per route: its length, among others. */
+  readonly facts: readonly Fact[];
+  /** Per route: the provinces it runs through, bit n for province row n. */
+  readonly provinces: Int32Array;
+  readonly lines: Lines;
+  /** Per line: index into `refs`. */
+  readonly route: Int32Array;
+  /** Per line: left, top, right, bottom. */
+  readonly boxes: Float32Array;
+}
+
+function readRoads(set: RoadSet): Roads {
+  const lines = decodeLines(set.lines);
+  return {
+    refs: set.refs,
+    names: set.names,
+    facts: readFacts(set.facts),
+    provinces: decodeInts(set.provinces),
+    lines,
+    route: decodeInts(set.route),
+    boxes: lineBoxes(lines),
+  };
+}
+
+/** Summits, most prominent first. */
+export interface Peaks {
+  readonly count: number;
+  readonly names: readonly string[];
+  readonly at: Float32Array;
+  /** Tenths of a map unit to the nearest higher summit. */
+  readonly isolation: Int32Array;
+  readonly major: Int32Array;
+  readonly height: Int32Array;
+  readonly facts: readonly Fact[];
+}
+
+function readPeaks(table: PeakTable): Peaks {
+  const facts = readFacts(table.facts);
+  return {
+    count: table.names.length,
+    names: table.names,
+    at: decodeLines(table.at).xy,
+    isolation: decodeInts(table.isolation),
+    major: decodeInts(table.major),
+    height:
+      facts.find((fact) => fact.key === "height")?.values ?? new Int32Array(table.names.length),
+    facts,
+  };
+}
+
+/** Ground height in metres, one value per view-box unit; 0 is no data. */
+export interface Relief {
+  readonly columns: number;
+  readonly rows: number;
+  readonly metres: Float32Array;
+  /** The highest cell, in metres. */
+  readonly peak: number;
+}
+
+function readRelief(grid: ReliefGrid): Relief {
+  const steps = decodeInts(grid.d);
+  if (steps.length !== grid.columns * grid.rows) throw new Error("the relief grid is damaged");
+  const metres = new Float32Array(steps.length);
+  let peak = 0;
+  for (let row = 0; row < grid.rows; row += 1) {
+    let value = 0;
+    for (let column = 0; column < grid.columns; column += 1) {
+      const index = row * grid.columns + column;
+      value += steps[index] as number;
+      const height = value * grid.step;
+      metres[index] = height;
+      if (height > peak) peak = height;
+    }
+  }
+  return { columns: grid.columns, rows: grid.rows, metres, peak };
+}
+
+/**
+ * The ground height at a map point, in metres, interpolated between the
+ * four nearest cell centres. Off the grid, the nearest edge.
+ */
+export function heightAt(relief: Relief, x: number, y: number): number {
+  const { columns, rows, metres } = relief;
+  const fx = Math.min(Math.max(x - 0.5, 0), columns - 1);
+  const fy = Math.min(Math.max(y - 0.5, 0), rows - 1);
+  const x0 = Math.floor(fx);
+  const y0 = Math.floor(fy);
+  const x1 = Math.min(x0 + 1, columns - 1);
+  const y1 = Math.min(y0 + 1, rows - 1);
+  const tx = fx - x0;
+  const ty = fy - y0;
+  const at = (c: number, r: number): number => metres[r * columns + c] as number;
+  const top = at(x0, y0) * (1 - tx) + at(x1, y0) * tx;
+  const bottom = at(x0, y1) * (1 - tx) + at(x1, y1) * tx;
+  return top * (1 - ty) + bottom * ty;
+}
+
 const readFacts = (facts: readonly FactColumn[]): Fact[] =>
   facts.map((fact) => ({ ...fact, values: decodeInts(fact.values) }));
 
@@ -102,13 +210,18 @@ const readArcs = (set: ArcSet): Borders => ({
   b: decodeInts(set.b),
 });
 
-const readTerrain = (set: TerrainSet): Terrain => ({ levels: set.levels, bands: set.bands.map(decodeLines) });
+const readTerrain = (set: TerrainSet): Terrain => ({
+  levels: set.levels,
+  bands: set.bands.map(decodeLines),
+});
 
 function readRivers(set: RiverSet): Rivers {
   const lines = decodeLines(set.lines);
   const labels = decodeLines(set.labels);
   return {
     names: set.names,
+    facts: readFacts(set.facts),
+    provinces: decodeInts(set.provinces),
     lines,
     name: decodeInts(set.name),
     order: decodeInts(set.order),
@@ -178,6 +291,10 @@ export class MapStore {
   public terrainDetail: Terrain | undefined;
   public riversDetail: Rivers | undefined;
   public places: Places | undefined;
+  public relief: Relief | undefined;
+  public peaks: Peaks | undefined;
+  public motorways: Roads | undefined;
+  public mainRoads: Roads | undefined;
 
   private readonly loaded = new Map<ChunkId, readonly SourceInfo[]>();
   private municipal: ArcIndex | undefined;
@@ -196,7 +313,8 @@ export class MapStore {
   public sources(): SourceInfo[] {
     const seen = new Map<string, SourceInfo>();
     for (const id of CHUNK_IDS) {
-      for (const source of this.loaded.get(id) ?? []) if (!seen.has(source.id)) seen.set(source.id, source);
+      for (const source of this.loaded.get(id) ?? [])
+        if (!seen.has(source.id)) seen.set(source.id, source);
     }
     return [...seen.values()];
   }
@@ -207,7 +325,9 @@ export class MapStore {
 
   public add(chunk: Chunk): void {
     if (chunk.format !== DATA_FORMAT) {
-      throw new Error(`map data "${chunk.id}" is in format ${chunk.format}, this card reads ${DATA_FORMAT}`);
+      throw new Error(
+        `map data "${chunk.id}" is in format ${chunk.format}, this card reads ${DATA_FORMAT}`,
+      );
     }
     if (this.loaded.has(chunk.id)) return;
     switch (chunk.id) {
@@ -273,6 +393,18 @@ export class MapStore {
       case "places":
         this.places = readPlaces(chunk.places);
         break;
+      case "relief":
+        this.relief = readRelief(chunk.relief);
+        break;
+      case "peaks":
+        this.peaks = readPeaks(chunk.peaks);
+        break;
+      case "motorways":
+        this.motorways = readRoads(chunk.motorways);
+        break;
+      case "main-roads":
+        this.mainRoads = readRoads(chunk.roads);
+        break;
     }
     this.loaded.set(chunk.id, chunk.sources);
     this.revision += 1;
@@ -283,7 +415,11 @@ export class MapStore {
    * municipality is bounded by arcs of every level.
    */
   public get municipalityIndex(): ArcIndex | undefined {
-    if (this.municipal === undefined && this.detail !== undefined && this.municipalArcs !== undefined) {
+    if (
+      this.municipal === undefined &&
+      this.detail !== undefined &&
+      this.municipalArcs !== undefined
+    ) {
       const upper = this.detail.arcs;
       const lower = this.municipalArcs;
       this.municipal = new ArcIndex(

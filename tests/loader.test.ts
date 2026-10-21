@@ -1,5 +1,5 @@
 /** Loading the data chunks: once each, with a way back from every failure. */
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 import { DATA_FORMAT, type ChunkId } from "../src/data/format.ts";
 import { ChunkLoader, type Importer } from "../src/layers/loader.ts";
@@ -28,14 +28,20 @@ function loaderWith(importer: Importer): ChunkLoader {
 describe("where the chunks come from", () => {
   it("is beside the card, whatever HACS appended to the card's own address", () => {
     const loader = loaderWith(serving().importer);
-    expect(loader.url("base")).toBe("https://ha.example/hacsfiles/austria-map-card/austria-map-data-base.js?v=1.2.3");
+    expect(loader.url("base")).toBe(
+      "https://ha.example/hacsfiles/austria-map-card/austria-map-data-base.js?v=1.2.3",
+    );
     expect(loader.url("terrain-detail")).toBe(
       "https://ha.example/hacsfiles/austria-map-card/austria-map-data-terrain-detail.js?v=1.2.3",
     );
   });
 
   it("carries the card version, so a new card never reads an old chunk from the cache", () => {
-    const next = new ChunkLoader(new MapStore(), { base: BASE, version: "1.3.0", importer: serving().importer });
+    const next = new ChunkLoader(new MapStore(), {
+      base: BASE,
+      version: "1.3.0",
+      importer: serving().importer,
+    });
     expect(next.url("base")).toContain("?v=1.3.0");
   });
 });
@@ -66,7 +72,11 @@ describe("loading", () => {
     await settle();
     loader.request(["base", "places", "borders"]);
     await settle();
-    expect(urls.map((url) => /data-([a-z-]+)\.js/.exec(url)?.[1])).toEqual(["base", "places", "borders"]);
+    expect(urls.map((url) => /data-([a-z-]+)\.js/.exec(url)?.[1])).toEqual([
+      "base",
+      "places",
+      "borders",
+    ]);
     expect(loader.loading).toBe(false);
   });
 
@@ -113,7 +123,9 @@ describe("a chunk in another format", () => {
 
   it("is not retried: only a reload brings matching files", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    const { importer, urls } = serving({ base: () => Promise.resolve({ default: { format: 0, id: "base" } }) });
+    const { importer, urls } = serving({
+      base: () => Promise.resolve({ default: { format: 0, id: "base" } }),
+    });
     const loader = loaderWith(importer);
     loader.request(["base"]);
     await settle();
@@ -131,7 +143,10 @@ describe("a chunk that does not load", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     let online = false;
     const { importer, urls } = serving({
-      base: () => (online ? Promise.resolve({ default: chunk("base") }) : Promise.reject(new TypeError("Failed to fetch"))),
+      base: () =>
+        online
+          ? Promise.resolve({ default: chunk("base") })
+          : Promise.reject(new TypeError("Failed to fetch")),
     });
     const loader = loaderWith(importer);
     loader.request(["base"]);
@@ -175,7 +190,8 @@ describe("the real files", () => {
       version: "test",
     });
     loader.request(["base", "places"]);
-    for (let wait = 0; wait < 200 && loader.loading; wait += 1) await new Promise((resolve) => setTimeout(resolve, 10));
+    for (let wait = 0; wait < 200 && loader.loading; wait += 1)
+      await new Promise((resolve) => setTimeout(resolve, 10));
     expect(loader.state("base")).toBe("ready");
     expect(loader.state("places")).toBe("ready");
     expect(loader.store.places?.names[0]).toBe("Wien");

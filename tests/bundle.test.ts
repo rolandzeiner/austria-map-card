@@ -10,7 +10,7 @@
  * ordered badly), a chunk address worked out wrongly from import.meta.url,
  * or a card and chunks that no longer speak the same format.
  */
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vite-plus/test";
 
 import { FakePath, fakeContext } from "./fake-canvas.ts";
 
@@ -41,7 +41,8 @@ beforeAll(async () => {
   vi.stubGlobal("Path2D", FakePath);
   vi.stubGlobal("getComputedStyle", () => ({ color: "rgb(40, 40, 40)", fontFamily: "sans-serif" }));
   vi.spyOn(console, "info").mockImplementation(() => undefined);
-  HTMLCanvasElement.prototype.getContext = (() => fake.ctx) as unknown as HTMLCanvasElement["getContext"];
+  HTMLCanvasElement.prototype.getContext = (() =>
+    fake.ctx) as unknown as HTMLCanvasElement["getContext"];
   // A file address from the working directory: in a DOM environment
   // import.meta.url is a pretend http address, which Node cannot import.
   // And a variable, so neither TypeScript nor the test runner follows it.
@@ -57,11 +58,15 @@ describe("the built card", () => {
 
   it("loads its data from the files beside it and draws the map", async () => {
     const card = document.createElement("austria-map-card") as BuiltCard;
-    card.setConfig({ type: "custom:austria-map-card", layers: ["terrain", "rivers", "provinces", "districts", "cities"] });
+    card.setConfig({
+      type: "custom:austria-map-card",
+      layers: ["terrain", "rivers", "provinces", "districts", "cities"],
+    });
     card.hass = { locale: { language: "de" }, themes: { darkMode: false } };
     document.body.appendChild(card);
     await card.updateComplete;
-    for (const callback of resizeCallbacks) callback([{ contentRect: { width: 760, height: 403 } }]);
+    for (const callback of resizeCallbacks)
+      callback([{ contentRect: { width: 760, height: 403 } }]);
 
     // Three chunks, each a real import() of a real file.
     for (let wait = 0; wait < 300 && !fake.texts().includes("Wien"); wait += 1) {
@@ -75,7 +80,9 @@ describe("the built card", () => {
     // and they come from the borders chunk.
     const canvas = card.shadowRoot?.querySelector("canvas");
     for (let press = 0; press < 2; press += 1) {
-      canvas?.dispatchEvent(new KeyboardEvent("keydown", { key: "+", bubbles: true, cancelable: true }));
+      canvas?.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "+", bubbles: true, cancelable: true }),
+      );
     }
     for (let wait = 0; wait < 300 && !fake.texts().includes("LIEZEN"); wait += 1) {
       await new Promise((resolve) => setTimeout(resolve, 10));
@@ -83,7 +90,10 @@ describe("the built card", () => {
     expect(fake.texts()).toContain("LIEZEN");
 
     await card.updateComplete;
-    const credit = card.shadowRoot?.querySelector(".credit")?.textContent?.replace(/\s+/g, " ").trim();
+    const credit = card.shadowRoot
+      ?.querySelector(".credit")
+      ?.textContent?.replace(/\s+/g, " ")
+      .trim();
     expect(credit).toBe("Daten: BEV, BMLUK, Statistik Austria · CC BY 4.0");
     expect(card.shadowRoot?.querySelector(".notice")).toBeNull();
   });

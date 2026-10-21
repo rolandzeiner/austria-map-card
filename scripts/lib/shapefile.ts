@@ -24,7 +24,8 @@ export function parseShapefilePolygons(bytes: Uint8Array): Array<Array<Array<[nu
       const pointsAt = partsAt + partCount * 4;
       for (let part = 0; part < partCount; part += 1) {
         const from = view.getInt32(partsAt + part * 4, true);
-        const to = part + 1 < partCount ? view.getInt32(partsAt + (part + 1) * 4, true) : pointCount;
+        const to =
+          part + 1 < partCount ? view.getInt32(partsAt + (part + 1) * 4, true) : pointCount;
         const ring: Array<[number, number]> = [];
         for (let index = from; index < to; index += 1) {
           ring.push([

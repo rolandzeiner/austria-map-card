@@ -1,5 +1,5 @@
 /** Reading a shapefile and merging its polygons, on files built by hand. */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import { parseDbf, parseShapefilePolygons } from "./shapefile.ts";
 

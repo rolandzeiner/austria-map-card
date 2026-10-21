@@ -12,13 +12,17 @@
  */
 import { drawBorders } from "../layers/borders.ts";
 import { LAYERS, useFineBorders, type DrawContext } from "../layers/registry.ts";
+import { roadBox, roadLines, roadNear } from "../layers/roads.ts";
 import { riverBox, riverLines, riverNear } from "../layers/rivers.ts";
 import { grown } from "../layers/scales.ts";
 import type { MapStore } from "../layers/store.ts";
 import type { LayerId } from "../types.ts";
-import { toMap, visibleBox, type Box, type Camera, type Size } from "./camera.ts";
+import { toMap, toScreen, visibleBox, type Box, type Camera, type Size } from "./camera.ts";
 import { drawLabels, type DrawnCity, type Feature } from "./labels.ts";
 import type { Palette } from "./palette.ts";
+import { drawPin } from "./pin.ts";
+import { MAP_HEIGHT, MAP_WIDTH, type MapPoint } from "./projection.ts";
+import type { View3D } from "./view3d.ts";
 import { ShapeCache, traceLines, traceRings, type PathFactory } from "./tiles.ts";
 
 export interface RenderState {
@@ -26,6 +30,13 @@ export interface RenderState {
   readonly layers: ReadonlySet<LayerId>;
   readonly showLabels: boolean;
   readonly selection: Feature | null;
+  /** Where the "you are here" pin goes, in map units; null for no pin. */
+  readonly here: MapPoint | null;
+  /**
+   * Only what fills an area: land, terrain, a selected area's tint. For the
+   * picture laid over the tilted map, which draws its lines itself.
+   */
+  readonly fillsOnly?: boolean;
 }
 
 /** The part of a canvas element the renderer uses. */
@@ -51,6 +62,8 @@ export class MapRenderer {
   private height = 0;
   private dpr = 1;
   private cities: DrawnCity[] = [];
+  /** The 3D view of the last frame, if it was tilted: taps are picked through it. */
+  private tilted: View3D | null = null;
 
   public constructor(canvas: CanvasLike, store: MapStore, createPath: PathFactory) {
     const ctx = canvas.getContext("2d");
@@ -74,10 +87,11 @@ export class MapRenderer {
     return { width: this.width, height: this.height };
   }
 
-  public resize(width: number, height: number, devicePixelRatio: number): void {
+  /** `maxPixels` caps the backing store's width; the 3D drape asks for more. */
+  public resize(width: number, height: number, devicePixelRatio: number, maxPixels = 2400): void {
     // Cap the backing store: a 1600 px wide card at DPR 3 would be 14 MP to
     // fill on every frame of a pinch.
-    const dpr = Math.min(devicePixelRatio || 1, 2, 2400 / Math.max(width, 1));
+    const dpr = Math.min(devicePixelRatio || 1, 2, maxPixels / Math.max(width, 1));
     this.width = width;
     this.height = height;
     this.dpr = dpr;
@@ -90,6 +104,7 @@ export class MapRenderer {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     this.cities = [];
+    this.tilted = null;
     const overview = store.overview;
     if (palette === undefined || overview === undefined || this.width === 0) return;
 
@@ -122,7 +137,9 @@ export class MapRenderer {
 
     const country =
       fine && store.detail !== undefined
-        ? this.shapes.get("country:fine", (path) => traceRings(path, (store.detail as NonNullable<typeof store.detail>).country))
+        ? this.shapes.get("country:fine", (path) =>
+            traceRings(path, (store.detail as NonNullable<typeof store.detail>).country),
+          )
         : this.shapes.get("country:coarse", (path) => traceRings(path, overview.country));
     ctx.fillStyle = palette.land;
     ctx.fill(country, "evenodd");
@@ -136,13 +153,15 @@ export class MapRenderer {
     }
     ctx.restore();
 
-    for (const layer of LAYERS) {
-      if (!layer.clipped && on(layer.id, layer.minScale)) layer.draw(dc);
+    if (state.fillsOnly !== true) {
+      for (const layer of LAYERS) {
+        if (!layer.clipped && on(layer.id, layer.minScale)) layer.draw(dc);
+      }
+      // The national border is not a layer: without it there is no map.
+      drawBorders(dc, 0);
     }
-    // The national border is not a layer: without it there is no map.
-    drawBorders(dc, 0);
 
-    if (state.selection !== null) this.highlight(dc, state.selection);
+    if (state.selection !== null) this.highlight(dc, state.selection, state.fillsOnly !== true);
 
     // Names and towns are drawn in screen pixels.
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -157,29 +176,85 @@ export class MapRenderer {
       showLabels: state.showLabels,
       selection: state.selection,
     });
-    if (state.selection?.kind === "city") {
-      const row = state.selection.row;
-      const city = this.cities.find((entry) => entry.row === row);
-      if (city !== undefined) {
-        ctx.beginPath();
-        ctx.arc(city.x, city.y, city.radius + 4.5, 0, Math.PI * 2);
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = palette.accent;
-        ctx.stroke();
-      }
+    this.ringSelected(state.selection, palette);
+    // On top of everything: it is the one mark that is about you.
+    if (state.here !== null) drawPin(ctx, ...toScreen(camera, size, ...state.here), palette);
+  }
+
+  /** Ring a selected town or summit, where the label pass drew it. */
+  private ringSelected(selection: Feature | null, palette: Palette): void {
+    if (selection?.kind !== "city" && selection?.kind !== "peak") return;
+    const { ctx } = this;
+    const drawn = this.cities.find(
+      (entry) => entry.kind === selection.kind && entry.row === selection.row,
+    );
+    if (drawn === undefined) return;
+    ctx.beginPath();
+    ctx.arc(drawn.x, drawn.y, drawn.radius + 4.5, 0, Math.PI * 2);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = palette.accent;
+    ctx.stroke();
+  }
+
+  /**
+   * The canvas over the tilted map: only the names, the towns and the pin,
+   * upright in screen pixels, each placed where its ground point is seen.
+   * The map itself is the WebGL canvas underneath.
+   */
+  public drawTilted(state: RenderState, view: View3D): void {
+    const { ctx, store, palette, dpr } = this;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this.cities = [];
+    this.tilted = view;
+    if (palette === undefined || store.overview === undefined || this.width === 0) return;
+    const relief = store.relief;
+    const project = (x: number, y: number): [number, number] | null =>
+      view.projectGround(relief, x, y);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.cities = drawLabels({
+      ctx,
+      store,
+      palette,
+      camera: state.camera,
+      size: this.size,
+      box: [0, 0, MAP_WIDTH, MAP_HEIGHT],
+      layers: state.layers,
+      showLabels: state.showLabels,
+      selection: state.selection,
+      project,
+    });
+    this.ringSelected(state.selection, palette);
+    if (state.here !== null) {
+      const tip = project(...state.here);
+      if (tip !== null) drawPin(ctx, tip[0], tip[1], palette);
     }
   }
 
   /** Mark the selected area or river. A selected town is ringed with the labels. */
-  private highlight(dc: DrawContext, selection: Feature): void {
+  private highlight(dc: DrawContext, selection: Feature, strokes: boolean): void {
     const { ctx, store, palette, scale } = dc;
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
+    if (selection.kind === "road") {
+      if (!strokes) return;
+      const route = roadLines(store, selection.ref);
+      if (route === undefined) return;
+      const path = this.shapes.get(`selected:road:${selection.ref}`, (target) =>
+        traceLines(target, route.lines, route.which),
+      );
+      ctx.strokeStyle = palette.accent;
+      ctx.lineWidth = grown(3.2, scale) / scale;
+      ctx.stroke(path);
+      return;
+    }
     if (selection.kind === "river") {
+      if (!strokes) return;
       const river = riverLines(store, scale, selection.name);
       if (river === undefined) return;
-      const path = this.shapes.get(`selected:river:${selection.name}:${scale >= 2 ? "detail" : "overview"}:${river.which.length}`, (target) =>
-        traceLines(target, river.lines, river.which),
+      const path = this.shapes.get(
+        `selected:river:${selection.name}:${scale >= 2 ? "detail" : "overview"}:${river.which.length}`,
+        (target) => traceLines(target, river.lines, river.which),
       );
       ctx.strokeStyle = palette.accent;
       ctx.lineWidth = grown(2.6, scale) / scale;
@@ -188,21 +263,27 @@ export class MapRenderer {
     }
     const rings = this.ringsOf(selection, dc.fine);
     if (rings === undefined) return;
-    const path = this.shapes.get(`selected:${selection.kind}:${selection.row}:${rings.set}`, (target) =>
-      traceRings(target, rings.rings()),
+    const path = this.shapes.get(
+      `selected:${selection.kind}:${selection.row}:${rings.set}`,
+      (target) => traceRings(target, rings.rings()),
     );
     ctx.fillStyle = palette.accentFill;
     ctx.fill(path, "evenodd");
+    if (!strokes) return;
     ctx.strokeStyle = palette.accent;
     ctx.lineWidth = 2 / scale;
     ctx.stroke(path);
   }
 
   /** The outline of an area, on the borders that are being drawn. */
-  private ringsOf(selection: Feature, fine: boolean): { set: string; rings: () => Float32Array[] } | undefined {
+  private ringsOf(
+    selection: Feature,
+    fine: boolean,
+  ): { set: string; rings: () => Float32Array[] } | undefined {
     const { store } = this;
     if (selection.kind === "province") {
-      const index = fine && store.detail !== undefined ? store.detail.provinceIndex : store.overview?.index;
+      const index =
+        fine && store.detail !== undefined ? store.detail.provinceIndex : store.overview?.index;
       if (index === undefined) return undefined;
       return { set: fine ? "fine" : "coarse", rings: () => index.rings(selection.row) };
     }
@@ -242,16 +323,30 @@ export class MapRenderer {
         nearest = city;
       }
     }
-    if (nearest !== undefined) return { kind: "city", row: nearest.row };
+    if (nearest !== undefined) return { kind: nearest.kind, row: nearest.row };
 
-    const [x, y] = toMap(camera, this.size, px, py);
+    let x: number;
+    let y: number;
+    if (this.tilted !== null) {
+      const picked = this.tilted.pick(px, py, store.relief);
+      if (picked === null) return null;
+      [x, y] = picked;
+    } else {
+      [x, y] = toMap(camera, this.size, px, py);
+    }
+    const road = roadNear(store, layers, x, y, RIVER_REACH / scale);
+    if (road !== undefined) return { kind: "road", ref: road };
     if (layers.has("rivers")) {
       const river = riverNear(store, scale, x, y, RIVER_REACH / scale);
       if (river !== undefined) return { kind: "river", name: river.name, order: river.order };
     }
     const municipal = store.municipalityIndex;
     const municipalities = LAYERS.find((layer) => layer.id === "municipalities");
-    if (layers.has("municipalities") && municipal !== undefined && scale >= (municipalities?.minScale ?? 0)) {
+    if (
+      layers.has("municipalities") &&
+      municipal !== undefined &&
+      scale >= (municipalities?.minScale ?? 0)
+    ) {
       const row = municipal.locate(x, y);
       if (row >= 0) return { kind: "municipality", row };
     }
@@ -261,7 +356,8 @@ export class MapRenderer {
     }
     if (layers.has("provinces")) {
       const fine = useFineBorders(store, layers, scale);
-      const index = fine && store.detail !== undefined ? store.detail.provinceIndex : store.overview?.index;
+      const index =
+        fine && store.detail !== undefined ? store.detail.provinceIndex : store.overview?.index;
       const row = index?.locate(x, y) ?? -1;
       if (row >= 0) return { kind: "province", row };
     }
@@ -283,10 +379,29 @@ export class MapRenderer {
         if (places === undefined) return undefined;
         const x = places.at[feature.row * 2] as number;
         const y = places.at[feature.row * 2 + 1] as number;
-        return [x - CITY_SURROUNDINGS, y - CITY_SURROUNDINGS, x + CITY_SURROUNDINGS, y + CITY_SURROUNDINGS];
+        return [
+          x - CITY_SURROUNDINGS,
+          y - CITY_SURROUNDINGS,
+          x + CITY_SURROUNDINGS,
+          y + CITY_SURROUNDINGS,
+        ];
+      }
+      case "peak": {
+        const peaks = store.peaks;
+        if (peaks === undefined) return undefined;
+        const x = peaks.at[feature.row * 2] as number;
+        const y = peaks.at[feature.row * 2 + 1] as number;
+        return [
+          x - CITY_SURROUNDINGS,
+          y - CITY_SURROUNDINGS,
+          x + CITY_SURROUNDINGS,
+          y + CITY_SURROUNDINGS,
+        ];
       }
       case "river":
         return riverBox(store, feature.name);
+      case "road":
+        return roadBox(store, feature.ref);
     }
   }
 }

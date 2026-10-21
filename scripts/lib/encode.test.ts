@@ -1,12 +1,21 @@
 /** The packed strings, written here and read back by the card's own reader. */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
-import { concatLines, decodeInts, decodeLines, lineBoxes, packChar } from "../../src/data/format.ts";
+import {
+  concatLines,
+  decodeInts,
+  decodeLines,
+  lineBoxes,
+  packChar,
+} from "../../src/data/format.ts";
 import { encodeInts, encodeLines, encodePoints } from "./encode.ts";
 
 describe("packed integers", () => {
   it("round-trips small, large and negative values", () => {
-    const values = [0, 1, -1, 22, -23, 23, 45, 46, -46, 2115, 2116, 97335, 97336, -97337, 9_215_956, -2_000_000_000];
+    const values = [
+      0, 1, -1, 22, -23, 23, 45, 46, -46, 2115, 2116, 97335, 97336, -97337, 9_215_956,
+      -2_000_000_000,
+    ];
     expect([...decodeInts(encodeInts(values))]).toEqual(values);
   });
 
@@ -82,8 +91,15 @@ describe("packed lines", () => {
   it("drops points that land on their predecessor, and lines that then draw nothing", () => {
     const packed = encodeLines(
       [
-        [[1, 1], [1.01, 1.01], [2, 2]],
-        [[5, 5], [5.01, 5]],
+        [
+          [1, 1],
+          [1.01, 1.01],
+          [2, 2],
+        ],
+        [
+          [5, 5],
+          [5.01, 5],
+        ],
       ],
       0.1,
       { closed: false },
@@ -94,24 +110,60 @@ describe("packed lines", () => {
   });
 
   it("keeps a collapsed line as two points when asked to, so parallel tables stay aligned", () => {
-    const decoded = decodeLines(encodeLines([[[5, 5], [5.01, 5]], [[7, 7], [9, 9]]], 0.1, { closed: false, keepShort: true }));
+    const decoded = decodeLines(
+      encodeLines(
+        [
+          [
+            [5, 5],
+            [5.01, 5],
+          ],
+          [
+            [7, 7],
+            [9, 9],
+          ],
+        ],
+        0.1,
+        { closed: false, keepShort: true },
+      ),
+    );
     expect(decoded.count).toBe(2);
-    expect([...decoded.xy.slice(0, 4)]).toEqual([5, 5, 5, 5]);
+    expect(Array.from(decoded.xy.slice(0, 4))).toEqual([5, 5, 5, 5]);
   });
 
   it("stores a ring without its repeated first point", () => {
-    const ring = [[0, 0], [4, 0], [4, 4], [0, 0]] as const;
+    const ring = [
+      [0, 0],
+      [4, 0],
+      [4, 4],
+      [0, 0],
+    ] as const;
     const decoded = decodeLines(encodeLines([ring], 0.5, { closed: true }));
     expect(decoded.closed).toBe(true);
     expect([...decoded.xy]).toEqual([0, 0, 4, 0, 4, 4]);
   });
 
   it("drops a ring that rounds to fewer than three corners", () => {
-    expect(encodeLines([[[0, 0], [0.01, 0], [0, 0.01]]], 0.5, { closed: true }).n).toBe(0);
+    expect(
+      encodeLines(
+        [
+          [
+            [0, 0],
+            [0.01, 0],
+            [0, 0.01],
+          ],
+        ],
+        0.5,
+        { closed: true },
+      ).n,
+    ).toBe(0);
   });
 
   it("packs table points as one line and keeps every one of them", () => {
-    const points = [[1, 1], [1, 1], [500.05, 200]] as const;
+    const points = [
+      [1, 1],
+      [1, 1],
+      [500.05, 200],
+    ] as const;
     const decoded = decodeLines(encodePoints(points, 0.05));
     expect(decoded.count).toBe(1);
     expect(decoded.xy).toHaveLength(6);
@@ -124,8 +176,31 @@ describe("packed lines", () => {
   });
 
   it("joins two sets and measures each line's box", () => {
-    const first = decodeLines(encodeLines([[[0, 0], [2, 1]]], 0.5, { closed: false }));
-    const second = decodeLines(encodeLines([[[5, 5], [3, 9], [4, 4]]], 0.5, { closed: false }));
+    const first = decodeLines(
+      encodeLines(
+        [
+          [
+            [0, 0],
+            [2, 1],
+          ],
+        ],
+        0.5,
+        { closed: false },
+      ),
+    );
+    const second = decodeLines(
+      encodeLines(
+        [
+          [
+            [5, 5],
+            [3, 9],
+            [4, 4],
+          ],
+        ],
+        0.5,
+        { closed: false },
+      ),
+    );
     const both = concatLines(first, second);
     expect(both.count).toBe(2);
     expect([...both.start]).toEqual([0, 2, 5]);

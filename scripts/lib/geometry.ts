@@ -2,8 +2,8 @@
  * Two small pieces of plane geometry that the rest of the build shares:
  * thinning a line, and the area of a ring.
  *
- * Pure functions on plain arrays, no Node API, so `tsc` and vitest cover
- * this file like the card's own sources.
+ * Pure functions on plain arrays, no Node API, so `vp check` and the tests
+ * cover this file like the card's own sources.
  */
 
 type Point = readonly [x: number, y: number];
@@ -14,7 +14,9 @@ function closestOnSegment(p: Point, a: Point, b: Point): Point {
   const dy = b[1] - a[1];
   const lengthSquared = dx * dx + dy * dy;
   const t =
-    lengthSquared === 0 ? 0 : Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / lengthSquared));
+    lengthSquared === 0
+      ? 0
+      : Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / lengthSquared));
   return [a[0] + t * dx, a[1] + t * dy];
 }
 
@@ -24,7 +26,7 @@ function closestOnSegment(p: Point, a: Point, b: Point): Point {
  * ends always are kept.
  */
 export function keepByDistance(points: ReadonlyArray<Point>, tolerance: number): boolean[] {
-  const keep = new Array<boolean>(points.length).fill(false);
+  const keep = Array.from({ length: points.length }, () => false);
   if (points.length === 0) return keep;
   keep[0] = true;
   keep[points.length - 1] = true;

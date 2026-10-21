@@ -59,7 +59,8 @@ export class ChunkLoader {
     // A failed import can be remembered by the browser for the life of the
     // page; a changed URL makes the retry a new request.
     const retry = attempt > 0 ? `&retry=${attempt}` : "";
-    return new URL(`${chunkFile(id)}?v=${encodeURIComponent(this.version)}${retry}`, this.base).href;
+    return new URL(`${chunkFile(id)}?v=${encodeURIComponent(this.version)}${retry}`, this.base)
+      .href;
   }
 
   /** Start loading whichever of these chunks have not been asked for yet. */
@@ -127,7 +128,8 @@ export class ChunkLoader {
 
   private set(id: ChunkId, state: ChunkState): void {
     this.states.set(id, state);
-    for (const listener of [...this.listeners]) listener();
+    // A snapshot: a listener may subscribe or unsubscribe while this runs.
+    for (const listener of Array.from(this.listeners)) listener();
   }
 }
 

@@ -11,7 +11,9 @@
     "retry": "Erneut versuchen",
     "outdated": "Die Karte wurde aktualisiert. Lade die Seite neu, um sie anzuzeigen.",
     "reload": "Seite neu laden",
-    "credit": "Daten: {holders}"
+    "credit": "Daten: {holders}",
+    "map_help_tilt": "Umschalt und die Pfeiltasten neigen und drehen die Karte.",
+    "loading_relief": "Gelände wird geladen…"
   },
   "controls": {
     "group": "Kartensteuerung",
@@ -20,7 +22,10 @@
     "zoom_out": "Herauszoomen",
     "reset": "Ansicht zurücksetzen",
     "zoom_here": "Hierher zoomen",
-    "clear": "Auswahl aufheben"
+    "clear": "Auswahl aufheben",
+    "my_location": "Deinen Standort zeigen",
+    "tilt": "3D-Ansicht",
+    "north": "Nach Norden ausrichten"
   },
   "layers": {
     "terrain": "Gelände",
@@ -28,7 +33,10 @@
     "provinces": "Bundesländer",
     "districts": "Bezirke",
     "municipalities": "Gemeinden",
-    "cities": "Städte und Orte"
+    "cities": "Städte und Orte",
+    "peaks": "Gipfel",
+    "motorways": "Autobahnen",
+    "main_roads": "Bundesstraßen"
   },
   "layer_notes": {
     "zoom": "Erscheint, wenn du hineinzoomst",
@@ -43,13 +51,20 @@
     "town_1": "Markt",
     "town_2": "Dorf",
     "river": "Fluss",
-    "stream": "Bach"
+    "stream": "Bach",
+    "peak": "Gipfel",
+    "motorway": "Autobahn",
+    "expressway": "Schnellstraße",
+    "main_road": "Bundesstraße"
   },
   "facts": {
     "population": "Einwohner",
     "municipality_population": "Einwohner der Gemeinde",
     "stream_order": "Flussordnungszahl",
-    "source": "{holder}, Stand {stand}"
+    "length": "Länge",
+    "length_in_austria": "Länge in Österreich",
+    "source": "{holder}, Stand {stand}",
+    "height": "Höhe"
   },
   "editor": {
     "title": "Titel",
@@ -68,6 +83,14 @@
     "layers_helper": "Auf der Karte kannst du Ebenen weiterhin ein- und ausschalten. Diese Auswahl gilt, bis die Seite neu lädt.",
     "show_labels": "Namen auf der Karte anzeigen",
     "show_layer_control": "Ebenen-Schaltfläche anzeigen",
-    "show_layer_control_helper": "Schalte das aus, um die Ebenen zu sperren, zum Beispiel auf einem Wanddisplay."
+    "show_layer_control_helper": "Schalte das aus, um die Ebenen zu sperren, zum Beispiel auf einem Wanddisplay.",
+    "show_location": "Deinen Standort markieren",
+    "show_location_helper": "Setzt eine Stecknadel auf die Karte. Die Position bleibt in deinem Browser.",
+    "location": "Stecknadel zeigt",
+    "location_mode_home": "Dein Zuhause, aus den Home-Assistant-Einstellungen",
+    "location_mode_device": "Dieses Gerät",
+    "location_mode_entity": "Eine Person oder einen Tracker",
+    "location_helper": "„Dieses Gerät“ braucht HTTPS und deine Erlaubnis. Ohne beides markiert die Stecknadel dein Zuhause.",
+    "location_entity": "Person oder Tracker"
   }
 }

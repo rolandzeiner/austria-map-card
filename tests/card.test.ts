@@ -4,9 +4,10 @@
  * The card element end to end: mounting, loading, the layer list, taps and
  * the info panel, keyboard and wheel. The set-up is in card-harness.ts.
  */
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it } from "vite-plus/test";
 
 import { toScreen, zoomOf } from "../src/map/camera.ts";
+import { sorted } from "../src/sorted.ts";
 import { PROVINCE_IDS } from "../src/types.ts";
 import {
   $,
@@ -37,7 +38,8 @@ afterEach(tearDown);
 
 describe("the card contract", () => {
   it("registers itself with the card picker, once", () => {
-    const cards = (window as unknown as { customCards: Array<{ type: string; preview?: boolean }> }).customCards;
+    const cards = (window as unknown as { customCards: Array<{ type: string; preview?: boolean }> })
+      .customCards;
     expect(cards.filter((entry) => entry.type === "austria-map-card")).toHaveLength(1);
     expect(cards[0]?.preview).toBe(true);
   });
@@ -61,7 +63,9 @@ describe("the card contract", () => {
 
   it("throws on a config it cannot use, so Lovelace shows what is wrong", () => {
     const card = document.createElement("austria-map-card") as unknown as CardInternals;
-    expect(() => card.setConfig({ type: "custom:austria-map-card", view: "AT-0" })).toThrow(/"view"/);
+    expect(() => card.setConfig({ type: "custom:austria-map-card", view: "AT-0" })).toThrow(
+      /"view"/,
+    );
   });
 
   it("shows the title only when there is one", async () => {
@@ -74,7 +78,9 @@ describe("loading", () => {
   it("loads the base chunk and the places for the default map, and nothing else", async () => {
     await mount();
     expect(new Set(requestedIds())).toEqual(new Set(["base", "places"]));
-    expect(requested.every((url) => url.startsWith("https://ha.example/hacsfiles/austria-map-card/"))).toBe(true);
+    expect(
+      requested.every((url) => url.startsWith("https://ha.example/hacsfiles/austria-map-card/")),
+    ).toBe(true);
   });
 
   it("draws the map and credits its sources once the data is there", async () => {
@@ -84,7 +90,9 @@ describe("loading", () => {
     expect(fake.texts()).toContain("Wien");
     expect($(card, ".loading")).toBeNull();
     expect(text(card, ".credit")).toBe("Daten: BEV, BMLUK, Statistik Austria · CC BY 4.0");
-    expect($(card, ".credit a")?.getAttribute("href")).toBe("https://creativecommons.org/licenses/by/4.0/");
+    expect($(card, ".credit a")?.getAttribute("href")).toBe(
+      "https://creativecommons.org/licenses/by/4.0/",
+    );
   });
 
   it("labels the map for assistive technology and explains its keys", async () => {
@@ -100,12 +108,16 @@ describe("loading", () => {
     const before = requested.length;
     tool(card, "Ebenen").click();
     await settle(card);
-    all(card, ".layer").find((row) => row.textContent?.includes("Bezirke"))?.click();
+    all(card, ".layer")
+      .find((row) => row.textContent?.includes("Bezirke"))
+      ?.click();
     await settle(card);
     expect(requestedIds(before)).toEqual(["borders"]);
     await zoomIn(card, 5);
     const ids = requestedIds();
-    expect(new Set(ids)).toEqual(new Set(["base", "places", "borders", "terrain-detail", "rivers-detail"]));
+    expect(new Set(ids)).toEqual(
+      new Set(["base", "places", "borders", "terrain-detail", "rivers-detail"]),
+    );
     expect(ids).toHaveLength(new Set(ids).size);
   });
 });
@@ -144,12 +156,9 @@ describe("the toolbar", () => {
 
   it("names every button in the user's language", async () => {
     const card = await mount({}, hassEn);
-    expect(all(card, ".toolbar button").map((button) => button.getAttribute("aria-label"))).toEqual([
-      "Layers",
-      "Zoom in",
-      "Zoom out",
-      "Reset view",
-    ]);
+    expect(all(card, ".toolbar button").map((button) => button.getAttribute("aria-label"))).toEqual(
+      ["Layers", "Zoom in", "Zoom out", "Reset view"],
+    );
   });
 });
 
@@ -170,9 +179,22 @@ describe("the layer list", () => {
       "Gemeinden",
       "Bezirke",
       "Bundesländer",
+      "Bundesstraßen",
+      "Autobahnen",
+      "Gipfel",
       "Städte und Orte",
     ]);
-    expect(rows.map((row) => row.getAttribute("aria-checked"))).toEqual(["true", "true", "false", "false", "true", "true"]);
+    expect(rows.map((row) => row.getAttribute("aria-checked"))).toEqual([
+      "true",
+      "true",
+      "false",
+      "false",
+      "true",
+      "false",
+      "false",
+      "false",
+      "true",
+    ]);
     for (const row of rows) expect(row.getAttribute("role")).toBe("switch");
   });
 
@@ -208,7 +230,9 @@ describe("the layer list", () => {
     const button = tool(card, "Ebenen");
     button.click();
     await settle(card);
-    all(card, ".layer")[2]!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, composed: true }));
+    all(card, ".layer")[2]!.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Escape", bubbles: true, composed: true }),
+    );
     await settle(card);
     expect($(card, ".layers")).toBeNull();
     expect(card.shadowRoot?.activeElement).toBe(button);
@@ -234,14 +258,21 @@ describe("the layer list", () => {
 describe("tapping the map", () => {
   it("describes a town under the map, with its municipality, district and province once those are loaded", async () => {
     const card = await mount();
-    expect(text(card, ".info-idle")).toBe("Wähle eine Stelle auf der Karte, um zu sehen, was dort ist.");
+    expect(text(card, ".info-idle")).toBe(
+      "Wähle eine Stelle auf der Karte, um zu sehen, was dort ist.",
+    );
     await tap(card, ...placeAt(card, "Graz"));
-    expect(card._selection).toEqual({ kind: "city", row: pageLoader().store.places!.names.indexOf("Graz") });
+    expect(card._selection).toEqual({
+      kind: "city",
+      row: pageLoader().store.places!.names.indexOf("Graz"),
+    });
     expect(text(card, ".info-name")).toBe("Graz Stadt");
     // The tap asked for the borders chunk, which holds the parents.
     expect(pageLoader().state("borders")).toBe("ready");
     expect(text(card, ".info-parents")).toBe("Graz(Stadt) · Steiermark");
-    expect(text(card, ".facts")).toMatch(/^Einwohner der Gemeinde [\d.]+ Statistik Austria, Stand 01\.01\.2026$/);
+    expect(text(card, ".facts")).toMatch(
+      /^Einwohner der Gemeinde [\d.]+ Statistik Austria, Stand 01\.01\.2026$/,
+    );
     expect($(card, ".info-text")?.getAttribute("aria-live")).toBe("polite");
   });
 
@@ -261,7 +292,22 @@ describe("tapping the map", () => {
     const row = PROVINCE_IDS.indexOf("AT-9");
     await tap(card, ...toScreen(card._camera!, size, table.at[row * 2]!, table.at[row * 2 + 1]!));
     expect(text(card, ".info-name")).toBe("Wien Province");
-    expect(text(card, ".facts")).toMatch(/Population 2,\d{3},\d{3} Statistik Austria, as of 01\.01\.2026/);
+    expect(text(card, ".facts")).toMatch(
+      /Population 2,\d{3},\d{3} Statistik Austria, as of 01\.01\.2026/,
+    );
+  });
+
+  it("gives a river's length in Austria in kilometres, with tenths below 100, and the provinces it runs through", async () => {
+    const card = await mount();
+    card._selection = { kind: "river", name: "Lech", order: 6 };
+    await settle(card);
+    expect(text(card, ".info-parents")).toBe("Tirol · Vorarlberg");
+    expect(text(card, ".facts")).toMatch(
+      /^Länge in Österreich 90,5 km BMLUK, Stand 2021 Flussordnungszahl 6 BMLUK, Stand 2021$/,
+    );
+    card._selection = { kind: "river", name: "Donau", order: 9 };
+    await settle(card);
+    expect(text(card, ".facts")).toMatch(/^Länge in Österreich 350 km /);
   });
 
   it("clears the selection on a tap abroad and with the close button", async () => {
@@ -280,7 +326,9 @@ describe("tapping the map", () => {
   it("zooms to what is selected", async () => {
     const card = await mount();
     await tap(card, ...placeAt(card, "Salzburg"));
-    all(card, ".info-actions button").find((button) => button.textContent?.includes("Hierher zoomen"))?.click();
+    all(card, ".info-actions button")
+      .find((button) => button.textContent?.includes("Hierher zoomen"))
+      ?.click();
     await settle(card);
     expect(zoomOf(card._camera!, size)).toBeGreaterThan(10);
     const [x, y] = placeAt(card, "Salzburg");
@@ -355,7 +403,9 @@ describe("the keyboard", () => {
     const card = await mount({ layers: [] });
     await key(card, "Enter");
     expect(card._selection).toBeNull();
-    expect(text(card, ".info-idle")).toBe("Hier gibt es nichts anzuzeigen. Verschiebe die Karte oder schalte eine Ebene ein.");
+    expect(text(card, ".info-idle")).toBe(
+      "Hier gibt es nichts anzuzeigen. Verschiebe die Karte oder schalte eine Ebene ein.",
+    );
   });
 
   it("leaves Tab and browser shortcuts alone", async () => {
@@ -370,7 +420,13 @@ describe("the keyboard", () => {
 
 describe("the wheel", () => {
   const wheel = async (card: CardInternals, init: WheelEventInit): Promise<WheelEvent> => {
-    const event = new WheelEvent("wheel", { bubbles: true, cancelable: true, clientX: 380, clientY: 200, ...init });
+    const event = new WheelEvent("wheel", {
+      bubbles: true,
+      cancelable: true,
+      clientX: 380,
+      clientY: 200,
+      ...init,
+    });
     // happy-dom's WheelEvent does not take the modifier keys from its init.
     for (const modifier of ["ctrlKey", "metaKey"] as const) {
       Object.defineProperty(event, modifier, { value: init[modifier] ?? false });
@@ -427,10 +483,10 @@ describe("configuration", () => {
     await settle(card);
     all(card, ".layer")[0]!.click();
     await settle(card);
-    expect([...card._layers].sort()).toEqual(["rivers", "terrain"]);
+    expect(sorted(card._layers)).toEqual(["rivers", "terrain"]);
     // Saving something else in the editor does not undo the session's choice.
     card.setConfig({ type: "custom:austria-map-card", layers: ["rivers"], title: "Karte" });
-    expect([...card._layers].sort()).toEqual(["rivers", "terrain"]);
+    expect(sorted(card._layers)).toEqual(["rivers", "terrain"]);
     card.setConfig({ type: "custom:austria-map-card", layers: ["cities"], title: "Karte" });
     expect([...card._layers]).toEqual(["cities"]);
   });
@@ -443,7 +499,9 @@ describe("configuration", () => {
 
   it("follows the user's language", async () => {
     const card = await mount();
-    expect(text(card, ".info-idle")).toBe("Wähle eine Stelle auf der Karte, um zu sehen, was dort ist.");
+    expect(text(card, ".info-idle")).toBe(
+      "Wähle eine Stelle auf der Karte, um zu sehen, was dort ist.",
+    );
     card.hass = hassEn;
     await settle(card);
     expect(text(card, ".info-idle")).toBe("Select a spot on the map to see what is there.");
@@ -455,7 +513,8 @@ describe("configuration", () => {
     for (let step = 0; step < 3; step += 1) tool(card, "Hineinzoomen").click();
     await settle(card);
     const before = card._camera!;
-    for (const callback of resizeCallbacks) callback([{ contentRect: { width: 380, height: 201 } }]);
+    for (const callback of resizeCallbacks)
+      callback([{ contentRect: { width: 380, height: 201 } }]);
     await settle(card);
     expect(card._camera!.x).toBeCloseTo(before.x);
     expect(zoomOf(card._camera!, { width: 380, height: 201 })).toBeCloseTo(zoomOf(before, size));

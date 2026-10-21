@@ -16,6 +16,7 @@
  * Pure functions on plain arrays, no Node API.
  */
 import { keepByDistance } from "./geometry.ts";
+import { sorted } from "../../src/sorted.ts";
 
 export type Point = readonly [x: number, y: number];
 
@@ -37,11 +38,17 @@ const keyOf = (point: Point): string => `${point[0]},${point[1]}`;
  * this has none; a number here means the input is not one.
  */
 export function borderEdges(
-  polygons: ReadonlyArray<{ readonly unit: number; readonly rings: ReadonlyArray<ReadonlyArray<Point>> }>,
+  polygons: ReadonlyArray<{
+    readonly unit: number;
+    readonly rings: ReadonlyArray<ReadonlyArray<Point>>;
+  }>,
 ): { edges: Arc[]; strays: number } {
   // Per undirected edge: the unit on either side, and which way the first
   // polygon ran along it.
-  const seen = new Map<string, { from: Point; to: Point; first: number; second: number; count: number }>();
+  const seen = new Map<
+    string,
+    { from: Point; to: Point; first: number; second: number; count: number }
+  >();
   let strays = 0;
   for (const polygon of polygons) {
     for (const ring of polygon.rings) {
@@ -172,12 +179,15 @@ export function regroup(arcs: readonly Arc[], groupOf: (unit: number) => number)
 }
 
 /** Put arcs in a fixed order that keeps neighbours close: by map tile, then by start. */
-export function sortArcs<T extends { readonly points: readonly Point[] }>(arcs: readonly T[], tile: number): T[] {
+export function sortArcs<T extends { readonly points: readonly Point[] }>(
+  arcs: readonly T[],
+  tile: number,
+): T[] {
   const rank = (arc: T): [number, number, number, number, number] => {
     const [x, y] = arc.points[0] as Point;
     return [Math.floor(y / tile), Math.floor(x / tile), x, y, arc.points.length];
   };
-  return [...arcs].sort((p, q) => {
+  return sorted(arcs, (p, q) => {
     const r = rank(p);
     const s = rank(q);
     for (let index = 0; index < r.length; index += 1) {
@@ -225,13 +235,15 @@ export function simplifyArc(points: readonly Point[], tolerance: number): Point[
   let third = 1;
   let off = -1;
   points.forEach((point, index) => {
-    const cross = Math.abs((far[0] - first[0]) * (point[1] - first[1]) - (far[1] - first[1]) * (point[0] - first[0]));
+    const cross = Math.abs(
+      (far[0] - first[0]) * (point[1] - first[1]) - (far[1] - first[1]) * (point[0] - first[0]),
+    );
     if (cross > off) {
       off = cross;
       third = index;
     }
   });
-  const corners = [0, farthest, third].sort((p, q) => p - q);
+  const corners = sorted([0, farthest, third], (p, q) => p - q);
   return [...corners.map((index) => points[index] as Point), first];
 }
 
@@ -275,7 +287,12 @@ export function insideTest(
   for (const ring of rings) {
     if (ring instanceof Float32Array) {
       for (let index = 0; index + 3 < ring.length; index += 2) {
-        add(ring[index] as number, ring[index + 1] as number, ring[index + 2] as number, ring[index + 3] as number);
+        add(
+          ring[index] as number,
+          ring[index + 1] as number,
+          ring[index + 2] as number,
+          ring[index + 3] as number,
+        );
       }
     } else {
       for (let index = 0; index < ring.length - 1; index += 1) {
@@ -306,7 +323,10 @@ export function insideTest(
  * rings. The edges are filed in a grid of `reach`-sized cells, so a point
  * only meets the edges of its own cell and the eight around it.
  */
-export function nearTest(rings: ReadonlyArray<ReadonlyArray<Point>>, reach: number): (x: number, y: number) => boolean {
+export function nearTest(
+  rings: ReadonlyArray<ReadonlyArray<Point>>,
+  reach: number,
+): (x: number, y: number) => boolean {
   const cells = new Map<string, number[]>();
   const edges: number[] = [];
   for (const ring of rings) {
@@ -340,7 +360,8 @@ export function nearTest(rings: ReadonlyArray<ReadonlyArray<Point>>, reach: numb
           const ex = (edges[at + 2] as number) - x1;
           const ey = (edges[at + 3] as number) - y1;
           const length = ex * ex + ey * ey;
-          const t = length === 0 ? 0 : Math.max(0, Math.min(1, ((x - x1) * ex + (y - y1) * ey) / length));
+          const t =
+            length === 0 ? 0 : Math.max(0, Math.min(1, ((x - x1) * ex + (y - y1) * ey) / length));
           if (Math.hypot(x - (x1 + t * ex), y - (y1 + t * ey)) <= reach) return true;
         }
       }
@@ -384,7 +405,8 @@ export function labelPoint(rings: ReadonlyArray<Float32Array>, precision: number
         const dx = (ring[index + 2] as number) - x1;
         const dy = (ring[index + 3] as number) - y1;
         const length = dx * dx + dy * dy;
-        const t = length === 0 ? 0 : Math.max(0, Math.min(1, ((x - x1) * dx + (y - y1) * dy) / length));
+        const t =
+          length === 0 ? 0 : Math.max(0, Math.min(1, ((x - x1) * dx + (y - y1) * dy) / length));
         const distance = (x - (x1 + t * dx)) ** 2 + (y - (y1 + t * dy)) ** 2;
         if (distance < best) best = distance;
       }

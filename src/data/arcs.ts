@@ -83,7 +83,12 @@ export class ArcIndex {
     const at = group * 4;
     const box = this.groupBoxes;
     if (
-      !(x >= (box[at] as number) && x <= (box[at + 2] as number) && y >= (box[at + 1] as number) && y <= (box[at + 3] as number))
+      !(
+        x >= (box[at] as number) &&
+        x <= (box[at + 2] as number) &&
+        y >= (box[at + 1] as number) &&
+        y <= (box[at + 3] as number)
+      )
     ) {
       return false;
     }
@@ -93,7 +98,8 @@ export class ArcIndex {
       // The ray runs to the right: an arc that is wholly left of the point,
       // or does not reach its height, cannot cross it.
       if ((this.arcBoxes[arc * 4 + 2] as number) < x) continue;
-      if ((this.arcBoxes[arc * 4 + 1] as number) > y || (this.arcBoxes[arc * 4 + 3] as number) < y) continue;
+      if ((this.arcBoxes[arc * 4 + 1] as number) > y || (this.arcBoxes[arc * 4 + 3] as number) < y)
+        continue;
       const end = (start[arc + 1] as number) - 1;
       for (let point = start[arc] as number; point < end; point += 1) {
         const y1 = xy[point * 2 + 1] as number;
@@ -132,7 +138,8 @@ export class ArcIndex {
 /** Join arcs end to end into closed rings. Arcs that do not close are left out. */
 export function joinArcs(lines: Lines, arcs: readonly number[]): Float32Array[] {
   const { xy, start } = lines;
-  const keyOf = (point: number): string => `${xy[point * 2] as number},${xy[point * 2 + 1] as number}`;
+  const keyOf = (point: number): string =>
+    `${xy[point * 2] as number},${xy[point * 2 + 1] as number}`;
   const first = (arc: number): number => start[arc] as number;
   const last = (arc: number): number => (start[arc + 1] as number) - 1;
 

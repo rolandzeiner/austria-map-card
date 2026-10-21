@@ -65,7 +65,12 @@ export function traceSmoothRings(path: Path2D, lines: Lines): void {
     const y = (index: number): number => xy[(from + (index % count)) * 2 + 1] as number;
     path.moveTo((x(0) + x(1)) / 2, (y(0) + y(1)) / 2);
     for (let index = 1; index <= count; index += 1) {
-      path.quadraticCurveTo(x(index), y(index), (x(index) + x(index + 1)) / 2, (y(index) + y(index + 1)) / 2);
+      path.quadraticCurveTo(
+        x(index),
+        y(index),
+        (x(index) + x(index + 1)) / 2,
+        (y(index) + y(index + 1)) / 2,
+      );
     }
     path.closePath();
   }
@@ -100,14 +105,20 @@ export class TiledLines {
   public readonly lines: Lines;
   private readonly tiles = new Map<number, Tile>();
 
-  public constructor(lines: Lines, boxes: Float32Array, classOf: ArrayLike<number> | null, tile = 64) {
+  public constructor(
+    lines: Lines,
+    boxes: Float32Array,
+    classOf: ArrayLike<number> | null,
+    tile = 64,
+  ) {
     this.lines = lines;
     for (let line = 0; line < lines.count; line += 1) {
       const left = boxes[line * 4] as number;
       const top = boxes[line * 4 + 1] as number;
       const right = boxes[line * 4 + 2] as number;
       const bottom = boxes[line * 4 + 3] as number;
-      const id = Math.floor((top + bottom) / 2 / tile) * 4096 + Math.floor((left + right) / 2 / tile);
+      const id =
+        Math.floor((top + bottom) / 2 / tile) * 4096 + Math.floor((left + right) / 2 / tile);
       let entry = this.tiles.get(id);
       if (entry === undefined) {
         entry = { box: [left, top, right, bottom], byClass: new Map() };
@@ -128,7 +139,11 @@ export class TiledLines {
   }
 
   /** Call `each` for every tile in view that has lines of this class. */
-  public visit(view: Box, group: number, each: (tile: number, lines: readonly number[]) => void): void {
+  public visit(
+    view: Box,
+    group: number,
+    each: (tile: number, lines: readonly number[]) => void,
+  ): void {
     for (const [id, tile] of this.tiles) {
       if (!boxesTouch(tile.box, view)) continue;
       const list = tile.byClass.get(group);

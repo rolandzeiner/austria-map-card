@@ -16,6 +16,8 @@ import type { Palette } from "../map/palette.ts";
 import type { ShapeCache } from "../map/tiles.ts";
 import { LAYER_IDS, type LayerId } from "../types.ts";
 import { districtsLayer, municipalitiesLayer, provincesLayer } from "./borders.ts";
+import { mainRoadsLayer, motorwaysLayer } from "./roads.ts";
+import { peaksLayer } from "./peaks.ts";
 import { citiesLayer } from "./places.ts";
 import { riversLayer } from "./rivers.ts";
 import { SCALES } from "./scales.ts";
@@ -58,6 +60,9 @@ export const LAYERS: readonly LayerDef[] = [
   municipalitiesLayer,
   districtsLayer,
   provincesLayer,
+  mainRoadsLayer,
+  motorwaysLayer,
+  peaksLayer,
   citiesLayer,
 ];
 
@@ -65,7 +70,8 @@ if (LAYERS.map((layer) => layer.id).join() !== LAYER_IDS.join()) {
   throw new Error("the layer registry and LAYER_IDS have drifted apart");
 }
 
-export const layerById = (id: LayerId): LayerDef => LAYERS.find((layer) => layer.id === id) as LayerDef;
+export const layerById = (id: LayerId): LayerDef =>
+  LAYERS.find((layer) => layer.id === id) as LayerDef;
 
 /** Every chunk the map needs for these layers at this scale. */
 export function chunksFor(layers: ReadonlySet<LayerId>, scale: number): ChunkId[] {
@@ -80,7 +86,11 @@ export function chunksFor(layers: ReadonlySet<LayerId>, scale: number): ChunkId[
 }
 
 /** Whether the fine borders should be drawn, given what is loaded. */
-export function useFineBorders(store: MapStore, layers: ReadonlySet<LayerId>, scale: number): boolean {
+export function useFineBorders(
+  store: MapStore,
+  layers: ReadonlySet<LayerId>,
+  scale: number,
+): boolean {
   if (store.detail === undefined) return false;
   return scale >= SCALES.fineBorders || layers.has("districts") || layers.has("municipalities");
 }

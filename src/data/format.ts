@@ -1,7 +1,7 @@
 /**
  * The format of the map's data chunks, and how to read them.
  *
- * The card's code is one file. The geometry is six more, written by
+ * The card's code is one file. The geometry is ten more, written by
  * `scripts/build-data.mjs` and imported one at a time when a layer or a zoom
  * level first needs them. Each is an ES module whose default export is one
  * of the `Chunk` shapes below.
@@ -17,7 +17,7 @@
  */
 
 /** Bump when a chunk's shape or the packing changes. */
-export const DATA_FORMAT = 1;
+export const DATA_FORMAT = 2;
 
 export const CHUNK_IDS = [
   "base",
@@ -26,6 +26,10 @@ export const CHUNK_IDS = [
   "terrain-detail",
   "rivers-detail",
   "places",
+  "relief",
+  "peaks",
+  "motorways",
+  "main-roads",
 ] as const;
 export type ChunkId = (typeof CHUNK_IDS)[number];
 
@@ -56,7 +60,8 @@ export function packChar(value: number): string {
   return String.fromCharCode(code);
 }
 
-const unpackChar = (code: number): number => (code === 0x21 ? 0 : code < 0x5c ? code - 0x22 : code - 0x23);
+const unpackChar = (code: number): number =>
+  code === 0x21 ? 0 : code < 0x5c ? code - 0x22 : code - 0x23;
 
 /** Read a packed list of integers. */
 export function decodeInts(text: string): Int32Array {
@@ -174,7 +179,11 @@ export function lineBoxes(lines: Lines): Float32Array {
     let top = Infinity;
     let right = -Infinity;
     let bottom = -Infinity;
-    for (let point = lines.start[line] as number; point < (lines.start[line + 1] as number); point += 1) {
+    for (
+      let point = lines.start[line] as number;
+      point < (lines.start[line + 1] as number);
+      point += 1
+    ) {
       const x = lines.xy[point * 2] as number;
       const y = lines.xy[point * 2 + 1] as number;
       if (x < left) left = x;
@@ -214,8 +223,11 @@ export interface FactColumn {
   readonly key: string;
   /** Translation key of the column's label. */
   readonly label: string;
-  /** How to print a value. Zero means "not known for this row". */
-  readonly format: "integer";
+  /**
+   * How to print a value. Zero means "not known for this row".
+   * `kilometres` values are tenths of a kilometre.
+   */
+  readonly format: "integer" | "metres" | "kilometres";
   /** `SourceInfo.id` of where the values come from. */
   readonly source: string;
   /** Packed integers, one per row. */
@@ -256,6 +268,10 @@ export interface TerrainSet {
 export interface RiverSet {
   /** River names; the empty string is a stream the source does not name. */
   readonly names: readonly string[];
+  /** Per name: its length in Austria, among others. */
+  readonly facts: readonly FactColumn[];
+  /** Packed, per name: the provinces it runs through, bit n for row n of the provinces table; 0 where not known. */
+  readonly provinces: string;
   readonly lines: PackedLines;
   /** Packed, per line: index into `names`, and the stream order (9 is the Danube). */
   readonly name: string;
@@ -287,6 +303,37 @@ export interface PlaceTable {
   /** Packed, per place: the number of residents it is ranked by. */
   readonly rank: string;
   readonly facts: readonly FactColumn[];
+}
+
+/** Summits, most prominent first. */
+export interface PeakTable {
+  readonly names: readonly string[];
+  /** One point per summit, as a single packed line. */
+  readonly at: PackedLines;
+  /**
+   * Packed, per summit: its isolation, the distance to the nearest higher
+   * summit, in tenths of a view-box unit. It decides from which scale the
+   * summit is named, so the map shows the summits that stand out first.
+   */
+  readonly isolation: string;
+  /** Packed, per summit: 1 where the BEV marks it as major. */
+  readonly major: string;
+  /** Its height, among others. */
+  readonly facts: readonly FactColumn[];
+}
+
+/**
+ * Ground height on a grid of one cell per view-box unit, for the tilted
+ * map. Rows run north to south. Each row is packed as the steps from one
+ * cell to the next, starting from 0, in units of `step` metres; 0 is no
+ * data, far outside the country.
+ */
+export interface ReliefGrid {
+  readonly columns: number;
+  readonly rows: number;
+  /** Metres per integer step. */
+  readonly step: number;
+  readonly d: string;
 }
 
 interface ChunkHead {
@@ -332,6 +379,42 @@ export interface PlacesChunk extends ChunkHead {
   readonly places: PlaceTable;
 }
 
+export interface ReliefChunk extends ChunkHead {
+  readonly id: "relief";
+  readonly relief: ReliefGrid;
+}
+
+/** Roads of one class, as strokes along their carriageways. */
+export interface RoadSet {
+  /** Route numbers: "A1", "S6", "B317". */
+  readonly refs: readonly string[];
+  /** Per route: "West Autobahn"; empty where the source has none. */
+  readonly names: readonly string[];
+  /** Per route: its length, among others. */
+  readonly facts: readonly FactColumn[];
+  /** Packed, per route: the provinces it runs through, bit n for row n of the provinces table. */
+  readonly provinces: string;
+  readonly lines: PackedLines;
+  /** Packed, per line: index into `refs`. */
+  readonly route: string;
+}
+
+export interface MotorwaysChunk extends ChunkHead {
+  readonly id: "motorways";
+  readonly motorways: RoadSet;
+}
+
+/** The main roads: Landesstraße B, the former Bundesstraßen. */
+export interface MainRoadsChunk extends ChunkHead {
+  readonly id: "main-roads";
+  readonly roads: RoadSet;
+}
+
+export interface PeaksChunk extends ChunkHead {
+  readonly id: "peaks";
+  readonly peaks: PeakTable;
+}
+
 export interface ChunkMap {
   base: BaseChunk;
   borders: BordersChunk;
@@ -339,5 +422,9 @@ export interface ChunkMap {
   "terrain-detail": TerrainDetailChunk;
   "rivers-detail": RiversDetailChunk;
   places: PlacesChunk;
+  relief: ReliefChunk;
+  peaks: PeaksChunk;
+  motorways: MotorwaysChunk;
+  "main-roads": MainRoadsChunk;
 }
 export type Chunk = ChunkMap[ChunkId];

@@ -8,7 +8,7 @@ import type { Borders } from "./store.ts";
 export type BorderLevel = 0 | 1 | 2 | 3;
 
 /** Stroke width in pixels by level. */
-const WIDTHS: readonly number[] = [1.5, 1.1, 0.8, 0.5];
+export const BORDER_WIDTHS: readonly number[] = [1.5, 1.1, 0.8, 0.5];
 
 const tiled = new WeakMap<Lines, TiledLines>();
 
@@ -43,17 +43,24 @@ export function drawBorders(dc: DrawContext, level: BorderLevel): void {
     set = "fine";
   } else if (store.overview !== undefined && level < 2) {
     const { arcs } = store.overview;
-    tiles = tiledBorders(arcs, Uint8Array.from(arcs.a, (side) => (side < 0 ? 0 : 1)));
+    tiles = tiledBorders(
+      arcs,
+      Uint8Array.from(arcs.a, (side) => (side < 0 ? 0 : 1)),
+    );
     set = "coarse";
   }
   if (tiles === undefined) return;
   const lines = tiles.lines;
-  ctx.strokeStyle = [palette.outline, palette.province, palette.district, palette.municipality][level] as string;
-  ctx.lineWidth = grown(WIDTHS[level] as number, scale) / scale;
+  ctx.strokeStyle = [palette.outline, palette.province, palette.district, palette.municipality][
+    level
+  ] as string;
+  ctx.lineWidth = grown(BORDER_WIDTHS[level] as number, scale) / scale;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   tiles.visit(box, group, (tile, which) => {
-    ctx.stroke(shapes.get(`borders:${set}:${level}:${tile}`, (path) => traceLines(path, lines, which)));
+    ctx.stroke(
+      shapes.get(`borders:${set}:${level}:${tile}`, (path) => traceLines(path, lines, which)),
+    );
   });
 }
 

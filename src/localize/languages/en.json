@@ -11,7 +11,9 @@
     "retry": "Try again",
     "outdated": "The card was updated. Reload the page to show the map.",
     "reload": "Reload page",
-    "credit": "Data: {holders}"
+    "credit": "Data: {holders}",
+    "map_help_tilt": "Shift and the arrow keys tilt and turn the map.",
+    "loading_relief": "Loading terrain…"
   },
   "controls": {
     "group": "Map controls",
@@ -20,7 +22,10 @@
     "zoom_out": "Zoom out",
     "reset": "Reset view",
     "zoom_here": "Zoom here",
-    "clear": "Clear selection"
+    "clear": "Clear selection",
+    "my_location": "Show your location",
+    "tilt": "3D view",
+    "north": "Face north"
   },
   "layers": {
     "terrain": "Terrain",
@@ -28,7 +33,10 @@
     "provinces": "Provinces",
     "districts": "Districts",
     "municipalities": "Municipalities",
-    "cities": "Towns and cities"
+    "cities": "Towns and cities",
+    "peaks": "Peaks",
+    "motorways": "Motorways",
+    "main_roads": "Main roads"
   },
   "layer_notes": {
     "zoom": "Appears when you zoom in",
@@ -43,13 +51,20 @@
     "town_1": "Market town",
     "town_2": "Village",
     "river": "River",
-    "stream": "Stream"
+    "stream": "Stream",
+    "peak": "Peak",
+    "motorway": "Motorway",
+    "expressway": "Expressway",
+    "main_road": "Main road"
   },
   "facts": {
     "population": "Population",
     "municipality_population": "Population of the municipality",
     "stream_order": "Stream order",
-    "source": "{holder}, as of {stand}"
+    "length": "Length",
+    "length_in_austria": "Length in Austria",
+    "source": "{holder}, as of {stand}",
+    "height": "Height"
   },
   "editor": {
     "title": "Title",
@@ -68,6 +83,14 @@
     "layers_helper": "You can still switch layers on the map. That choice lasts until the page reloads.",
     "show_labels": "Show names on the map",
     "show_layer_control": "Show the layer button",
-    "show_layer_control_helper": "Turn this off to lock the layers, for example on a wall display."
+    "show_layer_control_helper": "Turn this off to lock the layers, for example on a wall display.",
+    "show_location": "Mark your location",
+    "show_location_helper": "Puts a pin on the map. The position stays in your browser.",
+    "location": "Pin shows",
+    "location_mode_home": "Your home, from the Home Assistant settings",
+    "location_mode_device": "This device",
+    "location_mode_entity": "A person or tracker",
+    "location_helper": "“This device” needs HTTPS and your permission. Without them, the pin marks your home.",
+    "location_entity": "Person or tracker"
   }
 }

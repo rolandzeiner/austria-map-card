@@ -38,6 +38,18 @@ export interface Palette {
   readonly halo: string;
   readonly accent: string;
   readonly accentFill: string;
+  /** Motorways: an amber line on a darker casing, as in a road atlas. */
+  readonly motorway: string;
+  readonly motorwayCasing: string;
+  /** Main roads (B): pale yellow on a darker casing. */
+  readonly road: string;
+  readonly roadCasing: string;
+  /** Route shields: the blue of Austria's motorway signs, with white letters. */
+  readonly shield: string;
+  readonly shieldText: string;
+  /** A main road's shield: white, framed and lettered in the text colour. */
+  readonly mainShield: string;
+  readonly mainShieldText: string;
   /** The fill for ground above a height in metres. */
   band(level: number): string;
 }
@@ -80,12 +92,17 @@ export const css = (colour: Rgb, alpha = 1): string =>
  * see-through card background says nothing about what is behind it.
  */
 export function parseColour(text: string): Rgb | null {
-  const rgb = /^rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:\s*[,/]\s*([\d.]+%?))?\s*\)$/.exec(text.trim());
+  const rgb = /^rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:\s*[,/]\s*([\d.]+%?))?\s*\)$/.exec(
+    text.trim(),
+  );
   if (rgb) {
     if (rgb[4] !== undefined && alphaOf(rgb[4]) < 0.5) return null;
     return [Number(rgb[1]), Number(rgb[2]), Number(rgb[3])];
   }
-  const srgb = /^color\(srgb\s+([\d.e-]+)\s+([\d.e-]+)\s+([\d.e-]+)(?:\s*\/\s*([\d.]+%?))?\s*\)$/.exec(text.trim());
+  const srgb =
+    /^color\(srgb\s+([\d.e-]+)\s+([\d.e-]+)\s+([\d.e-]+)(?:\s*\/\s*([\d.]+%?))?\s*\)$/.exec(
+      text.trim(),
+    );
   if (srgb) {
     if (srgb[4] !== undefined && alphaOf(srgb[4]) < 0.5) return null;
     return [Number(srgb[1]) * 255, Number(srgb[2]) * 255, Number(srgb[3]) * 255];
@@ -93,7 +110,8 @@ export function parseColour(text: string): Rgb | null {
   return null;
 }
 
-const alphaOf = (text: string): number => (text.endsWith("%") ? Number(text.slice(0, -1)) / 100 : Number(text));
+const alphaOf = (text: string): number =>
+  text.endsWith("%") ? Number(text.slice(0, -1)) / 100 : Number(text);
 
 // The terrain is tinted once per 300 m, by this much each time, starting at
 // 400 m. Written as a function of the height, so the overview's 8 bands and
@@ -101,6 +119,12 @@ const alphaOf = (text: string): number => (text.endsWith("%") ? Number(text.slic
 const BAND_BASE = 400;
 const BAND_STEP = 300;
 const BAND_TINT = 0.052;
+
+const MOTORWAY_LIGHT: Rgb = [236, 152, 54];
+const MOTORWAY_DARK: Rgb = [214, 140, 62];
+const SHIELD: Rgb = [30, 84, 160];
+const ROAD_LIGHT: Rgb = [250, 220, 120];
+const ROAD_DARK: Rgb = [196, 170, 92];
 
 const WATER_LIGHT: Rgb = [111, 157, 198];
 const WATER_DARK: Rgb = [92, 148, 204];
@@ -133,6 +157,16 @@ export function derivePalette(theme: Theme): Palette {
     halo: css(land, 0.82),
     accent: css(theme.accent),
     accentFill: css(theme.accent, 0.18),
+    motorway: css(dark ? MOTORWAY_DARK : MOTORWAY_LIGHT),
+    motorwayCasing: css(
+      dark ? mix(MOTORWAY_DARK, background, 0.55) : mix(MOTORWAY_LIGHT, [60, 30, 0], 0.45),
+    ),
+    road: css(dark ? ROAD_DARK : ROAD_LIGHT),
+    roadCasing: css(dark ? mix(ROAD_DARK, background, 0.55) : mix(ROAD_LIGHT, [70, 50, 0], 0.5)),
+    shield: css(SHIELD),
+    shieldText: "rgb(255, 255, 255)",
+    mainShield: css(dark ? mix(background, text, 0.85) : [255, 255, 255]),
+    mainShieldText: css(dark ? background : [40, 40, 40]),
     band,
   };
 }

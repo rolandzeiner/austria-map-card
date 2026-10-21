@@ -1,5 +1,5 @@
 /** Which data and which detail the map uses at which scale. */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import { LAYERS, chunksFor, layerById, useFineBorders } from "../src/layers/registry.ts";
 import { minimumRank } from "../src/layers/places.ts";
@@ -33,7 +33,13 @@ describe("chunks by scale", () => {
 
   it("brings in the fine borders, terrain and rivers as the map zooms in", () => {
     expect(chunksFor(standard, SCALES.riversDetail)).toEqual(["base", "rivers-detail", "places"]);
-    expect(chunksFor(standard, SCALES.fineBorders)).toEqual(["base", "borders", "terrain-detail", "rivers-detail", "places"]);
+    expect(chunksFor(standard, SCALES.fineBorders)).toEqual([
+      "base",
+      "borders",
+      "terrain-detail",
+      "rivers-detail",
+      "places",
+    ]);
   });
 
   it("loads no detail for a layer that is switched off", () => {
@@ -45,8 +51,14 @@ describe("chunks by scale", () => {
   });
 
   it("holds the municipal borders back until they can be told apart", () => {
-    expect(chunksFor(layers("municipalities"), SCALES.municipalities - 0.01)).not.toContain("gemeinden");
-    expect(chunksFor(layers("municipalities"), SCALES.municipalities)).toEqual(["base", "borders", "gemeinden"]);
+    expect(chunksFor(layers("municipalities"), SCALES.municipalities - 0.01)).not.toContain(
+      "gemeinden",
+    );
+    expect(chunksFor(layers("municipalities"), SCALES.municipalities)).toEqual([
+      "base",
+      "borders",
+      "gemeinden",
+    ]);
     expect(layerById("municipalities").minScale).toBe(SCALES.municipalities);
   });
 
@@ -71,7 +83,10 @@ describe("detail by what is loaded", () => {
     const base = storeWith("base");
     expect(riversAt(base, 20)).toMatchObject({ set: "overview", minOrder: 5 });
     const both = storeWith("base", "rivers-detail");
-    expect(riversAt(both, SCALES.riversDetail - 0.1)).toMatchObject({ set: "overview", minOrder: 5 });
+    expect(riversAt(both, SCALES.riversDetail - 0.1)).toMatchObject({
+      set: "overview",
+      minOrder: 5,
+    });
     expect(riversAt(both, SCALES.riversDetail)).toMatchObject({ set: "detail", minOrder: 4 });
     expect(riversAt(both, SCALES.streams)).toMatchObject({ set: "detail", minOrder: 3 });
     expect(riversAt(storeWith("places"), 1)).toBeUndefined();
@@ -81,7 +96,8 @@ describe("detail by what is loaded", () => {
 describe("names by scale", () => {
   it("shows smaller towns the further in the map is", () => {
     const ranks = [0.4, 1, 1.5, 3, 5, 8, 20].map(minimumRank);
-    for (let index = 1; index < ranks.length; index += 1) expect(ranks[index]!).toBeLessThan(ranks[index - 1]!);
+    for (let index = 1; index < ranks.length; index += 1)
+      expect(ranks[index]!).toBeLessThan(ranks[index - 1]!);
     expect(minimumRank(20)).toBe(0);
   });
 

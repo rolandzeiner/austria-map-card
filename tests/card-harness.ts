@@ -10,7 +10,7 @@
  * test file its own copy of every module, so each file that calls `setUp`
  * gets a loader of its own: what one file breaks, the next does not see.
  */
-import { vi } from "vitest";
+import { vi } from "vite-plus/test";
 
 import type { ChunkId } from "../src/data/format.ts";
 import { sharedLoader, type ChunkLoader } from "../src/layers/loader.ts";
@@ -62,7 +62,8 @@ export async function setUp(): Promise<void> {
   vi.stubGlobal("ResizeObserver", StubResizeObserver);
   vi.stubGlobal("Path2D", FakePath);
   vi.stubGlobal("getComputedStyle", () => ({ color: "rgb(40, 40, 40)", fontFamily: "sans-serif" }));
-  HTMLCanvasElement.prototype.getContext = (() => fake.ctx) as unknown as HTMLCanvasElement["getContext"];
+  HTMLCanvasElement.prototype.getContext = (() =>
+    fake.ctx) as unknown as HTMLCanvasElement["getContext"];
   // The first caller makes the page's loader; the card then finds this one.
   loader = sharedLoader({
     base: "https://ha.example/hacsfiles/austria-map-card/austria-map-card.js",
@@ -94,7 +95,10 @@ export const settle = async (card?: CardInternals): Promise<void> => {
   }
 };
 
-export async function mount(config: Record<string, unknown> = {}, hass: unknown = hassDe): Promise<CardInternals> {
+export async function mount(
+  config: Record<string, unknown> = {},
+  hass: unknown = hassDe,
+): Promise<CardInternals> {
   const card = document.createElement("austria-map-card") as unknown as CardInternals;
   card.setConfig({ type: "custom:austria-map-card", ...config });
   card.hass = hass;
@@ -107,8 +111,10 @@ export async function mount(config: Record<string, unknown> = {}, hass: unknown 
   return card;
 }
 
-export const $ = <T extends Element = HTMLElement>(card: CardInternals, selector: string): T | null =>
-  card.shadowRoot?.querySelector<T>(selector) ?? null;
+export const $ = <T extends Element = HTMLElement>(
+  card: CardInternals,
+  selector: string,
+): T | null => card.shadowRoot?.querySelector<T>(selector) ?? null;
 export const all = (card: CardInternals, selector: string): HTMLElement[] => [
   ...(card.shadowRoot?.querySelectorAll<HTMLElement>(selector) ?? []),
 ];
@@ -116,11 +122,19 @@ export const text = (card: CardInternals, selector: string): string =>
   ($(card, selector)?.textContent ?? "").replace(/\s+/g, " ").trim();
 /** A button by its accessible name. */
 export const tool = (card: CardInternals, label: string): HTMLButtonElement =>
-  all(card, "button").find((button) => button.getAttribute("aria-label") === label) as HTMLButtonElement;
+  all(card, "button").find(
+    (button) => button.getAttribute("aria-label") === label,
+  ) as HTMLButtonElement;
 
 export const pointer = (card: CardInternals, type: string, x: number, y: number, id = 1): void => {
   $(card, "canvas")?.dispatchEvent(
-    new PointerEvent(type, { pointerId: id, clientX: x, clientY: y, bubbles: true, composed: true }),
+    new PointerEvent(type, {
+      pointerId: id,
+      clientX: x,
+      clientY: y,
+      bubbles: true,
+      composed: true,
+    }),
   );
 };
 export const tap = async (card: CardInternals, x: number, y: number): Promise<void> => {
@@ -128,8 +142,17 @@ export const tap = async (card: CardInternals, x: number, y: number): Promise<vo
   pointer(card, "pointerup", x, y);
   await settle(card);
 };
-export const key = async (card: CardInternals, name: string, init: KeyboardEventInit = {}): Promise<KeyboardEvent> => {
-  const event = new KeyboardEvent("keydown", { key: name, bubbles: true, cancelable: true, ...init });
+export const key = async (
+  card: CardInternals,
+  name: string,
+  init: KeyboardEventInit = {},
+): Promise<KeyboardEvent> => {
+  const event = new KeyboardEvent("keydown", {
+    key: name,
+    bubbles: true,
+    cancelable: true,
+    ...init,
+  });
   $(card, "canvas")?.dispatchEvent(event);
   await settle(card);
   return event;

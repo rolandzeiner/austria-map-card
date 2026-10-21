@@ -7,7 +7,8 @@ import { css } from "lit";
 // their computed values through a probe element and mixes the map's colours
 // out of them (src/map/palette.ts). One override is read from a theme or
 // card-mod:
-//   --austria-map-accent-color   the selection and the focus ring
+//   --austria-map-accent-color   the selection, the location pin and the
+//                                focus ring
 //                                (default: the theme's primary colour)
 export const cardStyles = css`
   :host {
@@ -81,13 +82,16 @@ export const cardStyles = css`
      asks for, and it is not 0 but the height of the four buttons on the
      map plus their margins: on a card 300 px wide the proportions alone
      would give 159 px, and the buttons would hang out over the panel
-     below. */
+     below. The buttons are one row now, but a narrow card wraps it, and
+     the layer list opens under it. */
   .stage {
     position: relative;
     flex: 1 1 auto;
     min-block-size: calc(4 * var(--amc-control) + 3 * var(--ha-space-1, 4px) + var(--ha-space-5, 20px));
     aspect-ratio: 1000 / 530;
     margin: var(--ha-space-2, 8px) var(--ha-space-2, 8px) 0;
+    /* The relief canvas sits under the map canvas, inside the stage. */
+    isolation: isolate;
   }
   canvas {
     position: absolute;
@@ -102,7 +106,17 @@ export const cardStyles = css`
     touch-action: pan-y;
     -webkit-tap-highlight-color: transparent;
   }
-  canvas.zoomed {
+  /* The tilted map, drawn with WebGL under the canvas that takes the
+     pointer and carries the names. */
+  canvas.relief {
+    z-index: -1;
+    pointer-events: none;
+  }
+  canvas.relief[hidden] {
+    display: none;
+  }
+  canvas.zoomed,
+  canvas.tilted {
     touch-action: none;
   }
   canvas.dragging {
@@ -132,12 +146,74 @@ export const cardStyles = css`
   }
 
   /* ── Controls on the map ─────────────────────────────────────────── */
-  .toolbar {
+  /* The compass. Its north half is the red of the Austrian flag, lifted a
+     little on a dark theme so it keeps 3:1 against the dial (WCAG 1.4.11);
+     the needle's shape tells north from south without the colour. */
+  .compass {
+    flex: none;
+    inline-size: var(--amc-control);
+    block-size: var(--amc-control);
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: none;
+    color: var(--amc-text);
+    cursor: pointer;
+    /* Lets the rose lean back with the tilted map. */
+    perspective: 90px;
+    --amc-north: #c8102e;
+    --amc-north: light-dark(#c8102e, #ff6b6b);
+  }
+  .compass svg {
+    display: block;
+    inline-size: 100%;
+    block-size: 100%;
+    overflow: visible;
+  }
+  .compass-ring {
+    fill: var(--amc-background);
+    stroke: var(--amc-line);
+    stroke-width: 1;
+  }
+  .compass-ticks {
+    stroke: var(--amc-muted);
+    stroke-width: 1.2;
+    stroke-linecap: round;
+  }
+  .compass-north {
+    fill: var(--amc-north);
+  }
+  .compass-south {
+    fill: var(--amc-muted);
+  }
+  .compass-n {
+    fill: var(--amc-north);
+    font-size: 7.5px;
+    font-weight: var(--ha-font-weight-bold, 700);
+    text-anchor: middle;
+    dominant-baseline: central;
+  }
+  .compass:focus-visible {
+    border-radius: 50%;
+  }
+  /* The compass and the buttons, in a row along the top from the left:
+     the empty corner over Bavaria. The row wraps on a card too narrow for
+     it, and the layer list opens under it, however many lines it takes. */
+  .controls {
     position: absolute;
     inset-block-start: var(--ha-space-2, 8px);
-    inset-inline-end: var(--ha-space-2, 8px);
+    inset-inline-start: var(--ha-space-2, 8px);
+    max-inline-size: calc(100% - var(--ha-space-4, 16px));
+    max-block-size: calc(100% - var(--ha-space-4, 16px));
     display: flex;
     flex-direction: column;
+    align-items: flex-start;
+    gap: var(--ha-space-2, 8px);
+  }
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
     gap: var(--ha-space-1, 4px);
   }
   .tool,
@@ -164,15 +240,14 @@ export const cardStyles = css`
     color: var(--amc-accent);
   }
   .tool-gap {
-    block-size: var(--ha-space-1, 4px);
+    inline-size: var(--ha-space-1, 4px);
   }
 
+  /* Under the row of buttons; it scrolls in what is left of the stage. */
   .layers {
-    position: absolute;
-    inset-block-start: var(--ha-space-2, 8px);
-    inset-inline-end: calc(var(--amc-control) + var(--ha-space-4, 16px));
-    inline-size: min(260px, calc(100% - var(--amc-control) - var(--ha-space-6, 24px)));
-    max-block-size: calc(100% - var(--ha-space-4, 16px));
+    inline-size: min(260px, 100%);
+    min-block-size: 0;
+    box-sizing: border-box;
     overflow-y: auto;
     padding: var(--ha-space-1, 4px);
     border: 1px solid var(--amc-line);
@@ -372,6 +447,32 @@ export const cardStyles = css`
     color: inherit;
   }
 
+  /* A card too narrow for the row of buttons to fit in the empty corner
+     over Bavaria: the map starts under the row, and the stage grows by as
+     much, so the whole-country view keeps its size and nothing of Austria
+     is covered. Pointer positions are measured on the canvas, so moving it
+     down needs nothing else. Below 340 px the row wraps onto two lines. */
+  @container austria-map-card (inline-size < 760px) {
+    .stage {
+      --amc-band: calc(var(--amc-control) + var(--ha-space-3, 12px));
+      padding-block-start: var(--amc-band);
+      aspect-ratio: auto;
+      block-size: calc((100cqi - 2 * var(--ha-space-2, 8px)) * 530 / 1000 + var(--amc-band));
+    }
+    canvas {
+      inset-block-start: var(--amc-band);
+      block-size: calc(100% - var(--amc-band));
+    }
+    .crosshair {
+      inset-block-start: calc(50% + var(--amc-band) / 2);
+    }
+  }
+  @container austria-map-card (inline-size < 340px) {
+    .stage {
+      --amc-band: calc(2 * var(--amc-control) + var(--ha-space-1, 4px) + var(--ha-space-3, 12px));
+    }
+  }
+
   @container austria-map-card (inline-size < 360px) {
     .info {
       flex-direction: column;
@@ -400,6 +501,17 @@ export const cardStyles = css`
     }
     .crosshair {
       forced-color-adjust: none;
+    }
+    .compass-ring {
+      fill: Canvas;
+      stroke: CanvasText;
+    }
+    .compass-north,
+    .compass-n {
+      fill: Highlight;
+    }
+    .compass-south {
+      fill: CanvasText;
     }
   }
   @media (prefers-reduced-motion: reduce) {

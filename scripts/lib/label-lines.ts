@@ -83,7 +83,10 @@ export interface LabelOptions {
  * `lines` are the river's pieces in any order and direction; pieces that
  * meet end to end are joined first.
  */
-export function labelStretches(lines: ReadonlyArray<readonly Point[]>, options: LabelOptions): Point[][] {
+export function labelStretches(
+  lines: ReadonlyArray<readonly Point[]>,
+  options: LabelOptions,
+): Point[][] {
   const runs = chain(lines.map((points) => ({ a: 0, b: 1, points: [...points] })));
   const span = Math.max(1, Math.round(options.turnSpan / options.step));
   const limit = (options.maxTurn * Math.PI) / 180;
@@ -91,7 +94,11 @@ export function labelStretches(lines: ReadonlyArray<readonly Point[]>, options: 
   for (const run of runs) {
     if (lengthOf(run.points) < options.minLength) continue;
     const sampled = resample(run.points, options.step);
-    const smooth = smoothLine(sampled, Math.max(1, Math.round(options.smoothing / options.step)), 2);
+    const smooth = smoothLine(
+      sampled,
+      Math.max(1, Math.round(options.smoothing / options.step)),
+      2,
+    );
     let current: Point[] = [];
     const close = (): void => {
       if (current.length > 1 && lengthOf(current) >= options.minLength) {
@@ -121,9 +128,10 @@ export function labelStretches(lines: ReadonlyArray<readonly Point[]>, options: 
     close();
   }
   // A fixed order, whatever order the pieces came in.
-  return out.sort((p, q) => {
+  out.sort((p, q) => {
     const [px, py] = p[0] as Point;
     const [qx, qy] = q[0] as Point;
     return px - qx || py - qy || p.length - q.length;
   });
+  return out;
 }

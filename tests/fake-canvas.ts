@@ -72,7 +72,8 @@ export function fakeContext(): FakeContext {
   return {
     calls,
     ctx,
-    texts: () => calls.filter((call) => call.name === "fillText").map((call) => String(call.args[0])),
+    texts: () =>
+      calls.filter((call) => call.name === "fillText").map((call) => String(call.args[0])),
     named: (name) => calls.filter((call) => call.name === name),
     reset: () => {
       calls.length = 0;
@@ -81,7 +82,32 @@ export function fakeContext(): FakeContext {
 }
 
 export function fakeCanvas(fake: FakeContext): HTMLCanvasElement {
-  return { getContext: () => fake.ctx, width: 0, height: 0, style: {} } as unknown as HTMLCanvasElement;
+  return {
+    getContext: () => fake.ctx,
+    width: 0,
+    height: 0,
+    style: {},
+  } as unknown as HTMLCanvasElement;
 }
 
 export const fakePath = (): Path2D => new FakePath() as unknown as Path2D;
+
+/**
+ * Where the last "you are here" pin was drawn: the tip, in screen pixels,
+ * or undefined for no pin. The pin is recognised by the first curve of
+ * mdi:map-marker, and placed by the translate just before it, which puts
+ * the icon's tip (12, 22) at 1.5 × its grid on the point.
+ */
+export function pinTip(fake: FakeContext): [number, number] | undefined {
+  const calls = fake.calls;
+  for (let index = calls.length - 1; index >= 0; index -= 1) {
+    const call = calls[index] as Call;
+    if (call.name !== "bezierCurveTo" || call.args[2] !== 5 || call.args[3] !== 14.25) continue;
+    for (let back = index; back >= 0; back -= 1) {
+      const before = calls[back] as Call;
+      if (before.name === "translate")
+        return [(before.args[0] as number) + 18, (before.args[1] as number) + 33];
+    }
+  }
+  return undefined;
+}

@@ -14,7 +14,10 @@ export interface Rect {
 }
 
 const overlaps = (a: Rect, b: Rect, margin: number): boolean =>
-  a.x - margin < b.x + b.w && b.x < a.x + a.w + margin && a.y - margin < b.y + b.h && b.y < a.y + a.h + margin;
+  a.x - margin < b.x + b.w &&
+  b.x < a.x + a.w + margin &&
+  a.y - margin < b.y + b.h &&
+  b.y < a.y + a.h + margin;
 
 export class LabelPlacer {
   private readonly taken: Rect[] = [];
@@ -75,7 +78,12 @@ export function aroundDot(x: number, y: number, radius: number, w: number, h: nu
   ];
 }
 
-export const centredOn = (x: number, y: number, w: number, h: number): Rect => ({ x: x - w / 2, y: y - h / 2, w, h });
+export const centredOn = (x: number, y: number, w: number, h: number): Rect => ({
+  x: x - w / 2,
+  y: y - h / 2,
+  w,
+  h,
+});
 
 // ── Lettering along a line ───────────────────────────────────────────────
 
@@ -112,7 +120,8 @@ export function pointAlong(line: Measured, distance: number): [number, number] {
   const { xy, along } = line;
   const last = along.length - 1;
   if (distance <= 0) return [xy[0] as number, xy[1] as number];
-  if (distance >= (along[last] as number)) return [xy[last * 2] as number, xy[last * 2 + 1] as number];
+  if (distance >= (along[last] as number))
+    return [xy[last * 2] as number, xy[last * 2 + 1] as number];
   let low = 0;
   let high = last;
   while (high - low > 1) {

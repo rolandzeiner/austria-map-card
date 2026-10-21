@@ -151,7 +151,7 @@ export class MapGesture {
     return upright(a) && upright(b) && Math.sign(a.dy) === Math.sign(b.dy) ? "tilt" : "pinch";
   }
 
-  /** Moves the one pointer down to (x, y) and counts the way; the step it made. */
+  /** Moves the only pointer down to (x, y), adds the step to the way travelled, returns the step. */
   private drag(pointer: Pointer, x: number, y: number): [dx: number, dy: number] {
     const dx = x - pointer.x;
     const dy = y - pointer.y;

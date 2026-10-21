@@ -1,7 +1,8 @@
 /**
  * What the info panel says about a tapped feature, from the committed
- * chunks: name, kind, the units it lies in, and its facts. Each kind is
- * also described from a store that lacks the chunk it would need, and a
+ * chunks: name, kind, the units it lies in, and its facts. Areas, towns
+ * and summits are also described from a store that lacks a chunk they
+ * need, and a
  * tap on the water finds the named river nearest to it.
  */
 import { describe, expect, it } from "vite-plus/test";

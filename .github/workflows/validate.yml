@@ -29,7 +29,7 @@ jobs:
     # below: its type-check reports the syntax error or unknown property that
     # follows. Don't copy in the Perl backtick guard from the sibling repos;
     # it ends each template at the first unescaped backtick, which is the
-    # stray one, so it can never fire.
+    # stray one, so it never sees it and fires only on a legal escaped one.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -37,9 +37,8 @@ jobs:
       - uses: voidzero-dev/setup-vp@v1.21.2
         # Installs the vp CLI, Node 24 (pinned below; drop node-version to
         # follow devEngines.runtime) and the npm devEngines asks for, and
-        # caches npm's cache. Install runs as its own step below so the
-        # lockfile is enforced explicitly. Node 24 is also what the data
-        # build needs: it imports the card's TypeScript directly.
+        # caches npm. Install runs as its own step below so the lockfile is
+        # enforced explicitly.
         with:
           node-version: "24"
           cache: true

@@ -36,7 +36,9 @@ export default defineConfig(({ mode }) => {
       // dist/ is shared with the data build: the ten austria-map-data-*.js
       // chunks sit beside the card and are not part of this graph. Vite
       // empties its output directory before each build by default, which
-      // would delete every one of them. A dev build's .map is gitignored.
+      // would delete every one of them. With nothing emptied, a dev build's
+      // .map stays in dist/; *.js.map is gitignored, so it never ships or
+      // trips the drift check.
       emptyOutDir: false,
       copyPublicDir: false,
       target: "es2022",
@@ -44,9 +46,7 @@ export default defineConfig(({ mode }) => {
       rolldownOptions: {
         output: {
           banner,
-          // One self-contained file for the code. The editor is bundled in;
-          // the data chunks are not part of this graph at all (their URL is
-          // computed at run time, so the bundler leaves that import alone).
+          // One self-contained file for the code; the editor is bundled in.
           codeSplitting: false,
           comments: { legal: true },
           // Set on the Rolldown output, not `build.minify`: Vite's library

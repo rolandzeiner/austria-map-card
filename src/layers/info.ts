@@ -46,7 +46,10 @@ function provincesIn(store: MapStore, mask: number): string[] {
   return names.filter((_, row) => (mask & (1 << row)) !== 0);
 }
 
-/** A municipality's name, then its district's and its province's; empty without the borders. */
+/**
+ * A municipality's name, then its district's and its province's. Empty
+ * without the base and borders chunks, or for no municipality (-1).
+ */
 function municipalityParents(store: MapStore, municipality: number): string[] {
   const provinces = store.overview?.provinces;
   const detail = store.detail;

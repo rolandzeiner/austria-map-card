@@ -2,8 +2,8 @@
  * Two small pieces of plane geometry that the rest of the build shares:
  * thinning a line, and the area of a ring.
  *
- * Pure functions on plain arrays, no Node API, so `tsc` and vitest cover
- * this file like the card's own sources.
+ * Pure functions on plain arrays, no Node API, so `vp check` and the tests
+ * cover this file like the card's own sources.
  */
 
 type Point = readonly [x: number, y: number];

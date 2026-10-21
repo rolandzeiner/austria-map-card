@@ -2,15 +2,18 @@
  * Rivers for the map: from the national river network's lines to a few
  * simplified strokes.
  *
- * Pure functions on plain arrays, like the rest of this folder. Reading the
- * GeoPackage itself needs SQLite and stays in `build-data.mjs`.
+ * Pure functions on plain arrays, like the rest of this folder; reading a
+ * geometry blob is in `geopackage.ts`.
  */
 import { parseGeoPackageLines } from "./geopackage.ts";
 import { keepByDistance } from "./geometry.ts";
 
 type Point = readonly [x: number, y: number];
 
-/** The coordinates of a LineString stored as a GeoPackage geometry blob. */
+/**
+ * The one line of a GeoPackage geometry blob: a LineString, or a
+ * MultiLineString with a single member. Anything else throws.
+ */
 export function parseGeoPackageLine(blob: Uint8Array): Array<[number, number]> {
   const [line, ...more] = parseGeoPackageLines(blob);
   if (line === undefined || more.length > 0) throw new Error("geometry is not one LineString");

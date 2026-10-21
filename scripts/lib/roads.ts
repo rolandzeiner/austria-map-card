@@ -1,9 +1,8 @@
 /**
- * Motorways for the map: from the BEV's road pieces to one set of long
- * strokes per route.
+ * Roads for the map, motorways and main roads alike: from the BEV's road
+ * pieces to one set of long strokes per route.
  *
- * Pure functions on plain arrays, like the rest of this folder. Reading the
- * GeoPackage itself needs SQLite and stays in `build-data.mjs`.
+ * Pure functions on plain arrays, like the rest of this folder.
  */
 import { keepByDistance } from "./geometry.ts";
 

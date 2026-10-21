@@ -1,4 +1,4 @@
-/** Reading motorway pieces and joining them into routes. */
+/** Joining road pieces into routes, and a route's length along the road. */
 import { describe, expect, it } from "vite-plus/test";
 
 import { joinPieces, routeLength } from "./roads.ts";

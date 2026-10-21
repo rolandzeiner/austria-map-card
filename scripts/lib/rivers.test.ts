@@ -50,7 +50,7 @@ describe("parseGeoPackageLine", () => {
     ]);
   });
 
-  it("refuses anything that is not a GeoPackage LineString", () => {
+  it("refuses anything that is not one GeoPackage line", () => {
     expect(() => parseGeoPackageLine(new Uint8Array(40))).toThrow(/GeoPackage/);
     expect(() => parseGeoPackageLine(blob([[1, 2]], { type: 3 }))).toThrow(/LineString/);
   });

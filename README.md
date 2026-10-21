@@ -12,11 +12,18 @@ A map of Austria for your Home Assistant dashboard. Switch layers on and off, zo
 ## Features
 
 - **Six layers** *(0.1.0)*: terrain, rivers, provinces (Bundesländer), districts (Bezirke), municipalities (Gemeinden), and towns. Switch them from the layer button on the map.
+- **Peaks** *(0.2.0)*: summits with their name and height. The whole country shows the highest of each range, and zooming in brings out the rest.
+- **Motorways** *(0.2.0)*: motorways and expressways, with route shields such as A1 and S6.
+- **Main roads** *(0.2.0)*: the B roads, with their route numbers once you zoom in.
 - **Free zoom, 1× to 40×** *(0.1.0)*: drag, pinch, double-tap, the `+` and `−` buttons, or Ctrl/⌘ + scroll. Plain scrolling moves the dashboard, not the map.
+- **3D view, experimental** *(0.2.0)*: tilt and turn the map to see the mountains in relief, with borders, rivers and roads lying on the ground. It's new and may still change. Needs WebGL 2.
+- **Compass** *(0.2.0)*: shows where north is, however you turn or tilt the map. Tap it to face north.
+- **Map buttons in one row** *(0.2.0)*: in the upper left, beside the compass, where they cover no part of Austria.
 - **More detail as you zoom in** *(0.1.0)*: finer borders and terrain, smaller streams, and more names appear when there is room for them.
 - **Names on the map** *(0.1.0)*: provinces, districts, municipalities, towns ranked by population, and rivers lettered along their course.
 - **Select a place** *(0.1.0)*: a town, a river, or an area. The panel under the map shows its name, what it is, the district and province it belongs to, and its population.
-- **Loads only what you look at** *(0.1.0)*: the card itself is small. Map data arrives in six separate files, each fetched the first time a layer or zoom level needs it.
+- **More about rivers, roads and peaks** *(0.2.0)*: a river or road shows its length and the provinces it runs through. A peak shows its height and the municipality, district and province it stands in.
+- **Loads only what you look at** *(0.1.0)*: the card itself is small. Map data arrives in ten separate files, each fetched the first time a layer or zoom level needs it.
 - **Follows your theme** *(0.1.0)*: light and dark, with its own terrain shading for each.
 - **Open one province** *(0.1.0)*: start on all of Austria or on a single province.
 - **Mark where you are** *(0.2.0)*: a pin shows your home, the device you're on, or a person or tracker as they move. One button takes you there.
@@ -34,11 +41,11 @@ A map of Austria for your Home Assistant dashboard. Switch layers on and off, zo
 3. Install **Austria Map Card**.
 4. Reload your browser (⌘⇧R or Ctrl⇧R).
 
-HACS downloads seven files: the card and six data files. Keep them together.
+HACS downloads eleven files: the card and ten data files. Keep them together.
 
 ### Manual
 
-1. Download **all seven** `.js` files from the [latest release](https://github.com/rolandzeiner/austria-map-card/releases).
+1. Download **all eleven** `.js` files from the [latest release](https://github.com/rolandzeiner/austria-map-card/releases).
 2. Copy them to `<config>/www/community/austria-map-card/`.
 3. Add a dashboard resource: `/local/community/austria-map-card/austria-map-card.js`, type **JavaScript module**.
 
@@ -78,6 +85,9 @@ Layers you switch on the map stay that way until the page reloads. To change wha
 | `districts` | The 94 district borders | |
 | `municipalities` | The 2,092 municipality borders | Appears once you zoom in. On the whole country they would be a grey smear. |
 | `cities` | Towns and villages | The capitals and the six cities over 100,000 always show. Others appear by size as you zoom in. |
+| `peaks` | Summits, with name and height | The highest of each range on the whole country. More appear as you zoom in. |
+| `motorways` | Motorways (A) and expressways (S) | Route shields along each route. |
+| `main_roads` | Main roads (B) | A thin line on the whole country. Route shields appear once you zoom in. |
 
 ### Your location
 
@@ -137,25 +147,31 @@ layers:
 | --- | --- | --- |
 | Move the map | Drag | Arrow keys |
 | Zoom | Pinch, double-tap, `+` / `−` buttons, Ctrl or ⌘ + scroll | `+` / `−` |
-| Return to the opening view | **Reset view** button | `0` |
+| Return to the opening view, flat | **Reset view** button | `0` |
 | See what is at a spot | Tap or click it | `Enter` reads out what is under the crosshair |
 | Go to your location | **Show your location** button | Tab to the button, then `Enter` |
+| Tilt and turn (3D view) | **3D view** button. Shift + drag, or drag with the right mouse button. Two fingers sliding up or down tilt; a twist turns | Shift + arrow keys |
+| Face north | Tap the compass | Tab to the compass, then `Enter` |
 
 On the whole-country view there is nothing to drag, so a vertical swipe scrolls your dashboard. Once you zoom in, the map takes the swipe.
 
 ## How the map loads
 
-A dashboard resource loads on every dashboard, whether it shows a map or not. So the card's own file holds only code, and the map data sits in six files beside it:
+A dashboard resource loads on every dashboard, whether it shows a map or not. So the card's own file holds only code, and the map data sits in ten files beside it:
 
 | File | Holds | Loaded | Size (compressed) |
 | --- | --- | --- | --- |
-| `austria-map-card.js` | The card | Always | 86 KB (29 KB) |
-| `austria-map-data-base.js` | Country and province borders, terrain overview, larger rivers | With the first map | 62 KB (42 KB) |
+| `austria-map-card.js` | The card | Always | 121 KB (41 KB) |
+| `austria-map-data-base.js` | Country and province borders, terrain overview, larger rivers | With the first map | 63 KB (43 KB) |
 | `austria-map-data-places.js` | 2,029 towns and villages | Towns layer on | 61 KB (29 KB) |
 | `austria-map-data-borders.js` | Fine borders down to districts, names and population of all districts and municipalities | Zoomed in, or districts or municipalities on | 142 KB (81 KB) |
 | `austria-map-data-gemeinden.js` | Municipality borders | Municipalities on and zoomed in | 189 KB (126 KB) |
 | `austria-map-data-terrain-detail.js` | Terrain in 11 bands | Terrain on and zoomed in | 116 KB (75 KB) |
-| `austria-map-data-rivers-detail.js` | Rivers and streams down to stream order 3 | Rivers on and zoomed in | 220 KB (140 KB) |
+| `austria-map-data-rivers-detail.js` | Rivers and streams down to stream order 3 | Rivers on and zoomed in | 226 KB (144 KB) |
+| `austria-map-data-peaks.js` | 8,014 summits | Peaks layer on | 195 KB (84 KB) |
+| `austria-map-data-motorways.js` | 33 motorway and expressway routes | Motorways layer on | 18 KB (13 KB) |
+| `austria-map-data-main-roads.js` | 270 main road routes | Main roads layer on | 78 KB (49 KB) |
+| `austria-map-data-relief.js` | Ground height for the 3D view | The first time you tilt the map | 523 KB (159 KB) |
 
 Each file loads once per page. Everything comes from your own Home Assistant: the card makes no request to any other server.
 
@@ -168,10 +184,11 @@ All map data is official Austrian open data under [CC BY 4.0](https://creativeco
 | Borders | BEV, [Verwaltungsgrenzen (VGD) 1:250 000](https://www.data.gv.at/datasets/d960f393-0a19-43f7-b2f1-2a79d9fc6fdd) | 01.04.2026 |
 | Terrain | BEV, [Digitales Geländehöhenmodell, Höhenraster 500 m](https://www.data.gv.at/datasets/e629ae18-8f69-40ab-838a-1c0c60ebe727) | 15.04.2021 |
 | Rivers | BMLUK, [Flussordnungszahlen NGP 2021 (Gesamtgewässernetz)](https://www.data.gv.at/datasets/e73a9425-a833-4579-9e6e-3ca76a1ea943) | 2021 |
-| Towns | BEV, [Digitales Landschaftsmodell, Namen](https://data.bev.gv.at/download/DLM/DLM_20260323/) | 23.03.2026 |
+| Towns and peaks | BEV, [Digitales Landschaftsmodell, Namen](https://data.bev.gv.at/download/DLM/DLM_20260323/) | 23.03.2026 |
+| Roads | BEV, [Digitales Landschaftsmodell, Verkehr](https://data.bev.gv.at/download/DLM/DLM_20260323/) | 23.03.2026 |
 | Population | Statistik Austria, [Bevölkerung zu Jahresbeginn 2026](https://data.statistik.gv.at/web/meta.jsp?dataset=OGD_bevstandjbab2002_BevStand_2026) | 01.01.2026 |
 
-The data was changed for this card: borders, terrain and rivers are simplified, municipalities are merged from cadastral units, and towns are a selection of the BEV's 58,000 place names.
+The data was changed for this card: borders, terrain and rivers are simplified, municipalities are merged from cadastral units, towns and peaks are a selection of the BEV's place names, and roads are joined into routes and simplified.
 
 ## Theming
 
@@ -187,7 +204,7 @@ The map takes its colours from your theme. One variable is the card's own:
 - The map takes keyboard focus. A crosshair marks the centre, and `Enter` reads out what is under it.
 - The panel under the map announces a new selection to screen readers.
 - Controls are at least 40 px, with a visible focus ring.
-- The card has no animation beyond the layer switch, and honours reduced motion.
+- The card animates only the layer switch and the turn into 3D, and honours reduced motion.
 
 ## Known limitations
 
@@ -197,6 +214,7 @@ The map takes its colours from your theme. One variable is the card's own:
 - **The pin shows only inside the map.** A position outside Austria and its border margin falls off the map's edge.
 - **Names are the official ones.** Towns carry the BEV's spelling, municipalities the register's, so "St. Pölten" and "Sankt Johann" both occur.
 - **A town shows its municipality's population**, and only where the two share a name.
+- **The 3D view needs WebGL 2.** Without it, the 3D button and the compass don't show, and the map stays flat.
 - **Pinch to zoom from the whole-country view** depends on the browser. If it does not respond, zoom in once with the `+` button or a double-tap.
 
 ## Build from source
@@ -208,6 +226,7 @@ npm install
 npm run build        # the card:      dist/austria-map-card.js
 npm run build:data   # the map data:  dist/austria-map-data-*.js
 npm test
+npm run check        # format, lint and type-check
 npm run preview      # draws the map to PNG files in .cache/preview/
 ```
 

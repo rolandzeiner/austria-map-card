@@ -9,41 +9,6 @@ import { keepByDistance } from "./geometry.ts";
 
 type Point = readonly [x: number, y: number];
 
-/**
- * The lines of a MultiLineString (or a plain LineString) stored as a
- * GeoPackage geometry blob: the GeoPackage header, then well-known binary.
- * Z and M values, where present, are skipped.
- */
-export function parseGeoPackageLines(blob: Uint8Array): Array<Array<[number, number]>> {
-  if (blob[0] !== 0x47 || blob[1] !== 0x50) throw new Error("not a GeoPackage geometry");
-  const envelopeBytes = [0, 32, 48, 48, 64][((blob[3] as number) >> 1) & 7];
-  if (envelopeBytes === undefined) throw new Error("unknown GeoPackage envelope");
-  const view = new DataView(blob.buffer, blob.byteOffset + 8 + envelopeBytes);
-  let at = 0;
-  const lineString = (): Array<[number, number]> => {
-    const little = view.getUint8(at) === 1;
-    const type = view.getUint32(at + 1, little);
-    if (type % 1000 !== 2) throw new Error(`geometry type ${type} is not a LineString`);
-    const family = Math.floor(type / 1000);
-    const dimensions = 2 + (family === 1 || family === 3 ? 1 : 0) + (family >= 2 ? 1 : 0);
-    const count = view.getUint32(at + 5, little);
-    at += 9;
-    const points: Array<[number, number]> = [];
-    for (let index = 0; index < count; index += 1) {
-      points.push([view.getFloat64(at, little), view.getFloat64(at + 8, little)]);
-      at += dimensions * 8;
-    }
-    return points;
-  };
-  const little = view.getUint8(0) === 1;
-  const type = view.getUint32(1, little) % 1000;
-  if (type === 2) return [lineString()];
-  if (type !== 5) throw new Error(`geometry type ${type} is not a (Multi)LineString`);
-  const count = view.getUint32(5, little);
-  at = 9;
-  return Array.from({ length: count }, lineString);
-}
-
 const keyOf = ([x, y]: Point): string => `${Math.round(x * 100)},${Math.round(y * 100)}`;
 
 /**
@@ -93,19 +58,6 @@ export function joinPieces(pieces: ReadonlyArray<readonly Point[]>): Point[][] {
   });
   return lines;
 }
-
-export const lengthOf = (points: readonly Point[]): number =>
-  points.reduce(
-    (sum, point, index) =>
-      index === 0
-        ? 0
-        : sum +
-          Math.hypot(
-            point[0] - (points[index - 1] as Point)[0],
-            point[1] - (points[index - 1] as Point)[1],
-          ),
-    0,
-  );
 
 /** Douglas-Peucker on an open line in view-box units; both ends are kept. */
 export function simplifyRoad(points: readonly Point[], tolerance: number): Point[] {

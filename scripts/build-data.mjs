@@ -48,6 +48,7 @@ import {
 import { MAP_HEIGHT, MAP_WIDTH, project } from "../src/map/projection.ts";
 import { gaussKruegerToGeographic } from "./lib/datum.ts";
 import { encodeInts, encodeLines, encodePoints } from "./lib/encode.ts";
+import { parseGeoPackageLines } from "./lib/geopackage.ts";
 import { labelStretches } from "./lib/label-lines.ts";
 import { PLACE_KINDS, classFloor, nameKey, rankPlaces } from "./lib/places.ts";
 import {
@@ -57,13 +58,7 @@ import {
   runsInside,
   simplifyRiver,
 } from "./lib/rivers.ts";
-import {
-  joinPieces,
-  lengthOf as roadLength,
-  parseGeoPackageLines,
-  routeLength,
-  simplifyRoad,
-} from "./lib/roads.ts";
+import { joinPieces, routeLength, simplifyRoad } from "./lib/roads.ts";
 import { parseDbf, parseShapefilePolygons } from "./lib/shapefile.ts";
 import {
   GridAccumulator,
@@ -917,7 +912,7 @@ async function refreshRivers() {
       .map((network) => network.map((line) => members[line]))
       .filter(
         (network) =>
-          network.reduce((sum, points) => sum + roadLength(points), 0) >= RIVER_LENGTH.minNetwork,
+          network.reduce((sum, points) => sum + lengthOf(points), 0) >= RIVER_LENGTH.minNetwork,
       );
     let metres = 0;
     if (rivers.length > 1) shared += 1;
@@ -1294,7 +1289,7 @@ async function refreshRoads(kind) {
     const name = [...route.names].toSorted((p, q) => q[1] - p[1])[0]?.[0] ?? "";
     const metres = Math.round(routeLength(joinPieces(route.metres), CARRIAGEWAY_PAIR) / 100) * 100;
     for (const line of joinPieces(route.pieces)) {
-      if (roadLength(line) < settings.minLength) continue;
+      if (lengthOf(line) < settings.minLength) continue;
       const points = simplifyRoad(line, settings.tolerance);
       lines.push(
         [

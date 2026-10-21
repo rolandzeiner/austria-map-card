@@ -24,7 +24,7 @@ export function encodeInts(values: Iterable<number>): string {
 }
 
 /** A point on the integer grid of step `q`. */
-export const toGrid = (point: Point, q: number): [number, number] => [
+const toGrid = (point: Point, q: number): [number, number] => [
   Math.round(point[0] / q),
   Math.round(point[1] / q),
 ];

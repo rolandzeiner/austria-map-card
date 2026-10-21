@@ -128,7 +128,8 @@ export class ChunkLoader {
 
   private set(id: ChunkId, state: ChunkState): void {
     this.states.set(id, state);
-    for (const listener of [...this.listeners]) listener();
+    // A snapshot: a listener may subscribe or unsubscribe while this runs.
+    for (const listener of Array.from(this.listeners)) listener();
   }
 }
 

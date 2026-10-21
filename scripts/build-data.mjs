@@ -507,7 +507,7 @@ async function refreshBorders() {
     }
     byCode.set(record.GKZ, unit);
   }
-  const units = [...byCode.values()].sort((p, q) => byCodeUnit(p.code, q.code));
+  const units = [...byCode.values()].toSorted((p, q) => byCodeUnit(p.code, q.code));
   const row = new Map(units.map((unit, index) => [unit.code, index]));
 
   const { edges, strays } = borderEdges(
@@ -594,8 +594,8 @@ function readMesh() {
 
 /** Districts and provinces as tables of their own, and each unit's row in them. */
 function levels(units) {
-  const districtCodes = [...new Set(units.map((unit) => unit.district))].sort();
-  const provinceCodes = [...new Set(units.map((unit) => unit.province))].sort();
+  const districtCodes = [...new Set(units.map((unit) => unit.district))].toSorted(byCodeUnit);
+  const provinceCodes = [...new Set(units.map((unit) => unit.province))].toSorted(byCodeUnit);
   const districts = districtCodes.map((code) => {
     const member = units.find((unit) => unit.district === code);
     return { code, name: member.districtName, province: provinceCodes.indexOf(member.province) };
@@ -747,7 +747,7 @@ function packPeaks(peaks, settings) {
   const kept = peaks
     .map((_, index) => index)
     .filter((index) => isolation[index] >= settings.minIsolation * 10 || peaks[index].major)
-    .sort((p, q) => rank(q) - rank(p) || peaks[q].height - peaks[p].height || p - q);
+    .toSorted((p, q) => rank(q) - rank(p) || peaks[q].height - peaks[p].height || p - q);
   return {
     names: kept.map((index) => peaks[index].name),
     at: encodePoints(
@@ -911,7 +911,7 @@ async function refreshRivers() {
     "--refresh-rivers",
   );
   let shared = 0;
-  for (const name of [...byName.keys()].filter((name) => keptNames.has(name)).sort(byCodeUnit)) {
+  for (const name of [...byName.keys()].filter((key) => keptNames.has(key)).toSorted(byCodeUnit)) {
     const members = byName.get(name);
     const rivers = networks(members, RIVER_LENGTH.snap)
       .map((network) => network.map((line) => members[line]))
@@ -965,7 +965,7 @@ function readRivers() {
  */
 function packRivers(stretches, settings, labelLevels, about, labelBelow = Infinity) {
   const wanted = stretches.filter((stretch) => stretch.order >= settings.minOrder);
-  const names = [...new Set(wanted.map((stretch) => stretch.name))].sort(byCodeUnit);
+  const names = [...new Set(wanted.map((stretch) => stretch.name))].toSorted(byCodeUnit);
   const nameRow = new Map(names.map((name, index) => [name, index]));
 
   // Join per river and order, so a line has one name and one width. Within
@@ -1067,7 +1067,8 @@ async function refreshPopulation() {
     "--refresh-population",
   );
   lines.push(`total\t${total}`);
-  for (const code of [...sums.keys()].sort()) lines.push(`${code}\t${sums.get(code)}`);
+  for (const code of [...sums.keys()].toSorted(byCodeUnit))
+    lines.push(`${code}\t${sums.get(code)}`);
   writeInput(POPULATION_FILE, lines);
   console.log(`  ${sums.size} municipalities, ${total} residents`);
 }
@@ -1117,7 +1118,7 @@ async function refreshPlaces() {
     .prepare(`select srs_id as srs from gpkg_geometry_columns where table_name = ?`)
     .all(PLACES_TABLE);
   if (srs !== 31255)
-    throw new Error(`place names are in EPSG:${srs}, not MGI / Austria GK Central (31255)`);
+    throw new Error(`place names are in EPSG:${String(srs)}, not MGI / Austria GK Central (31255)`);
   const rows = database
     .prepare(
       `select NAME as name, F_CODE as code, EINWOHNER_KLASSE as size, geom from "${PLACES_TABLE}" ` +
@@ -1183,7 +1184,7 @@ async function refreshPeaks() {
     .prepare(`select srs_id as srs from gpkg_geometry_columns where table_name = ?`)
     .all(PEAKS_TABLE);
   if (srs !== 31255)
-    throw new Error(`landforms are in EPSG:${srs}, not MGI / Austria GK Central (31255)`);
+    throw new Error(`landforms are in EPSG:${String(srs)}, not MGI / Austria GK Central (31255)`);
   const rows = database
     .prepare(
       `select NAME as name, HOEHE_BODEN as height, BEDEUTUNG as weight, geom from "${PEAKS_TABLE}" ` +
@@ -1246,7 +1247,7 @@ async function refreshRoads(kind) {
     .prepare(`select srs_id as srs from gpkg_geometry_columns where table_name = ?`)
     .all(ROADS_TABLE);
   if (srs !== 31255)
-    throw new Error(`roads are in EPSG:${srs}, not MGI / Austria GK Central (31255)`);
+    throw new Error(`roads are in EPSG:${String(srs)}, not MGI / Austria GK Central (31255)`);
   const rows = database
     .prepare(
       `select KURZBEZ_NAT as ref, NAME as name, SHAPE_LEN as length, geom from "${ROADS_TABLE}" ` +
@@ -1286,11 +1287,11 @@ async function refreshRoads(kind) {
   );
   const number = (ref) => Number.parseInt(ref.slice(1), 10);
   let strokes = 0;
-  for (const ref of [...byRef.keys()].sort(
+  for (const ref of [...byRef.keys()].toSorted(
     (p, q) => byCodeUnit(p[0], q[0]) || number(p) - number(q) || byCodeUnit(p, q),
   )) {
     const route = byRef.get(ref);
-    const name = [...route.names].sort((p, q) => q[1] - p[1])[0]?.[0] ?? "";
+    const name = [...route.names].toSorted((p, q) => q[1] - p[1])[0]?.[0] ?? "";
     const metres = Math.round(routeLength(joinPieces(route.metres), CARRIAGEWAY_PAIR) / 100) * 100;
     for (const line of joinPieces(route.pieces)) {
       if (roadLength(line) < settings.minLength) continue;
@@ -1416,7 +1417,7 @@ function build(settings = {}) {
   }
   const residents = mesh.units.map((unit) => population.byCode.get(unit.code));
   const sumBy = (groupOf, count) => {
-    const sums = new Array(count).fill(0);
+    const sums = Array.from({ length: count }, () => 0);
     residents.forEach((value, unit) => {
       sums[groupOf[unit]] += value;
     });
@@ -1579,7 +1580,7 @@ function build(settings = {}) {
   // units in it, so a road that grazes a border or a river that is its
   // border for a few metres does not list the province next door.
   const provincesOf = (lines) => {
-    const inProvince = new Array(provinces.length).fill(0);
+    const inProvince = Array.from({ length: provinces.length }, () => 0);
     for (const points of lines) {
       for (let index = 1; index < points.length; index += 1) {
         const [ax, ay] = points[index - 1];

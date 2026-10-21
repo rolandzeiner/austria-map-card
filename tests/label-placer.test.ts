@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
+import { sorted } from "../src/sorted.ts";
 import {
   LabelPlacer,
   aroundDot,
@@ -111,7 +112,7 @@ describe("the part of a line in view", () => {
 });
 
 describe("lettering along a line", () => {
-  const chars = [..."Donau"];
+  const chars = "Donau".split("");
   const widths = chars.map(() => 8);
 
   it("spaces the letters along the line, centred, upright on a level line", () => {
@@ -129,7 +130,7 @@ describe("lettering along a line", () => {
   it("reads left to right on a line that runs right to left", () => {
     const glyphs = setAlong(measure([400, 100, 0, 100]), 200, chars, widths, 2) ?? [];
     const xs = glyphs.map((glyph) => glyph.x);
-    expect(xs).toEqual([...xs].sort((a, b) => a - b));
+    expect(xs).toEqual(sorted(xs, (a, b) => a - b));
     for (const glyph of glyphs) expect(Math.abs(glyph.angle)).toBeLessThan(0.01);
   });
 

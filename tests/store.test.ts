@@ -2,6 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { DATA_FORMAT } from "../src/data/format.ts";
 import { MapStore } from "../src/layers/store.ts";
+import { sorted } from "../src/sorted.ts";
 import { chunk, storeWith } from "./chunks.ts";
 
 describe("the store", () => {
@@ -33,15 +34,15 @@ describe("the store", () => {
   it("lists every source once, however many chunks carry it", () => {
     const store = storeWith();
     const sources = store.sources();
-    expect(sources.map((source) => source.id).sort()).toEqual(
-      [
+    expect(sorted(sources.map((source) => source.id))).toEqual(
+      sorted([
         "bev-dgm",
         "bev-dlm-namen",
         "bev-dlm-verkehr",
         "bev-vgd",
         "bmluk-ggn",
         "statistik-bev",
-      ].sort(),
+      ]),
     );
     expect(store.source("statistik-bev")?.holder).toBe("Statistik Austria");
     expect(store.source("nasa")).toBeUndefined();

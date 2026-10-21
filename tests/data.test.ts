@@ -11,6 +11,7 @@ import { describe, expect, it } from "vite-plus/test";
 import { CHUNK_IDS, DATA_FORMAT, chunkFile, decodeInts, type ChunkId } from "../src/data/format.ts";
 import { heightAt, type Rivers, type Table } from "../src/layers/store.ts";
 import { MAP_HEIGHT, MAP_WIDTH, project } from "../src/map/projection.ts";
+import { sorted } from "../src/sorted.ts";
 import { CHUNK_TEXT, chunk, storeWith } from "./chunks.ts";
 
 const store = storeWith();
@@ -161,7 +162,7 @@ describe("the population", () => {
   });
 
   it("adds up district by district", () => {
-    const sums = new Array<number>(detail.districts.count).fill(0);
+    const sums = Array.from({ length: detail.districts.count }, () => 0);
     population(detail.municipalities).forEach((value, row) => {
       sums[detail.municipalities.parent![row]!]! += value;
     });
@@ -301,8 +302,8 @@ describe("places", () => {
 
   it("mark Vienna and the eight provincial capitals", () => {
     const capitals = [...places.names].filter((_, row) => places.capital[row]! > 0);
-    expect(capitals.sort()).toEqual(
-      [
+    expect(sorted(capitals)).toEqual(
+      sorted([
         "Bregenz",
         "Eisenstadt",
         "Graz",
@@ -312,7 +313,7 @@ describe("places", () => {
         "Salzburg",
         "St. Pölten",
         "Wien",
-      ].sort(),
+      ]),
     );
     expect(places.capital[places.names.indexOf("Wien")]).toBe(2);
   });

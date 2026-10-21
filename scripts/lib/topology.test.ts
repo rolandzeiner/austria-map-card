@@ -3,6 +3,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { ArcIndex, groupSides } from "../../src/data/arcs.ts";
 import { decodeLines } from "../../src/data/format.ts";
+import { sorted } from "../../src/sorted.ts";
 import { encodeLines } from "./encode.ts";
 import {
   borderEdges,
@@ -70,7 +71,7 @@ describe("arcs", () => {
     // Junctions: where three borders meet. On this grid there are six of
     // them, and nine arcs between them.
     expect(arcs).toHaveLength(9);
-    expect(arcs.map(sides).sort()).toEqual([
+    expect(sorted(arcs.map(sides))).toEqual([
       "-1/0",
       "-1/1",
       "-1/2",
@@ -110,7 +111,7 @@ describe("arcs", () => {
         { unit: 1, rings: [square(4, 4)] },
       ]).edges,
     );
-    expect(loops.map(sides).sort()).toEqual(["-1/0", "0/1"]);
+    expect(sorted(loops.map(sides))).toEqual(["-1/0", "0/1"]);
     for (const loop of loops) expect(loop.points[0]).toEqual(loop.points[loop.points.length - 1]);
     expect((loops.find((arc) => sides(arc) === "0/1") as Arc).points[0]).toEqual([4, 4]);
   });
@@ -122,13 +123,13 @@ describe("one level up", () => {
   const upper = regroup(arcs, (unit) => group[unit] as number);
 
   it("drops the borders inside a group and joins the rest into longer arcs", () => {
-    expect(upper.map(sides).sort()).toEqual(["-1/0", "-1/1", "0/1"]);
+    expect(sorted(upper.map(sides))).toEqual(["-1/0", "-1/1", "0/1"]);
     expect(upper.reduce((sum, arc) => sum + lengthOf(arc.points), 0)).toBe(13);
   });
 
   it("gives every arc a level through the units on its sides", () => {
     const level = (arc: Arc): number => (arc.a < 0 ? 0 : group[arc.a] !== group[arc.b] ? 1 : 2);
-    expect(arcs.map(level).sort()).toEqual([0, 0, 0, 0, 1, 1, 1, 2, 2]);
+    expect(sorted(arcs.map(level), (p, q) => p - q)).toEqual([0, 0, 0, 0, 1, 1, 1, 2, 2]);
   });
 });
 

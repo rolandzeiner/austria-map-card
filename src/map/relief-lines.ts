@@ -56,7 +56,8 @@ function crossings(x1: number, y1: number, x2: number, y2: number): number[] {
   across(x1 - 0.5, x2 - 0.5);
   across(y1 - 0.5, y2 - 0.5);
   across(x1 + y1, x2 + y2);
-  return cuts.sort((a, b) => a - b);
+  cuts.sort((a, b) => a - b);
+  return cuts;
 }
 
 /**

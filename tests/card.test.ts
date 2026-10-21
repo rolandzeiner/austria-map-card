@@ -7,6 +7,7 @@
 import { afterEach, beforeAll, describe, expect, it } from "vite-plus/test";
 
 import { toScreen, zoomOf } from "../src/map/camera.ts";
+import { sorted } from "../src/sorted.ts";
 import { PROVINCE_IDS } from "../src/types.ts";
 import {
   $,
@@ -482,10 +483,10 @@ describe("configuration", () => {
     await settle(card);
     all(card, ".layer")[0]!.click();
     await settle(card);
-    expect([...card._layers].sort()).toEqual(["rivers", "terrain"]);
+    expect(sorted(card._layers)).toEqual(["rivers", "terrain"]);
     // Saving something else in the editor does not undo the session's choice.
     card.setConfig({ type: "custom:austria-map-card", layers: ["rivers"], title: "Karte" });
-    expect([...card._layers].sort()).toEqual(["rivers", "terrain"]);
+    expect(sorted(card._layers)).toEqual(["rivers", "terrain"]);
     card.setConfig({ type: "custom:austria-map-card", layers: ["cities"], title: "Karte" });
     expect([...card._layers]).toEqual(["cities"]);
   });

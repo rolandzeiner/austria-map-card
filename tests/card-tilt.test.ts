@@ -45,7 +45,7 @@ function stubGL(): { draws: View3D[]; lines: string[][]; drapes: string[]; lost:
     hasRelief: true,
     resize: () => undefined,
     setRelief: () => undefined,
-    setDrape: (_image: unknown, key: string) => stub.drapes.push(key),
+    setDrape: (_image: unknown, drape: string) => stub.drapes.push(drape),
     draw: (view: View3D, lines: ReadonlyArray<{ key: string }>) => {
       stub.draws.push(view);
       stub.lines.push(lines.map((set) => set.key));
@@ -122,7 +122,7 @@ describe("the tilted map", () => {
     expect(gl.drapes.at(-1)).toContain("|terrain|");
     expect(gl.drapes.at(-1)).not.toMatch(/rivers|provinces|cities/);
     const lines = gl.lines.at(-1)!;
-    expect(lines.some((key) => key.startsWith("rivers:"))).toBe(true);
+    expect(lines.some((line) => line.startsWith("rivers:"))).toBe(true);
     expect(lines).toContain("borders:coarse:1");
     // The national border last, over the others.
     expect(lines.at(-1)).toBe("borders:coarse:0");

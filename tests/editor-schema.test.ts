@@ -2,6 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { DEFAULTS } from "../src/config.ts";
 import { buildSchema } from "../src/editor-schema.ts";
+import { sorted } from "../src/sorted.ts";
 import { localize } from "../src/localize/localize.ts";
 import { LAYER_IDS } from "../src/types.ts";
 
@@ -12,8 +13,8 @@ describe("editor schema", () => {
     const schema = buildSchema(t, layerName, { shown: true, entity: true });
 
     it(`offers a field for every option (${lang})`, () => {
-      expect(schema.map((field) => field.name).sort()).toEqual(
-        ["title", "location_entity", ...Object.keys(DEFAULTS)].sort(),
+      expect(sorted(schema.map((field) => field.name))).toEqual(
+        sorted(["title", "location_entity", ...Object.keys(DEFAULTS)]),
       );
     });
 

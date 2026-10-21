@@ -27,6 +27,7 @@ import {
   type Rect,
 } from "./label-placer.ts";
 import type { Palette } from "./palette.ts";
+import { sorted } from "../sorted.ts";
 
 /** Something on the map that can be tapped and described. */
 export type Feature =
@@ -184,9 +185,10 @@ function longestStrokes(roads: Roads): number[] {
       return sum;
     };
     const lengths = Array.from({ length: roads.lines.count }, (_, line) => length(line));
-    rows = lengths
-      .map((_, line) => line)
-      .sort((p, q) => (lengths[q] as number) - (lengths[p] as number) || p - q);
+    rows = sorted(
+      lengths.map((_, line) => line),
+      (p, q) => (lengths[q] as number) - (lengths[p] as number) || p - q,
+    );
     strokes.set(roads, rows);
   }
   return rows;
@@ -202,7 +204,8 @@ function rankedStretches(rivers: Rivers): number[] {
         (rivers.labelBoxes[line * 4 + 2] as number) - (rivers.labelBoxes[line * 4] as number),
         (rivers.labelBoxes[line * 4 + 3] as number) - (rivers.labelBoxes[line * 4 + 1] as number),
       );
-    rows = Array.from({ length: rivers.labels.count }, (_, line) => line).sort(
+    rows = sorted(
+      Array.from({ length: rivers.labels.count }, (_, line) => line),
       (p, q) =>
         (rivers.labelOrder[q] as number) - (rivers.labelOrder[p] as number) ||
         span(q) - span(p) ||
@@ -416,11 +419,11 @@ export function drawLabels(input: LabelInput): DrawnCity[] {
           )
         )
           continue;
-        const box = centredOn(x, y, width, 15);
-        if (!placer.place([box])) continue;
+        const shield = centredOn(x, y, width, 15);
+        if (!placer.place([shield])) continue;
         placed.push({ ref, x, y });
         ctx.beginPath();
-        ctx.roundRect(box.x, box.y, box.w, box.h, 3);
+        ctx.roundRect(shield.x, shield.y, shield.w, shield.h, 3);
         ctx.lineWidth = 2;
         ctx.strokeStyle = kind === "motorway" ? palette.halo : ink;
         ctx.stroke();
@@ -510,13 +513,13 @@ export function drawLabels(input: LabelInput): DrawnCity[] {
         if (scale < (LABEL_SCALES.rivers[order] ?? Infinity)) continue;
         // The detail set has one level; the overview's rivers have three.
         if (rivers === store.overview.rivers && rivers.labelLevel[line] !== level) continue;
-        const at = line * 4;
+        const corner = line * 4;
         const boxes = rivers.labelBoxes;
         if (
-          (boxes[at] as number) > box[2] ||
-          (boxes[at + 2] as number) < box[0] ||
-          (boxes[at + 1] as number) > box[3] ||
-          (boxes[at + 3] as number) < box[1]
+          (boxes[corner] as number) > box[2] ||
+          (boxes[corner + 2] as number) < box[0] ||
+          (boxes[corner + 1] as number) > box[3] ||
+          (boxes[corner + 3] as number) < box[1]
         ) {
           continue;
         }
@@ -543,7 +546,9 @@ export function drawLabels(input: LabelInput): DrawnCity[] {
         const name = riverLabel(rivers.names[nameRow] as string);
         const fontSize = order >= 7 ? 12 : 11;
         const font = `italic 400 ${fontSize}px ${family}`;
-        const chars = [...name];
+        // One glyph per code point: river names are plain Latin text, umlauts
+        // precomposed, so nothing here needs grapheme clusters.
+        const chars = Array.from(name);
         const charWidths = chars.map((char) => widthOf(ctx, font, char));
         const spacing = 1.2;
         const total =

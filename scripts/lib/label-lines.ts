@@ -128,9 +128,10 @@ export function labelStretches(
     close();
   }
   // A fixed order, whatever order the pieces came in.
-  return out.sort((p, q) => {
+  out.sort((p, q) => {
     const [px, py] = p[0] as Point;
     const [qx, qy] = q[0] as Point;
     return px - qx || py - qy || p.length - q.length;
   });
+  return out;
 }

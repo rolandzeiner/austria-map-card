@@ -26,7 +26,7 @@ function closestOnSegment(p: Point, a: Point, b: Point): Point {
  * ends always are kept.
  */
 export function keepByDistance(points: ReadonlyArray<Point>, tolerance: number): boolean[] {
-  const keep = new Array<boolean>(points.length).fill(false);
+  const keep = Array.from({ length: points.length }, () => false);
   if (points.length === 0) return keep;
   keep[0] = true;
   keep[points.length - 1] = true;

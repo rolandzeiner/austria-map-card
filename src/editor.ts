@@ -65,7 +65,7 @@ export class AustriaMapCardEditor extends LitElement {
     };
   }
 
-  private _onChange(ev: CustomEvent<{ value: Record<string, unknown> }>): void {
+  private readonly _onChange = (ev: CustomEvent<{ value: Record<string, unknown> }>): void => {
     ev.stopPropagation();
     const { location: choice, location_entity: picked, ...value } = ev.detail.value;
     let location = choice;
@@ -86,7 +86,7 @@ export class AustriaMapCardEditor extends LitElement {
         composed: true,
       }),
     );
-  }
+  };
 
   protected override render(): TemplateResult {
     const shown = this._shown();

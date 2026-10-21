@@ -609,16 +609,16 @@ export class AustriaMapCard extends LitElement {
     return [event.clientX - rect.left, event.clientY - rect.top];
   }
 
-  private _onPointerDown(event: PointerEvent): void {
+  private readonly _onPointerDown = (event: PointerEvent): void => {
     const canvas = event.currentTarget as HTMLCanvasElement;
     canvas.setPointerCapture?.(event.pointerId);
     this._stopTilt();
     this._turning = this._canTilt && (event.button === 2 || event.shiftKey);
     this._gesture.down(event.pointerId, ...this._local(event));
     canvas.classList.add("dragging");
-  }
+  };
 
-  private _onPointerMove(event: PointerEvent): void {
+  private readonly _onPointerMove = (event: PointerEvent): void => {
     const size = this._renderer?.size;
     if (!this._camera || !size) return;
     if (this._canTilt) {
@@ -636,14 +636,14 @@ export class AustriaMapCard extends LitElement {
     }
     const camera = this._gesture.move(event.pointerId, ...this._local(event), this._camera, size);
     if (camera !== null && camera !== this._camera) this._setCamera(camera);
-  }
+  };
 
   /** The right mouse button turns the map, so its menu stays shut. */
-  private _onContextMenu(event: MouseEvent): void {
+  private readonly _onContextMenu = (event: MouseEvent): void => {
     if (this._canTilt) event.preventDefault();
-  }
+  };
 
-  private _onPointerUp(event: PointerEvent): void {
+  private readonly _onPointerUp = (event: PointerEvent): void => {
     const [x, y] = this._local(event);
     const release = this._gesture.up(
       event.pointerId,
@@ -669,7 +669,7 @@ export class AustriaMapCard extends LitElement {
     } else if (release === "tap") {
       this._select(renderer.hit(this._state(this._camera), x, y));
     }
-  }
+  };
 
   private readonly _wheel = {
     handleEvent: (event: WheelEvent): void => {
@@ -693,7 +693,7 @@ export class AustriaMapCard extends LitElement {
     passive: false,
   };
 
-  private _onKeyDown(event: KeyboardEvent): void {
+  private readonly _onKeyDown = (event: KeyboardEvent): void => {
     // Shortcuts with a modifier belong to the browser.
     if (event.ctrlKey || event.metaKey || event.altKey) return;
     const command = keyCommand(event.key, event.shiftKey, this._canTilt);
@@ -717,7 +717,7 @@ export class AustriaMapCard extends LitElement {
       this._select(hit);
       this._nothingHere = hit === null;
     }
-  }
+  };
 
   // ── Selection ──────────────────────────────────────────────────────────
 
@@ -731,12 +731,12 @@ export class AustriaMapCard extends LitElement {
     this._requestDraw();
   }
 
-  private _zoomToSelection(): void {
+  private readonly _zoomToSelection = (): void => {
     const renderer = this._renderer;
     if (!renderer || this._selection === null) return;
     const box = renderer.boxOf(this._selection);
     if (box) this._setCamera(fitBox(box, renderer.size, FRAME_PADDING));
-  }
+  };
 
   // ── Layers ─────────────────────────────────────────────────────────────
 
@@ -774,11 +774,11 @@ export class AustriaMapCard extends LitElement {
     if (!inside) this._closeLayers(false);
   };
 
-  private _onLayersKeyDown(event: KeyboardEvent): void {
+  private readonly _onLayersKeyDown = (event: KeyboardEvent): void => {
     if (event.key !== "Escape") return;
     event.stopPropagation();
     this._closeLayers(true);
-  }
+  };
 
   // ── Template ───────────────────────────────────────────────────────────
 
@@ -830,8 +830,8 @@ export class AustriaMapCard extends LitElement {
   }
 
   private _renderLoading(): TemplateResult | typeof nothing {
-    const state = this._loader.state("base");
-    if (state === "failed" || state === "outdated") return nothing;
+    const base = this._loader.state("base");
+    if (base === "failed" || base === "outdated") return nothing;
     return html`<div class="loading" role="status">${this._t("card.loading")}</div>`;
   }
 

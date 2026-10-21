@@ -2,6 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import pkg from "../package.json";
 import { CARD_VERSION } from "../src/const.ts";
+import { sorted } from "../src/sorted.ts";
 import de from "../src/localize/languages/de.json";
 import en from "../src/localize/languages/en.json";
 
@@ -18,14 +19,14 @@ function flatten(dict: Dict, prefix = ""): Map<string, string> {
 }
 
 const placeholders = (s: string): string[] =>
-  [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1] ?? "").sort();
+  sorted([...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1] ?? ""));
 
 describe("translations", () => {
   const enKeys = flatten(en);
   const deKeys = flatten(de);
 
   it("has the same keys in English and German", () => {
-    expect([...deKeys.keys()].sort()).toEqual([...enKeys.keys()].sort());
+    expect(sorted(deKeys.keys())).toEqual(sorted(enKeys.keys()));
   });
 
   it("uses the same placeholders in both languages", () => {

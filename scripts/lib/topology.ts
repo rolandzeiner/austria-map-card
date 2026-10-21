@@ -16,6 +16,7 @@
  * Pure functions on plain arrays, no Node API.
  */
 import { keepByDistance } from "./geometry.ts";
+import { sorted } from "../../src/sorted.ts";
 
 export type Point = readonly [x: number, y: number];
 
@@ -186,7 +187,7 @@ export function sortArcs<T extends { readonly points: readonly Point[] }>(
     const [x, y] = arc.points[0] as Point;
     return [Math.floor(y / tile), Math.floor(x / tile), x, y, arc.points.length];
   };
-  return [...arcs].sort((p, q) => {
+  return sorted(arcs, (p, q) => {
     const r = rank(p);
     const s = rank(q);
     for (let index = 0; index < r.length; index += 1) {
@@ -242,7 +243,7 @@ export function simplifyArc(points: readonly Point[], tolerance: number): Point[
       third = index;
     }
   });
-  const corners = [0, farthest, third].sort((p, q) => p - q);
+  const corners = sorted([0, farthest, third], (p, q) => p - q);
   return [...corners.map((index) => points[index] as Point), first];
 }
 

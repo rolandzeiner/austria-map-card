@@ -9,6 +9,7 @@ import {
   traceSmoothRings,
 } from "../src/map/tiles.ts";
 import { encodeLines } from "../scripts/lib/encode.ts";
+import { sorted } from "../src/sorted.ts";
 import { FakePath, fakePath } from "./fake-canvas.ts";
 
 const lines = decodeLines(
@@ -109,7 +110,8 @@ describe("tiles", () => {
   const seen = (box: readonly [number, number, number, number], group: number): number[] => {
     const out: number[] = [];
     tiles.visit(box, group, (_, list) => out.push(...list));
-    return out.sort((a, b) => a - b);
+    out.sort((a, b) => a - b);
+    return out;
   };
 
   it("hand out only the lines of the tiles in view", () => {
@@ -135,6 +137,6 @@ describe("tiles", () => {
     const unclassed = new TiledLines(lines, lineBoxes(lines), null, 64);
     const all: number[] = [];
     unclassed.visit([0, 0, 1000, 530], 0, (_, list) => all.push(...list));
-    expect(all.sort((a, b) => a - b)).toEqual([0, 1, 2, 3]);
+    expect(sorted(all, (a, b) => a - b)).toEqual([0, 1, 2, 3]);
   });
 });

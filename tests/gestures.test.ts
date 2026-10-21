@@ -148,14 +148,14 @@ describe("the wheel", () => {
 });
 
 describe("tilting and turning", () => {
-  const size = { width: 760, height: 403 };
+  const wide = { width: 760, height: 403 };
   const camera = { x: 500, y: 265, k: 0.76 * 4 };
   const flat: Pose = { camera, orientation: FLAT };
 
   it("moves the map with one finger, as the flat gesture does", () => {
     const gesture = new MapGesture();
     gesture.down(1, 100, 100);
-    const pose = gesture.movePose(1, 140, 120, flat, size, false)!;
+    const pose = gesture.movePose(1, 140, 120, flat, wide, false)!;
     expect(pose.orientation).toBe(FLAT);
     expect(pose.camera.x).toBeLessThan(camera.x);
   });
@@ -163,10 +163,10 @@ describe("tilting and turning", () => {
   it("tilts by dragging up and turns by dragging sideways, with Shift or the right button", () => {
     const gesture = new MapGesture();
     gesture.down(1, 100, 200);
-    const tilted = gesture.movePose(1, 100, 150, flat, size, true)!;
+    const tilted = gesture.movePose(1, 100, 150, flat, wide, true)!;
     expect(tilted.orientation.pitch).toBeCloseTo(50 * TILT_RATE);
     expect(tilted.camera).toBe(camera);
-    const turned = gesture.movePose(1, 140, 150, tilted, size, true)!;
+    const turned = gesture.movePose(1, 140, 150, tilted, wide, true)!;
     expect(turned.orientation.bearing).toBeCloseTo(-40 * TURN_RATE);
   });
 
@@ -176,8 +176,8 @@ describe("tilting and turning", () => {
     gesture.down(2, 400, 300);
     let pose = flat;
     for (let step = 1; step <= 6; step += 1) {
-      pose = gesture.movePose(1, 300, 300 - step * 5, pose, size, false)!;
-      pose = gesture.movePose(2, 400, 300 - step * 5, pose, size, false)!;
+      pose = gesture.movePose(1, 300, 300 - step * 5, pose, wide, false)!;
+      pose = gesture.movePose(2, 400, 300 - step * 5, pose, wide, false)!;
     }
     expect(pose.orientation.pitch).toBeGreaterThan(0.1);
     expect(pose.orientation.bearing).toBe(0);
@@ -189,12 +189,12 @@ describe("tilting and turning", () => {
     gesture.down(1, 300, 200);
     gesture.down(2, 400, 200);
     // Spread apart with a slight twist: zoom only.
-    let pose = gesture.movePose(2, 440, 210, flat, size, false)!;
-    pose = gesture.movePose(2, 460, 212, pose, size, false)!;
+    let pose = gesture.movePose(2, 440, 210, flat, wide, false)!;
+    pose = gesture.movePose(2, 460, 212, pose, wide, false)!;
     expect(pose.orientation).toEqual(FLAT);
     expect(pose.camera.k).toBeGreaterThan(camera.k);
     // A real twist turns the map.
-    pose = gesture.movePose(2, 400, 330, pose, size, false)!;
+    pose = gesture.movePose(2, 400, 330, pose, wide, false)!;
     expect(Math.abs(pose.orientation.bearing)).toBeGreaterThan(0.21);
     expect(pose.orientation.pitch).toBe(0);
   });

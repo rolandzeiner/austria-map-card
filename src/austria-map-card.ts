@@ -72,7 +72,12 @@ const canTilt = (): boolean => typeof WebGL2RenderingContext !== "undefined";
 /** Flat ground, for the moment between tilting and the relief arriving. */
 let flatGround: Relief | undefined;
 const flatRelief = (): Relief =>
-  (flatGround ??= { columns: MAP_WIDTH, rows: MAP_HEIGHT, metres: new Float32Array(MAP_WIDTH * MAP_HEIGHT), peak: 0 });
+  (flatGround ??= {
+    columns: MAP_WIDTH,
+    rows: MAP_HEIGHT,
+    metres: new Float32Array(MAP_WIDTH * MAP_HEIGHT),
+    peak: 0,
+  });
 
 /** What a layer's line in the layer list says under its name, if anything. */
 type LayerNote = "zoom" | "loading" | "failed" | null;
@@ -108,7 +113,10 @@ export class AustriaMapCard extends LitElement {
 
   private _camera: Camera | null = null;
   private _renderer?: MapRenderer;
-  private readonly _loader: ChunkLoader = sharedLoader({ base: import.meta.url, version: CARD_VERSION });
+  private readonly _loader: ChunkLoader = sharedLoader({
+    base: import.meta.url,
+    version: CARD_VERSION,
+  });
   private readonly _gesture = new MapGesture();
   private _unsubscribe?: () => void;
   private _resizeObserver?: ResizeObserver;
@@ -193,7 +201,10 @@ export class AustriaMapCard extends LitElement {
    *  reassigns `hass` on every state change in the house. */
   protected override shouldUpdate(changed: PropertyValues<this>): boolean {
     if (changed.size === 1 && changed.has("hass")) {
-      return this._hassFingerprint() !== this._hassKey || this._currentLocationKey() !== this._locationKey;
+      return (
+        this._hassFingerprint() !== this._hassKey ||
+        this._currentLocationKey() !== this._locationKey
+      );
     }
     return true;
   }
@@ -242,12 +253,15 @@ export class AustriaMapCard extends LitElement {
     const before = renderer.size;
     if (size.width === before.width && size.height === before.height) return;
     renderer.resize(size.width, size.height, window.devicePixelRatio);
-    if (this._gl && this._reliefCanvas) this._gl.resize(this._reliefCanvas, size.width, size.height, window.devicePixelRatio);
+    if (this._gl && this._reliefCanvas)
+      this._gl.resize(this._reliefCanvas, size.width, size.height, window.devicePixelRatio);
     // Being laid out means being in the document: a good moment to retry a
     // palette read that failed earlier.
     if (!renderer.hasPalette) this._refreshPalette(true);
     this._camera =
-      this._camera !== null && before.width > 0 ? resizeCamera(this._camera, before, size) : this._openingCamera();
+      this._camera !== null && before.width > 0
+        ? resizeCamera(this._camera, before, size)
+        : this._openingCamera();
     this._drawNow();
   }
 
@@ -259,7 +273,12 @@ export class AustriaMapCard extends LitElement {
 
   private _hassFingerprint(): string {
     const hass = this.hass;
-    return [resolveLang(hass), hass?.themes?.darkMode, hass?.themes?.theme, hass?.selectedTheme?.theme].join("|");
+    return [
+      resolveLang(hass),
+      hass?.themes?.darkMode,
+      hass?.themes?.theme,
+      hass?.selectedTheme?.theme,
+    ].join("|");
   }
 
   /** Re-read the canvas colours when the theme changed or an earlier read
@@ -327,7 +346,16 @@ export class AustriaMapCard extends LitElement {
     if (here === null || !size) return;
     const [x, y] = here;
     this._setCamera(
-      fitBox([x - HERE_SURROUNDINGS, y - HERE_SURROUNDINGS, x + HERE_SURROUNDINGS, y + HERE_SURROUNDINGS], size, 0),
+      fitBox(
+        [
+          x - HERE_SURROUNDINGS,
+          y - HERE_SURROUNDINGS,
+          x + HERE_SURROUNDINGS,
+          y + HERE_SURROUNDINGS,
+        ],
+        size,
+        0,
+      ),
     );
   }
 
@@ -395,7 +423,9 @@ export class AustriaMapCard extends LitElement {
     let { orientation } = pose;
     if (orientation.pitch === 0 && Math.abs(orientation.bearing) < 0.05) orientation = FLAT;
     this._orientation = orientation;
-    this._setCamera(isFlat(orientation) ? clampCamera(pose.camera, size) : clampTilted(pose.camera, size));
+    this._setCamera(
+      isFlat(orientation) ? clampCamera(pose.camera, size) : clampTilted(pose.camera, size),
+    );
   }
 
   private _orientBy(pitch: number, bearing: number): void {
@@ -429,7 +459,10 @@ export class AustriaMapCard extends LitElement {
         orientation:
           t >= 1
             ? target
-            : { pitch: from.pitch + (target.pitch - from.pitch) * eased, bearing: normalBearing(from.bearing + turn * eased) },
+            : {
+                pitch: from.pitch + (target.pitch - from.pitch) * eased,
+                bearing: normalBearing(from.bearing + turn * eased),
+              },
       });
       this._tiltRaf = t < 1 ? requestAnimationFrame(step) : 0;
     };
@@ -437,7 +470,11 @@ export class AustriaMapCard extends LitElement {
   }
 
   private _toggleTilt(): void {
-    this._tiltTo(this._orientation.pitch > 0 ? FLAT : { pitch: TILT_PITCH, bearing: this._orientation.bearing });
+    this._tiltTo(
+      this._orientation.pitch > 0
+        ? FLAT
+        : { pitch: TILT_PITCH, bearing: this._orientation.bearing },
+    );
   }
 
   private _faceNorth(): void {
@@ -456,13 +493,28 @@ export class AustriaMapCard extends LitElement {
     if (palette === undefined) return;
     if (this._drape === undefined) {
       const canvas = document.createElement("canvas");
-      this._drape = { canvas, renderer: new MapRenderer(canvas, this._loader.store, () => new Path2D()), key: "" };
-      this._drape.renderer.resize(DRAPE_WIDTH, Math.round((DRAPE_WIDTH * MAP_HEIGHT) / MAP_WIDTH), 1, DRAPE_WIDTH);
+      this._drape = {
+        canvas,
+        renderer: new MapRenderer(canvas, this._loader.store, () => new Path2D()),
+        key: "",
+      };
+      this._drape.renderer.resize(
+        DRAPE_WIDTH,
+        Math.round((DRAPE_WIDTH * MAP_HEIGHT) / MAP_WIDTH),
+        1,
+        DRAPE_WIDTH,
+      );
     }
     const drape = this._drape;
     const layers = this._drapeLayers();
-    const selection = this._selection?.kind === "city" || this._selection?.kind === "peak" ? null : this._selection;
-    const key = [this._loader.store.revision, [...layers].join(), this._paletteKey, JSON.stringify(selection)].join("|");
+    const selection =
+      this._selection?.kind === "city" || this._selection?.kind === "peak" ? null : this._selection;
+    const key = [
+      this._loader.store.revision,
+      [...layers].join(),
+      this._paletteKey,
+      JSON.stringify(selection),
+    ].join("|");
     if (key === drape.key) return;
     drape.key = key;
     drape.renderer.setPalette(palette);
@@ -520,7 +572,12 @@ export class AustriaMapCard extends LitElement {
       gl.setRelief(store.relief ?? flatRelief());
       this._updateDrape(gl);
       const view = new View3D(camera, this._orientation, renderer.size, store.relief);
-      gl.draw(view, this._palette ? reliefLines(store, this._layers, camera.k, this._selection, this._palette) : []);
+      gl.draw(
+        view,
+        this._palette
+          ? reliefLines(store, this._layers, camera.k, this._selection, this._palette)
+          : [],
+      );
       renderer.drawTilted(this._state(camera), view);
     }
     this._syncView(camera, renderer.size);
@@ -566,8 +623,15 @@ export class AustriaMapCard extends LitElement {
     if (!this._camera || !size) return;
     if (this._canTilt) {
       const pose = { camera: this._camera, orientation: this._orientation };
-      const next = this._gesture.movePose(event.pointerId, ...this._local(event), pose, size, this._turning);
-      if (next !== null && (next.camera !== pose.camera || next.orientation !== pose.orientation)) this._setPose(next);
+      const next = this._gesture.movePose(
+        event.pointerId,
+        ...this._local(event),
+        pose,
+        size,
+        this._turning,
+      );
+      if (next !== null && (next.camera !== pose.camera || next.orientation !== pose.orientation))
+        this._setPose(next);
       return;
     }
     const camera = this._gesture.move(event.pointerId, ...this._local(event), this._camera, size);
@@ -581,13 +645,22 @@ export class AustriaMapCard extends LitElement {
 
   private _onPointerUp(event: PointerEvent): void {
     const [x, y] = this._local(event);
-    const release = this._gesture.up(event.pointerId, event.type !== "pointerup", performance.now());
+    const release = this._gesture.up(
+      event.pointerId,
+      event.type !== "pointerup",
+      performance.now(),
+    );
     if (!this._gesture.active) (event.currentTarget as HTMLElement).classList.remove("dragging");
     const renderer = this._renderer;
     if (!renderer || !this._camera) return;
     if (release === "double-tap" && !this._flat) {
       // Zoom in on the tapped ground: it comes to the middle.
-      const view = new View3D(this._camera, this._orientation, renderer.size, this._loader.store.relief);
+      const view = new View3D(
+        this._camera,
+        this._orientation,
+        renderer.size,
+        this._loader.store.relief,
+      );
       const at = view.pick(x, y, this._loader.store.relief);
       const camera = at === null ? this._camera : { ...this._camera, x: at[0], y: at[1] };
       this._setCamera(zoomTilted(camera, renderer.size, ZOOM_STEP * ZOOM_STEP));
@@ -612,7 +685,10 @@ export class AustriaMapCard extends LitElement {
       const size = this._renderer?.size;
       if (!this._camera || !size) return;
       if (!this._flat) this._setCamera(zoomTilted(this._camera, size, wheelFactor(event.deltaY)));
-      else this._setCamera(zoomAbout(this._camera, size, ...this._local(event), wheelFactor(event.deltaY)));
+      else
+        this._setCamera(
+          zoomAbout(this._camera, size, ...this._local(event), wheelFactor(event.deltaY)),
+        );
     },
     passive: false,
   };
@@ -691,7 +767,9 @@ export class AustriaMapCard extends LitElement {
     if (!this._layersOpen) return;
     const path = event.composedPath();
     const inside = path.some(
-      (node) => node instanceof HTMLElement && (node.classList.contains("layers") || node.classList.contains("layers-button")),
+      (node) =>
+        node instanceof HTMLElement &&
+        (node.classList.contains("layers") || node.classList.contains("layers-button")),
     );
     if (!inside) this._closeLayers(false);
   };
@@ -762,7 +840,12 @@ export class AustriaMapCard extends LitElement {
     return html`<div class="toast" role="status">${this._t("card.loading_relief")}</div>`;
   }
 
-  private _tool(label: string, icon: string, onClick: () => void, disabled = false): TemplateResult {
+  private _tool(
+    label: string,
+    icon: string,
+    onClick: () => void,
+    disabled = false,
+  ): TemplateResult {
     return html`
       <button type="button" class="tool" aria-label=${label} title=${label} ?disabled=${disabled} @click=${onClick}>
         <ha-icon icon=${icon} aria-hidden="true"></ha-icon>
@@ -801,8 +884,9 @@ export class AustriaMapCard extends LitElement {
     return html`
       <div class="toolbar" role="group" aria-label=${this._t("controls.group")}>
         ${this._renderCompass()}
-        ${this._config.show_layer_control
-          ? html`
+        ${
+          this._config.show_layer_control
+            ? html`
               <button
                 type="button"
                 class="tool layers-button"
@@ -816,12 +900,14 @@ export class AustriaMapCard extends LitElement {
               </button>
               <span class="tool-gap"></span>
             `
-          : nothing}
+            : nothing
+        }
         ${this._tool(this._t("controls.zoom_in"), "mdi:plus", () => this._zoomBy(ZOOM_STEP), zoom >= MAX_ZOOM - 0.0001)}
         ${this._tool(this._t("controls.zoom_out"), "mdi:minus", () => this._zoomBy(1 / ZOOM_STEP), zoom <= 1.0001)}
         ${this._tool(this._t("controls.reset"), "mdi:fit-to-screen-outline", () => this._resetView())}
-        ${this._canTilt
-          ? html`
+        ${
+          this._canTilt
+            ? html`
               <button
                 type="button"
                 class="tool"
@@ -833,10 +919,18 @@ export class AustriaMapCard extends LitElement {
                 <ha-icon icon="mdi:rotate-3d-variant" aria-hidden="true"></ha-icon>
               </button>
             `
-          : nothing}
-        ${this._config.show_location
-          ? this._tool(this._t("controls.my_location"), "mdi:crosshairs-gps", () => this._goHere(), this._here() === null)
-          : nothing}
+            : nothing
+        }
+        ${
+          this._config.show_location
+            ? this._tool(
+                this._t("controls.my_location"),
+                "mdi:crosshairs-gps",
+                () => this._goHere(),
+                this._here() === null,
+              )
+            : nothing
+        }
       </div>
     `;
   }
@@ -887,7 +981,9 @@ export class AustriaMapCard extends LitElement {
         </div>
       `;
     }
-    return this._toast ? html`<div class="toast" role="status">${this._t("card.zoom_hint")}</div>` : nothing;
+    return this._toast
+      ? html`<div class="toast" role="status">${this._t("card.zoom_hint")}</div>`
+      : nothing;
   }
 
   private _number(value: number, options?: Intl.NumberFormatOptions): string {
@@ -921,11 +1017,13 @@ export class AustriaMapCard extends LitElement {
               <dt>${this._t(fact.label)}</dt>
               <dd>
                 ${this._factValue(fact)}
-                ${fact.source
-                  ? html`<span class="fact-source"
+                ${
+                  fact.source
+                    ? html`<span class="fact-source"
                       >${this._t("facts.source", { holder: fact.source.holder, stand: fact.source.stand })}</span
                     >`
-                  : nothing}
+                    : nothing
+                }
               </dd>
             </div>
           `,
@@ -938,26 +1036,32 @@ export class AustriaMapCard extends LitElement {
    *  The text is a live region, so Enter on the map reads it out; the
    *  buttons sit beside it and are not read along. */
   private _renderInfo(): TemplateResult {
-    const info = this._selection === null ? null : describeFeature(this._loader.store, this._selection);
+    const info =
+      this._selection === null ? null : describeFeature(this._loader.store, this._selection);
     return html`
       <section class="info" aria-label=${this._t("card.info_label")}>
         <div class="info-text" aria-live="polite" aria-atomic="true">
-          ${info === null
-            ? html`<p class="info-idle">${this._t(this._nothingHere ? "card.nothing_here" : "card.info_idle")}</p>`
-            : html`
+          ${
+            info === null
+              ? html`<p class="info-idle">${this._t(this._nothingHere ? "card.nothing_here" : "card.info_idle")}</p>`
+              : html`
                 <p class="info-name">
                   <span lang="de">${info.name}</span>
                   <span class="info-kind">${this._t(info.kind)}</span>
                 </p>
-                ${info.parents.length > 0
-                  ? html`<p class="info-parents" lang="de">${[...new Set(info.parents)].filter((name) => name !== info.name).join(" · ")}</p>`
-                  : nothing}
+                ${
+                  info.parents.length > 0
+                    ? html`<p class="info-parents" lang="de">${[...new Set(info.parents)].filter((name) => name !== info.name).join(" · ")}</p>`
+                    : nothing
+                }
                 ${this._renderFacts(info)}
-              `}
+              `
+          }
         </div>
-        ${info === null
-          ? nothing
-          : html`
+        ${
+          info === null
+            ? nothing
+            : html`
               <div class="info-actions">
                 <button type="button" class="text" @click=${this._zoomToSelection}>${this._t("controls.zoom_here")}</button>
                 <button
@@ -970,7 +1074,8 @@ export class AustriaMapCard extends LitElement {
                   <ha-icon icon="mdi:close" aria-hidden="true"></ha-icon>
                 </button>
               </div>
-            `}
+            `
+        }
       </section>
     `;
   }

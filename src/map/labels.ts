@@ -97,7 +97,8 @@ export function riverLabelLevel(scale: number): number {
 export const riverLabel = (name: string): string => name.replace(/\s*[[(].*$/, "");
 
 /** A town's name without what follows "am", "an der", "im": for the capitals on a small map. */
-export const shortTownName = (name: string): string => name.replace(/ (am|an der|im|in|bei|ob) .*$/, "");
+export const shortTownName = (name: string): string =>
+  name.replace(/ (am|an der|im|in|bei|ob) .*$/, "");
 
 const MAX_CITIES = 90;
 const MAX_PEAKS = 40;
@@ -170,13 +171,22 @@ function longestStrokes(roads: Roads): number[] {
     const { xy, start } = roads.lines;
     const length = (line: number): number => {
       let sum = 0;
-      for (let point = (start[line] as number) + 1; point < (start[line + 1] as number); point += 1) {
-        sum += Math.hypot((xy[point * 2] as number) - (xy[point * 2 - 2] as number), (xy[point * 2 + 1] as number) - (xy[point * 2 - 1] as number));
+      for (
+        let point = (start[line] as number) + 1;
+        point < (start[line + 1] as number);
+        point += 1
+      ) {
+        sum += Math.hypot(
+          (xy[point * 2] as number) - (xy[point * 2 - 2] as number),
+          (xy[point * 2 + 1] as number) - (xy[point * 2 - 1] as number),
+        );
       }
       return sum;
     };
     const lengths = Array.from({ length: roads.lines.count }, (_, line) => length(line));
-    rows = lengths.map((_, line) => line).sort((p, q) => (lengths[q] as number) - (lengths[p] as number) || p - q);
+    rows = lengths
+      .map((_, line) => line)
+      .sort((p, q) => (lengths[q] as number) - (lengths[p] as number) || p - q);
     strokes.set(roads, rows);
   }
   return rows;
@@ -193,7 +203,10 @@ function rankedStretches(rivers: Rivers): number[] {
         (rivers.labelBoxes[line * 4 + 3] as number) - (rivers.labelBoxes[line * 4 + 1] as number),
       );
     rows = Array.from({ length: rivers.labels.count }, (_, line) => line).sort(
-      (p, q) => (rivers.labelOrder[q] as number) - (rivers.labelOrder[p] as number) || span(q) - span(p) || p - q,
+      (p, q) =>
+        (rivers.labelOrder[q] as number) - (rivers.labelOrder[p] as number) ||
+        span(q) - span(p) ||
+        p - q,
     );
     ranked.set(rivers, rows);
   }
@@ -206,18 +219,29 @@ export function drawLabels(input: LabelInput): DrawnCity[] {
   const family = palette.font;
   const placer = new LabelPlacer({ x: 0, y: 0, w: size.width, h: size.height }, 3);
   const drawn: DrawnCity[] = [];
-  const pixels = input.project ?? ((x: number, y: number): readonly [number, number] => toScreen(camera, size, x, y));
+  const pixels =
+    input.project ??
+    ((x: number, y: number): readonly [number, number] => toScreen(camera, size, x, y));
   /** Where a map point is on the canvas, or null when it is off it. */
   const onCanvas = (x: number, y: number): readonly [number, number] | null => {
     if (x < box[0] || x > box[2] || y < box[1] || y > box[3]) return null;
     const at = pixels(x, y);
-    return at !== null && at[0] >= 0 && at[0] <= size.width && at[1] >= 0 && at[1] <= size.height ? at : null;
+    return at !== null && at[0] >= 0 && at[0] <= size.width && at[1] >= 0 && at[1] <= size.height
+      ? at
+      : null;
   };
 
   ctx.textBaseline = "middle";
   ctx.lineJoin = "round";
 
-  const text = (value: string, font: string, colour: string, x: number, y: number, align: CanvasTextAlign): void => {
+  const text = (
+    value: string,
+    font: string,
+    colour: string,
+    x: number,
+    y: number,
+    align: CanvasTextAlign,
+  ): void => {
     ctx.font = font;
     ctx.textAlign = align;
     ctx.lineWidth = 3;
@@ -242,7 +266,12 @@ export function drawLabels(input: LabelInput): DrawnCity[] {
     const [x, y] = at;
     const style = TOWN_STYLES[placeTier(places, row)] as TownStyle;
     const font = `${style.font} ${family}`;
-    const dot: Rect = { x: x - style.radius - 1, y: y - style.radius - 1, w: style.radius * 2 + 2, h: style.radius * 2 + 2 };
+    const dot: Rect = {
+      x: x - style.radius - 1,
+      y: y - style.radius - 1,
+      w: style.radius * 2 + 2,
+      h: style.radius * 2 + 2,
+    };
     let label: Rect | null = null;
     const tier = placeTier(places, row);
     const name =
@@ -313,7 +342,9 @@ export function drawLabels(input: LabelInput): DrawnCity[] {
       const mapY = table.at[row * 2 + 1] as number;
       const at = onCanvas(mapX, mapY);
       if (at === null) continue;
-      const name = upper ? (table.names[row] as string).toUpperCase() : (table.names[row] as string);
+      const name = upper
+        ? (table.names[row] as string).toUpperCase()
+        : (table.names[row] as string);
       const width = widthOf(ctx, fullFont, name, withSpacing ? `spaced ${spacing}` : "");
       if (index !== undefined) {
         // A name much wider than its area belongs to a deeper zoom.
@@ -323,14 +354,21 @@ export function drawLabels(input: LabelInput): DrawnCity[] {
       const [x, y] = at;
       // On its label point, or failing that a line or two above or below it.
       const shifts = [0, -1.3, 1.3, -2.6, 2.6].map((lines) => lines * (height + 2));
-      const spot = placer.placeFirst(shifts.map((shift) => centredOn(x, y + shift, width, height + 2)));
+      const spot = placer.placeFirst(
+        shifts.map((shift) => centredOn(x, y + shift, width, height + 2)),
+      );
       if (spot < 0) continue;
       text(name, fullFont, colour, x, y + (shifts[spot] as number), "center");
     }
     if (withSpacing) ctx.letterSpacing = "0px";
   };
 
-  if (showLabels && layers.has("provinces") && scale < LABEL_SCALES.provincesBelow && store.overview !== undefined) {
+  if (
+    showLabels &&
+    layers.has("provinces") &&
+    scale < LABEL_SCALES.provincesBelow &&
+    store.overview !== undefined
+  ) {
     areas(store.overview.provinces, undefined, "600 11px", 11, palette.labelMuted, true, 1.2);
   }
 
@@ -365,10 +403,19 @@ export function drawLabels(input: LabelInput): DrawnCity[] {
       const measured = measure(screen);
       const total = measured.along[measured.along.length - 1] as number;
       const width = widthOf(ctx, shieldFont, ref) + 8;
-      for (let distance = SHIELD_STEP / 2; distance < total && placed.length < limits.most; distance += SHIELD_STEP) {
+      for (
+        let distance = SHIELD_STEP / 2;
+        distance < total && placed.length < limits.most;
+        distance += SHIELD_STEP
+      ) {
         const [x, y] = pointAlong(measured, distance);
         if (x < 0 || y < 0 || x > size.width || y > size.height) continue;
-        if (placed.some((other) => other.ref === ref && Math.hypot(other.x - x, other.y - y) < SHIELD_REPEAT)) continue;
+        if (
+          placed.some(
+            (other) => other.ref === ref && Math.hypot(other.x - x, other.y - y) < SHIELD_REPEAT,
+          )
+        )
+          continue;
         const box = centredOn(x, y, width, 15);
         if (!placer.place([box])) continue;
         placed.push({ ref, x, y });
@@ -396,7 +443,12 @@ export function drawLabels(input: LabelInput): DrawnCity[] {
       const at = onCanvas(peaks.at[row * 2] as number, peaks.at[row * 2 + 1] as number);
       if (at === null) return false;
       const [x, y] = at;
-      const mark: Rect = { x: x - PEAK_SIZE - 1, y: y - PEAK_SIZE - 1, w: PEAK_SIZE * 2 + 2, h: PEAK_SIZE * 2 + 1 };
+      const mark: Rect = {
+        x: x - PEAK_SIZE - 1,
+        y: y - PEAK_SIZE - 1,
+        w: PEAK_SIZE * 2 + 2,
+        h: PEAK_SIZE * 2 + 1,
+      };
       const name = peaks.names[row] as string;
       const height = `${peaks.height[row] as number}`;
       const nameWidth = widthOf(ctx, nameFont, name);
@@ -432,7 +484,8 @@ export function drawLabels(input: LabelInput): DrawnCity[] {
     if (selection?.kind === "peak") summit(selection.row, true);
     let named = 0;
     for (let row = 0; row < peaks.count && named < MAX_PEAKS; row += 1) {
-      const rank = ((peaks.isolation[row] as number) / 10) * ((peaks.major[row] as number) > 0 ? 2 : 1);
+      const rank =
+        ((peaks.isolation[row] as number) / 10) * ((peaks.major[row] as number) > 0 ? 2 : 1);
       // Most isolated first: the first one that does not stand out ends the list.
       if (rank * scale < PEAK_SPACING) break;
       if (selection?.kind === "peak" && selection.row === row) continue;
@@ -472,7 +525,10 @@ export function drawLabels(input: LabelInput): DrawnCity[] {
         const screen = new Float32Array((to - from) * 2);
         let seen = true;
         for (let point = from; point < to && seen; point += 1) {
-          const at = pixels(rivers.labels.xy[point * 2] as number, rivers.labels.xy[point * 2 + 1] as number);
+          const at = pixels(
+            rivers.labels.xy[point * 2] as number,
+            rivers.labels.xy[point * 2 + 1] as number,
+          );
           if (at === null) seen = false;
           else {
             screen[(point - from) * 2] = at[0];
@@ -490,7 +546,8 @@ export function drawLabels(input: LabelInput): DrawnCity[] {
         const chars = [...name];
         const charWidths = chars.map((char) => widthOf(ctx, font, char));
         const spacing = 1.2;
-        const total = charWidths.reduce((sum, width) => sum + width, 0) + spacing * (chars.length - 1);
+        const total =
+          charWidths.reduce((sum, width) => sum + width, 0) + spacing * (chars.length - 1);
         // Room to slide the name along the stretch, out of the way of a town.
         const slack = (visible[1] - visible[0] - total) / 2 - 8;
         if (slack < 0) continue;
@@ -537,11 +594,32 @@ export function drawLabels(input: LabelInput): DrawnCity[] {
   if (showLabels && store.detail !== undefined) {
     if (layers.has("districts") && scale >= LABEL_SCALES.districtsFrom) {
       // Capitals and spaced, like the provinces but smaller: an area, not a town.
-      areas(store.detail.districts, store.detail.districtIndex, "500 9.5px", 9.5, palette.labelMuted, true, 0.7);
+      areas(
+        store.detail.districts,
+        store.detail.districtIndex,
+        "500 9.5px",
+        9.5,
+        palette.labelMuted,
+        true,
+        0.7,
+      );
     }
     const municipal = store.municipalityIndex;
-    if (layers.has("municipalities") && scale >= LABEL_SCALES.municipalitiesFrom && municipal !== undefined) {
-      areas(store.detail.municipalities, municipal, "400 10px", 10, palette.labelMuted, false, 0, namedMunicipalities);
+    if (
+      layers.has("municipalities") &&
+      scale >= LABEL_SCALES.municipalitiesFrom &&
+      municipal !== undefined
+    ) {
+      areas(
+        store.detail.municipalities,
+        municipal,
+        "400 10px",
+        10,
+        palette.labelMuted,
+        false,
+        0,
+        namedMunicipalities,
+      );
     }
   }
 

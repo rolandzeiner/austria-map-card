@@ -10,7 +10,7 @@ import placesText from "../dist/austria-map-data-places.js?raw";
 import reliefText from "../dist/austria-map-data-relief.js?raw";
 import riversText from "../dist/austria-map-data-rivers-detail.js?raw";
 import terrainText from "../dist/austria-map-data-terrain-detail.js?raw";
-import type { Chunk, ChunkId, ChunkMap } from "../src/data/format.ts";
+import type { ChunkId, ChunkMap } from "../src/data/format.ts";
 import { MapStore } from "../src/layers/store.ts";
 
 export const CHUNK_TEXT: Record<ChunkId, string> = {
@@ -39,6 +39,6 @@ export function chunk<K extends ChunkId>(id: K): ChunkMap[K] {
 export function storeWith(...ids: ChunkId[]): MapStore {
   const store = new MapStore();
   const wanted: ChunkId[] = ids.length > 0 ? ids : (Object.keys(CHUNK_TEXT) as ChunkId[]);
-  for (const id of wanted) store.add(chunk(id) as Chunk);
+  for (const id of wanted) store.add(chunk(id));
   return store;
 }

@@ -127,7 +127,7 @@ describe("packed lines", () => {
       ),
     );
     expect(decoded.count).toBe(2);
-    expect([...decoded.xy.slice(0, 4)]).toEqual([5, 5, 5, 5]);
+    expect(Array.from(decoded.xy.slice(0, 4))).toEqual([5, 5, 5, 5]);
   });
 
   it("stores a ring without its repeated first point", () => {

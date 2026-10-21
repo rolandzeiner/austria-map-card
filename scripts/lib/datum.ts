@@ -27,9 +27,21 @@ const RECTIFYING = (BESSEL_A / (1 + N)) * (1 + N ** 2 / 4 + N ** 4 / 64);
 const CENTRAL_MERIDIAN = (13 + 1 / 3) * RADIANS;
 const FALSE_NORTHING = -5_000_000;
 
-const ALPHA = [N / 2 - (2 * N ** 2) / 3 + (5 * N ** 3) / 16, (13 * N ** 2) / 48 - (3 * N ** 3) / 5, (61 * N ** 3) / 240];
-const BETA = [N / 2 - (2 * N ** 2) / 3 + (37 * N ** 3) / 96, N ** 2 / 48 + N ** 3 / 15, (17 * N ** 3) / 480];
-const DELTA = [2 * N - (2 * N ** 2) / 3 - 2 * N ** 3, (7 * N ** 2) / 3 - (8 * N ** 3) / 5, (56 * N ** 3) / 15];
+const ALPHA = [
+  N / 2 - (2 * N ** 2) / 3 + (5 * N ** 3) / 16,
+  (13 * N ** 2) / 48 - (3 * N ** 3) / 5,
+  (61 * N ** 3) / 240,
+];
+const BETA = [
+  N / 2 - (2 * N ** 2) / 3 + (37 * N ** 3) / 96,
+  N ** 2 / 48 + N ** 3 / 15,
+  (17 * N ** 3) / 480,
+];
+const DELTA = [
+  2 * N - (2 * N ** 2) / 3 - 2 * N ** 3,
+  (7 * N ** 2) / 3 - (8 * N ** 3) / 5,
+  (56 * N ** 3) / 15,
+];
 
 /** Gauss-Krüger metres to degrees on the MGI datum: [latitude, longitude]. */
 export function gaussKruegerToGeographic(easting: number, northing: number): [number, number] {

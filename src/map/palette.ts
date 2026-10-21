@@ -92,12 +92,17 @@ export const css = (colour: Rgb, alpha = 1): string =>
  * see-through card background says nothing about what is behind it.
  */
 export function parseColour(text: string): Rgb | null {
-  const rgb = /^rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:\s*[,/]\s*([\d.]+%?))?\s*\)$/.exec(text.trim());
+  const rgb = /^rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:\s*[,/]\s*([\d.]+%?))?\s*\)$/.exec(
+    text.trim(),
+  );
   if (rgb) {
     if (rgb[4] !== undefined && alphaOf(rgb[4]) < 0.5) return null;
     return [Number(rgb[1]), Number(rgb[2]), Number(rgb[3])];
   }
-  const srgb = /^color\(srgb\s+([\d.e-]+)\s+([\d.e-]+)\s+([\d.e-]+)(?:\s*\/\s*([\d.]+%?))?\s*\)$/.exec(text.trim());
+  const srgb =
+    /^color\(srgb\s+([\d.e-]+)\s+([\d.e-]+)\s+([\d.e-]+)(?:\s*\/\s*([\d.]+%?))?\s*\)$/.exec(
+      text.trim(),
+    );
   if (srgb) {
     if (srgb[4] !== undefined && alphaOf(srgb[4]) < 0.5) return null;
     return [Number(srgb[1]) * 255, Number(srgb[2]) * 255, Number(srgb[3]) * 255];
@@ -105,7 +110,8 @@ export function parseColour(text: string): Rgb | null {
   return null;
 }
 
-const alphaOf = (text: string): number => (text.endsWith("%") ? Number(text.slice(0, -1)) / 100 : Number(text));
+const alphaOf = (text: string): number =>
+  text.endsWith("%") ? Number(text.slice(0, -1)) / 100 : Number(text);
 
 // The terrain is tinted once per 300 m, by this much each time, starting at
 // 400 m. Written as a function of the height, so the overview's 8 bands and
@@ -152,7 +158,9 @@ export function derivePalette(theme: Theme): Palette {
     accent: css(theme.accent),
     accentFill: css(theme.accent, 0.18),
     motorway: css(dark ? MOTORWAY_DARK : MOTORWAY_LIGHT),
-    motorwayCasing: css(dark ? mix(MOTORWAY_DARK, background, 0.55) : mix(MOTORWAY_LIGHT, [60, 30, 0], 0.45)),
+    motorwayCasing: css(
+      dark ? mix(MOTORWAY_DARK, background, 0.55) : mix(MOTORWAY_LIGHT, [60, 30, 0], 0.45),
+    ),
     road: css(dark ? ROAD_DARK : ROAD_LIGHT),
     roadCasing: css(dark ? mix(ROAD_DARK, background, 0.55) : mix(ROAD_LIGHT, [70, 50, 0], 0.5)),
     shield: css(SHIELD),

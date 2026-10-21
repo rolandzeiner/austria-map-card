@@ -57,7 +57,11 @@ export function clampCamera(camera: Camera, size: Size): Camera {
     const high = extent - low;
     return low >= high ? extent / 2 : Math.min(Math.max(centre, low), high);
   };
-  return { x: along(camera.x, MAP_WIDTH, size.width), y: along(camera.y, MAP_HEIGHT, size.height), k };
+  return {
+    x: along(camera.x, MAP_WIDTH, size.width),
+    y: along(camera.y, MAP_HEIGHT, size.height),
+    k,
+  };
 }
 
 /** The whole country. */
@@ -81,7 +85,10 @@ export function toScreen(camera: Camera, size: Size, x: number, y: number): [num
 }
 
 export function toMap(camera: Camera, size: Size, px: number, py: number): [number, number] {
-  return [(px - size.width / 2) / camera.k + camera.x, (py - size.height / 2) / camera.k + camera.y];
+  return [
+    (px - size.width / 2) / camera.k + camera.x,
+    (py - size.height / 2) / camera.k + camera.y,
+  ];
 }
 
 /** The part of the map the canvas shows. */
@@ -92,16 +99,28 @@ export function visibleBox(camera: Camera, size: Size): Box {
 }
 
 /** Zoom by `factor`, keeping the map point under the pixel (px, py) under it. */
-export function zoomAbout(camera: Camera, size: Size, px: number, py: number, factor: number): Camera {
+export function zoomAbout(
+  camera: Camera,
+  size: Size,
+  px: number,
+  py: number,
+  factor: number,
+): Camera {
   const fit = fitScale(size);
   const k = Math.min(Math.max(camera.k * factor, fit), fit * MAX_ZOOM);
   const [x, y] = toMap(camera, size, px, py);
-  return clampCamera({ x: x - (px - size.width / 2) / k, y: y - (py - size.height / 2) / k, k }, size);
+  return clampCamera(
+    { x: x - (px - size.width / 2) / k, y: y - (py - size.height / 2) / k, k },
+    size,
+  );
 }
 
 /** Move the map by a number of pixels: a drag to the right is a positive dx. */
 export function panBy(camera: Camera, size: Size, dx: number, dy: number): Camera {
-  return clampCamera({ x: camera.x - dx / camera.k, y: camera.y - dy / camera.k, k: camera.k }, size);
+  return clampCamera(
+    { x: camera.x - dx / camera.k, y: camera.y - dy / camera.k, k: camera.k },
+    size,
+  );
 }
 
 /** The same view on a canvas of another size: same centre, same zoom. */
@@ -109,4 +128,5 @@ export function resizeCamera(camera: Camera, from: Size, to: Size): Camera {
   return clampCamera({ ...camera, k: zoomOf(camera, from) * fitScale(to) }, to);
 }
 
-export const boxesTouch = (a: Box, b: Box): boolean => a[0] <= b[2] && a[2] >= b[0] && a[1] <= b[3] && a[3] >= b[1];
+export const boxesTouch = (a: Box, b: Box): boolean =>
+  a[0] <= b[2] && a[2] >= b[0] && a[1] <= b[3] && a[3] >= b[1];

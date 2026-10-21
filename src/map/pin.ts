@@ -13,7 +13,12 @@ const PIN_HEIGHT = 30;
 const ICON_HEIGHT = 20;
 
 /** Draw the pin with its tip on a point given in screen pixels. */
-export function drawPin(ctx: CanvasRenderingContext2D, x: number, y: number, palette: Palette): void {
+export function drawPin(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  palette: Palette,
+): void {
   const s = PIN_HEIGHT / ICON_HEIGHT;
   ctx.save();
   ctx.translate(x - 12 * s, y - 22 * s);

@@ -54,7 +54,10 @@ const sortLayers = (layers: ReadonlyArray<LayerId>): LayerId[] =>
 function parseLayers(value: unknown): LayerId[] {
   if (isUnset(value)) return [...DEFAULTS.layers];
   const known: ReadonlyArray<string> = LAYER_IDS;
-  if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string" || !known.includes(entry))) {
+  if (
+    !Array.isArray(value) ||
+    value.some((entry) => typeof entry !== "string" || !known.includes(entry))
+  ) {
     throw new Error(`"layers" must be a list of: ${LAYER_IDS.join(", ")}.`);
   }
   return sortLayers(value as LayerId[]);
@@ -72,13 +75,17 @@ function parseFlag(
 
 function parseView(value: unknown): MapView {
   if (isUnset(value)) return DEFAULTS.view;
-  if (typeof value === "string" && (VIEWS as ReadonlyArray<string>).includes(value)) return value as MapView;
+  if (typeof value === "string" && (VIEWS as ReadonlyArray<string>).includes(value))
+    return value as MapView;
   throw new Error(`"view" must be one of: ${VIEWS.join(", ")}.`);
 }
 
 function parseLocation(value: unknown): LocationSource {
   if (isUnset(value)) return DEFAULTS.location;
-  if (typeof value === "string" && ((LOCATION_MODES as ReadonlyArray<string>).includes(value) || ENTITY_ID.test(value))) {
+  if (
+    typeof value === "string" &&
+    ((LOCATION_MODES as ReadonlyArray<string>).includes(value) || ENTITY_ID.test(value))
+  ) {
     return value;
   }
   throw new Error('"location" must be home, device or an entity id such as person.anna.');
@@ -120,7 +127,9 @@ export function normaliseConfig(raw: unknown): NormalisedConfig {
 }
 
 const sameLayers = (a: unknown, b: ReadonlyArray<LayerId>): boolean =>
-  Array.isArray(a) && sortLayers(a as LayerId[]).join() === sortLayers(b).join() && a.length === b.length;
+  Array.isArray(a) &&
+  sortLayers(a as LayerId[]).join() === sortLayers(b).join() &&
+  a.length === b.length;
 
 /**
  * The config as the editor saves it: only what differs from DEFAULTS,

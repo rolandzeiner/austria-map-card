@@ -53,30 +53,135 @@ const scenes = [
   { name: "overview-phone", width: 400, height: 212, theme: LIGHT_THEME, layers: standard },
   { name: "overview", width: 760, height: 403, theme: LIGHT_THEME, layers: standard },
   { name: "overview-dark", width: 760, height: 403, theme: DARK_THEME, layers: standard },
-  { name: "overview-districts", width: 760, height: 403, theme: LIGHT_THEME, layers: [...standard, "districts"] },
-  { name: "province-tirol", width: 760, height: 403, theme: LIGHT_THEME, layers: [...standard, "districts"], fit: "AT-7" },
-  { name: "province-wien", width: 760, height: 403, theme: LIGHT_THEME, layers: everything, fit: "AT-9" },
-  { name: "municipalities-salzkammergut", width: 760, height: 403, theme: LIGHT_THEME, layers: everything, at: "40709", zoom: 9 },
-  { name: "municipalities-dark", width: 760, height: 403, theme: DARK_THEME, layers: everything, at: "40709", zoom: 9 },
-  { name: "deep-zoom", width: 760, height: 403, theme: LIGHT_THEME, layers: everything, at: "70101", zoom: 40 },
-  { name: "selected", width: 760, height: 403, theme: LIGHT_THEME, layers: [...standard, "districts"], fit: "AT-6", select: "AT-6" },
-  { name: "location", width: 760, height: 403, theme: LIGHT_THEME, layers: standard, fit: "AT-4", here: [48.3069, 14.2858] },
-  { name: "location-dark", width: 760, height: 403, theme: DARK_THEME, layers: standard, here: [47.0707, 15.4395] },
+  {
+    name: "overview-districts",
+    width: 760,
+    height: 403,
+    theme: LIGHT_THEME,
+    layers: [...standard, "districts"],
+  },
+  {
+    name: "province-tirol",
+    width: 760,
+    height: 403,
+    theme: LIGHT_THEME,
+    layers: [...standard, "districts"],
+    fit: "AT-7",
+  },
+  {
+    name: "province-wien",
+    width: 760,
+    height: 403,
+    theme: LIGHT_THEME,
+    layers: everything,
+    fit: "AT-9",
+  },
+  {
+    name: "municipalities-salzkammergut",
+    width: 760,
+    height: 403,
+    theme: LIGHT_THEME,
+    layers: everything,
+    at: "40709",
+    zoom: 9,
+  },
+  {
+    name: "municipalities-dark",
+    width: 760,
+    height: 403,
+    theme: DARK_THEME,
+    layers: everything,
+    at: "40709",
+    zoom: 9,
+  },
+  {
+    name: "deep-zoom",
+    width: 760,
+    height: 403,
+    theme: LIGHT_THEME,
+    layers: everything,
+    at: "70101",
+    zoom: 40,
+  },
+  {
+    name: "selected",
+    width: 760,
+    height: 403,
+    theme: LIGHT_THEME,
+    layers: [...standard, "districts"],
+    fit: "AT-6",
+    select: "AT-6",
+  },
+  {
+    name: "location",
+    width: 760,
+    height: 403,
+    theme: LIGHT_THEME,
+    layers: standard,
+    fit: "AT-4",
+    here: [48.3069, 14.2858],
+  },
+  {
+    name: "location-dark",
+    width: 760,
+    height: 403,
+    theme: DARK_THEME,
+    layers: standard,
+    here: [47.0707, 15.4395],
+  },
   { name: "peaks", width: 760, height: 403, theme: LIGHT_THEME, layers: [...standard, "peaks"] },
-  { name: "peaks-tirol", width: 760, height: 403, theme: LIGHT_THEME, layers: [...standard, "peaks"], fit: "AT-7" },
-  { name: "motorways", width: 760, height: 403, theme: LIGHT_THEME, layers: [...standard, "motorways"] },
-  { name: "motorways-wien", width: 760, height: 403, theme: DARK_THEME, layers: [...standard, "motorways", "peaks"], fit: "AT-9" },
-  { name: "roads", width: 760, height: 403, theme: LIGHT_THEME, layers: [...standard, "main_roads", "motorways"] },
-  { name: "roads-murtal", width: 760, height: 403, theme: DARK_THEME, layers: [...standard, "main_roads", "motorways"], at: "62040", zoom: 7 },
+  {
+    name: "peaks-tirol",
+    width: 760,
+    height: 403,
+    theme: LIGHT_THEME,
+    layers: [...standard, "peaks"],
+    fit: "AT-7",
+  },
+  {
+    name: "motorways",
+    width: 760,
+    height: 403,
+    theme: LIGHT_THEME,
+    layers: [...standard, "motorways"],
+  },
+  {
+    name: "motorways-wien",
+    width: 760,
+    height: 403,
+    theme: DARK_THEME,
+    layers: [...standard, "motorways", "peaks"],
+    fit: "AT-9",
+  },
+  {
+    name: "roads",
+    width: 760,
+    height: 403,
+    theme: LIGHT_THEME,
+    layers: [...standard, "main_roads", "motorways"],
+  },
+  {
+    name: "roads-murtal",
+    width: 760,
+    height: 403,
+    theme: DARK_THEME,
+    layers: [...standard, "main_roads", "motorways"],
+    at: "62040",
+    zoom: 7,
+  },
   { name: "bare", width: 760, height: 403, theme: LIGHT_THEME, layers: [] },
 ];
 
 function cameraFor(scene, size) {
-  if (scene.fit !== undefined) return fitBox(store.overview.index.box(province(scene.fit)), size, 16);
+  if (scene.fit !== undefined)
+    return fitBox(store.overview.index.box(province(scene.fit)), size, 16);
   if (scene.at !== undefined) {
     const row = municipality(scene.at);
     const { at } = store.detail.municipalities;
-    return clampCamera({ x: at[row * 2], y: at[row * 2 + 1], k: fitScale(size) * scene.zoom }, size);
+    return clampCamera(
+      { x: at[row * 2], y: at[row * 2 + 1], k: fitScale(size) * scene.zoom },
+      size,
+    );
   }
   return homeCamera(size);
 }
@@ -93,7 +198,8 @@ function render(scene, pixelRatio) {
     camera: cameraFor(scene, renderer.size),
     layers: new Set(scene.layers),
     showLabels: scene.labels ?? true,
-    selection: scene.select === undefined ? null : { kind: "province", row: province(scene.select) },
+    selection:
+      scene.select === undefined ? null : { kind: "province", row: province(scene.select) },
     here: scene.here === undefined ? null : project(...scene.here),
   });
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -111,11 +217,16 @@ for (const scene of scenes) {
   const canvas = render(scene, 2);
   const file = new URL(`${scene.name}.png`, OUT);
   writeFileSync(file, canvas.toBuffer("image/png"));
-  console.log(`${fileURLToPath(file).replace(fileURLToPath(root), "")}  ${Math.round(performance.now() - started)} ms`);
+  console.log(
+    `${fileURLToPath(file).replace(fileURLToPath(root), "")}  ${Math.round(performance.now() - started)} ms`,
+  );
 }
 
 if (process.argv.includes("--readme")) {
-  const canvas = render({ ...scenes.find((scene) => scene.name === "overview"), width: 900, height: 477 }, 2);
+  const canvas = render(
+    { ...scenes.find((scene) => scene.name === "overview"), width: 900, height: 477 },
+    2,
+  );
   mkdirSync(new URL("./", README_IMAGE), { recursive: true });
   writeFileSync(README_IMAGE, canvas.toBuffer("image/webp", 88));
   console.log(fileURLToPath(README_IMAGE).replace(fileURLToPath(root), ""));

@@ -90,7 +90,12 @@ export class View3D {
   public readonly near: number;
   public readonly far: number;
 
-  public constructor(camera: Camera, orientation: Orientation, size: Size, relief: Relief | undefined) {
+  public constructor(
+    camera: Camera,
+    orientation: Orientation,
+    size: Size,
+    relief: Relief | undefined,
+  ) {
     this.size = size;
     this.scale = camera.k;
     this.stretch = exaggeration(camera.k / fitScale(size));
@@ -158,7 +163,11 @@ export class View3D {
     const u = (px - this.size.width / 2) / this.focal;
     const v = (py - this.size.height / 2) / this.focal;
     const { forward: f, right: r, down: d } = this;
-    const out: Vec3 = [f[0] + r[0] * u + d[0] * v, f[1] + r[1] * u + d[1] * v, f[2] + r[2] * u + d[2] * v];
+    const out: Vec3 = [
+      f[0] + r[0] * u + d[0] * v,
+      f[1] + r[1] * u + d[1] * v,
+      f[2] + r[2] * u + d[2] * v,
+    ];
     const length = Math.hypot(...out);
     return [out[0] / length, out[1] / length, out[2] / length];
   }
@@ -169,7 +178,11 @@ export class View3D {
    */
   public pick(px: number, py: number, relief: Relief | undefined): [number, number] | null {
     const ray = this.ray(px, py);
-    const at = (t: number): Vec3 => [this.eye[0] + ray[0] * t, this.eye[1] + ray[1] * t, this.eye[2] + ray[2] * t];
+    const at = (t: number): Vec3 => [
+      this.eye[0] + ray[0] * t,
+      this.eye[1] + ray[1] * t,
+      this.eye[2] + ray[2] * t,
+    ];
     const above = (t: number): number => {
       const p = at(t);
       return p[2] - groundZ(relief, p[0], p[1], this.stretch);
@@ -205,7 +218,13 @@ export class View3D {
  * the middle of the canvas follows the finger; a drag along the tilt covers
  * more ground, as the ground there is further away.
  */
-export function panTilted(camera: Camera, orientation: Orientation, size: Size, dx: number, dy: number): Camera {
+export function panTilted(
+  camera: Camera,
+  orientation: Orientation,
+  size: Size,
+  dx: number,
+  dy: number,
+): Camera {
   const { pitch, bearing } = orientation;
   const heading: [number, number] = [Math.sin(bearing), -Math.cos(bearing)];
   const right: [number, number] = [Math.cos(bearing), Math.sin(bearing)];

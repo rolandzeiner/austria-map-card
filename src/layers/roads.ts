@@ -49,7 +49,10 @@ export const ROAD_STYLES: Readonly<Record<RoadClass, RoadStyle>> = {
 };
 
 /** The layer each class belongs to. */
-export const ROAD_LAYER: Readonly<Record<RoadClass, LayerId>> = { motorway: "motorways", main: "main_roads" };
+export const ROAD_LAYER: Readonly<Record<RoadClass, LayerId>> = {
+  motorway: "motorways",
+  main: "main_roads",
+};
 
 export const roadSet = (store: MapStore, kind: RoadClass): Roads | undefined =>
   kind === "motorway" ? store.motorways : store.mainRoads;
@@ -81,12 +84,16 @@ function drawRoads(dc: DrawContext, kind: RoadClass): void {
 }
 
 /** The lines of one route. */
-export function roadLines(store: MapStore, ref: string): { lines: Lines; which: number[] } | undefined {
+export function roadLines(
+  store: MapStore,
+  ref: string,
+): { lines: Lines; which: number[] } | undefined {
   const roads = roadSet(store, classOf(ref));
   const route = roads?.refs.indexOf(ref) ?? -1;
   if (roads === undefined || route < 0) return undefined;
   const which: number[] = [];
-  for (let line = 0; line < roads.lines.count; line += 1) if (roads.route[line] === route) which.push(line);
+  for (let line = 0; line < roads.lines.count; line += 1)
+    if (roads.route[line] === route) which.push(line);
   return { lines: roads.lines, which };
 }
 
@@ -108,21 +115,28 @@ export function roadBox(store: MapStore, ref: string): Box | undefined {
 }
 
 /** The route of the road nearest a map point among one set, if within `reach` map units. */
-function nearIn(roads: Roads, x: number, y: number, reach: number): { ref: string; distance: number } | undefined {
+function nearIn(
+  roads: Roads,
+  x: number,
+  y: number,
+  reach: number,
+): { ref: string; distance: number } | undefined {
   const { xy, start } = roads.lines;
   let best = reach;
   let found: string | undefined;
   for (let line = 0; line < roads.lines.count; line += 1) {
     const b = roads.boxes;
     if (x < (b[line * 4] as number) - reach || x > (b[line * 4 + 2] as number) + reach) continue;
-    if (y < (b[line * 4 + 1] as number) - reach || y > (b[line * 4 + 3] as number) + reach) continue;
+    if (y < (b[line * 4 + 1] as number) - reach || y > (b[line * 4 + 3] as number) + reach)
+      continue;
     for (let point = start[line] as number; point + 1 < (start[line + 1] as number); point += 1) {
       const x1 = xy[point * 2] as number;
       const y1 = xy[point * 2 + 1] as number;
       const dx = (xy[point * 2 + 2] as number) - x1;
       const dy = (xy[point * 2 + 3] as number) - y1;
       const length = dx * dx + dy * dy;
-      const t = length === 0 ? 0 : Math.max(0, Math.min(1, ((x - x1) * dx + (y - y1) * dy) / length));
+      const t =
+        length === 0 ? 0 : Math.max(0, Math.min(1, ((x - x1) * dx + (y - y1) * dy) / length));
       const distance = Math.hypot(x - (x1 + t * dx), y - (y1 + t * dy));
       if (distance < best) {
         best = distance;
@@ -137,10 +151,19 @@ function nearIn(roads: Roads, x: number, y: number, reach: number): { ref: strin
  * The route of the road nearest a map point, among the layers that are on.
  * A motorway wins a near tie: it is drawn over the main road beside it.
  */
-export function roadNear(store: MapStore, layers: ReadonlySet<LayerId>, x: number, y: number, reach: number): string | undefined {
-  const motorway = layers.has("motorways") && store.motorways ? nearIn(store.motorways, x, y, reach) : undefined;
-  const main = layers.has("main_roads") && store.mainRoads ? nearIn(store.mainRoads, x, y, reach) : undefined;
-  if (motorway !== undefined && (main === undefined || motorway.distance <= main.distance * 1.5)) return motorway.ref;
+export function roadNear(
+  store: MapStore,
+  layers: ReadonlySet<LayerId>,
+  x: number,
+  y: number,
+  reach: number,
+): string | undefined {
+  const motorway =
+    layers.has("motorways") && store.motorways ? nearIn(store.motorways, x, y, reach) : undefined;
+  const main =
+    layers.has("main_roads") && store.mainRoads ? nearIn(store.mainRoads, x, y, reach) : undefined;
+  if (motorway !== undefined && (main === undefined || motorway.distance <= main.distance * 1.5))
+    return motorway.ref;
   return main?.ref;
 }
 

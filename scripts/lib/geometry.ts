@@ -14,7 +14,9 @@ function closestOnSegment(p: Point, a: Point, b: Point): Point {
   const dy = b[1] - a[1];
   const lengthSquared = dx * dx + dy * dy;
   const t =
-    lengthSquared === 0 ? 0 : Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / lengthSquared));
+    lengthSquared === 0
+      ? 0
+      : Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / lengthSquared));
   return [a[0] + t * dx, a[1] + t * dy];
 }
 

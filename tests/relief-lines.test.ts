@@ -27,8 +27,8 @@ describe("segments", () => {
     };
     const segments = segmentsOf(line, () => true);
     expect(segments.length / 4).toBe(4);
-    expect([...segments.slice(0, 4)]).toEqual([0, 0, 0.5, 0]);
-    expect([...segments.slice(-4)]).toEqual([1.5, 0, 2, 0]);
+    expect(Array.from(segments.slice(0, 4))).toEqual([0, 0, 0.5, 0]);
+    expect(Array.from(segments.slice(-4))).toEqual([1.5, 0, 2, 0]);
   });
 
   it("cuts every piece to lie inside one triangle of the relief, so none cuts through a ridge", () => {
@@ -72,7 +72,7 @@ describe("segments", () => {
     const segments = segmentsOf(ring, (line) => line === 0);
     // Three sides, the last one back to the start.
     expect(segments.length / 4).toBe(3);
-    expect([...segments.slice(-2)]).toEqual([0, 0]);
+    expect(Array.from(segments.slice(-2))).toEqual([0, 0]);
   });
 });
 

@@ -77,7 +77,14 @@ export class MapGesture {
    * it by dragging sideways. Two fingers pinch, twist, or tilt when they
    * slide up or down side by side.
    */
-  public movePose(id: number, x: number, y: number, pose: Pose, size: Size, turn: boolean): Pose | null {
+  public movePose(
+    id: number,
+    x: number,
+    y: number,
+    pose: Pose,
+    size: Size,
+    turn: boolean,
+  ): Pose | null {
     const pointer = this.pointers.get(id);
     if (pointer === undefined) return null;
     const { camera, orientation } = pose;
@@ -89,8 +96,12 @@ export class MapGesture {
       pointer.y = y;
       this.travelled += Math.abs(dx) + Math.abs(dy);
       if (this.travelled <= TAP_SLOP) return pose;
-      if (turn) return { camera, orientation: orient(orientation, -dy * TILT_RATE, -dx * TURN_RATE) };
-      return { camera: flat ? panBy(camera, size, dx, dy) : panTilted(camera, orientation, size, dx, dy), orientation };
+      if (turn)
+        return { camera, orientation: orient(orientation, -dy * TILT_RATE, -dx * TURN_RATE) };
+      return {
+        camera: flat ? panBy(camera, size, dx, dy) : panTilted(camera, orientation, size, dx, dy),
+        orientation,
+      };
     }
     if (this.pointers.size !== 2) return pose;
     const before = this.spread();
@@ -119,10 +130,16 @@ export class MapGesture {
     if (flat && isFlat(turned)) {
       // The point between the fingers stays under them while they spread.
       const zoomed = zoomAbout(camera, size, before.x, before.y, factor);
-      return { camera: panBy(zoomed, size, after.x - before.x, after.y - before.y), orientation: turned };
+      return {
+        camera: panBy(zoomed, size, after.x - before.x, after.y - before.y),
+        orientation: turned,
+      };
     }
     const zoomed = zoomTilted(camera, size, factor);
-    return { camera: panTilted(zoomed, turned, size, after.x - before.x, after.y - before.y), orientation: turned };
+    return {
+      camera: panTilted(zoomed, turned, size, after.x - before.x, after.y - before.y),
+      orientation: turned,
+    };
   }
 
   /** Tilt when both fingers slide the same way up or down and keep their distance. */
@@ -133,7 +150,8 @@ export class MapGesture {
     });
     const [a, b] = moves as [{ dx: number; dy: number }, { dx: number; dy: number }];
     if (Math.max(Math.hypot(a.dx, a.dy), Math.hypot(b.dx, b.dy)) < DECIDE_AFTER) return "undecided";
-    const upright = (m: { dx: number; dy: number }): boolean => Math.abs(m.dy) > 1.5 * Math.abs(m.dx);
+    const upright = (m: { dx: number; dy: number }): boolean =>
+      Math.abs(m.dy) > 1.5 * Math.abs(m.dx);
     return upright(a) && upright(b) && Math.sign(a.dy) === Math.sign(b.dy) ? "tilt" : "pinch";
   }
 
@@ -156,7 +174,13 @@ export class MapGesture {
     pointer.y = y;
     const after = this.spread();
     // The point between the fingers stays under them while they spread.
-    const zoomed = zoomAbout(camera, size, before.x, before.y, before.distance > 0 ? after.distance / before.distance : 1);
+    const zoomed = zoomAbout(
+      camera,
+      size,
+      before.x,
+      before.y,
+      before.distance > 0 ? after.distance / before.distance : 1,
+    );
     return panBy(zoomed, size, after.x - before.x, after.y - before.y);
   }
 
@@ -169,7 +193,8 @@ export class MapGesture {
     const pointer = this.pointers.get(id);
     if (pointer === undefined) return "none";
     this.pointers.delete(id);
-    if (cancelled || this.pinched || this.travelled > TAP_SLOP || this.pointers.size > 0) return "none";
+    if (cancelled || this.pinched || this.travelled > TAP_SLOP || this.pointers.size > 0)
+      return "none";
     const previous = this.lastTap;
     if (
       previous !== null &&

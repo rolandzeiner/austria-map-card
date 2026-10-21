@@ -137,7 +137,9 @@ export class MapRenderer {
 
     const country =
       fine && store.detail !== undefined
-        ? this.shapes.get("country:fine", (path) => traceRings(path, (store.detail as NonNullable<typeof store.detail>).country))
+        ? this.shapes.get("country:fine", (path) =>
+            traceRings(path, (store.detail as NonNullable<typeof store.detail>).country),
+          )
         : this.shapes.get("country:coarse", (path) => traceRings(path, overview.country));
     ctx.fillStyle = palette.land;
     ctx.fill(country, "evenodd");
@@ -183,7 +185,9 @@ export class MapRenderer {
   private ringSelected(selection: Feature | null, palette: Palette): void {
     if (selection?.kind !== "city" && selection?.kind !== "peak") return;
     const { ctx } = this;
-    const drawn = this.cities.find((entry) => entry.kind === selection.kind && entry.row === selection.row);
+    const drawn = this.cities.find(
+      (entry) => entry.kind === selection.kind && entry.row === selection.row,
+    );
     if (drawn === undefined) return;
     ctx.beginPath();
     ctx.arc(drawn.x, drawn.y, drawn.radius + 4.5, 0, Math.PI * 2);
@@ -205,7 +209,8 @@ export class MapRenderer {
     this.tilted = view;
     if (palette === undefined || store.overview === undefined || this.width === 0) return;
     const relief = store.relief;
-    const project = (x: number, y: number): [number, number] | null => view.projectGround(relief, x, y);
+    const project = (x: number, y: number): [number, number] | null =>
+      view.projectGround(relief, x, y);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     this.cities = drawLabels({
       ctx,
@@ -235,7 +240,9 @@ export class MapRenderer {
       if (!strokes) return;
       const route = roadLines(store, selection.ref);
       if (route === undefined) return;
-      const path = this.shapes.get(`selected:road:${selection.ref}`, (target) => traceLines(target, route.lines, route.which));
+      const path = this.shapes.get(`selected:road:${selection.ref}`, (target) =>
+        traceLines(target, route.lines, route.which),
+      );
       ctx.strokeStyle = palette.accent;
       ctx.lineWidth = grown(3.2, scale) / scale;
       ctx.stroke(path);
@@ -245,8 +252,9 @@ export class MapRenderer {
       if (!strokes) return;
       const river = riverLines(store, scale, selection.name);
       if (river === undefined) return;
-      const path = this.shapes.get(`selected:river:${selection.name}:${scale >= 2 ? "detail" : "overview"}:${river.which.length}`, (target) =>
-        traceLines(target, river.lines, river.which),
+      const path = this.shapes.get(
+        `selected:river:${selection.name}:${scale >= 2 ? "detail" : "overview"}:${river.which.length}`,
+        (target) => traceLines(target, river.lines, river.which),
       );
       ctx.strokeStyle = palette.accent;
       ctx.lineWidth = grown(2.6, scale) / scale;
@@ -255,8 +263,9 @@ export class MapRenderer {
     }
     const rings = this.ringsOf(selection, dc.fine);
     if (rings === undefined) return;
-    const path = this.shapes.get(`selected:${selection.kind}:${selection.row}:${rings.set}`, (target) =>
-      traceRings(target, rings.rings()),
+    const path = this.shapes.get(
+      `selected:${selection.kind}:${selection.row}:${rings.set}`,
+      (target) => traceRings(target, rings.rings()),
     );
     ctx.fillStyle = palette.accentFill;
     ctx.fill(path, "evenodd");
@@ -267,10 +276,14 @@ export class MapRenderer {
   }
 
   /** The outline of an area, on the borders that are being drawn. */
-  private ringsOf(selection: Feature, fine: boolean): { set: string; rings: () => Float32Array[] } | undefined {
+  private ringsOf(
+    selection: Feature,
+    fine: boolean,
+  ): { set: string; rings: () => Float32Array[] } | undefined {
     const { store } = this;
     if (selection.kind === "province") {
-      const index = fine && store.detail !== undefined ? store.detail.provinceIndex : store.overview?.index;
+      const index =
+        fine && store.detail !== undefined ? store.detail.provinceIndex : store.overview?.index;
       if (index === undefined) return undefined;
       return { set: fine ? "fine" : "coarse", rings: () => index.rings(selection.row) };
     }
@@ -329,7 +342,11 @@ export class MapRenderer {
     }
     const municipal = store.municipalityIndex;
     const municipalities = LAYERS.find((layer) => layer.id === "municipalities");
-    if (layers.has("municipalities") && municipal !== undefined && scale >= (municipalities?.minScale ?? 0)) {
+    if (
+      layers.has("municipalities") &&
+      municipal !== undefined &&
+      scale >= (municipalities?.minScale ?? 0)
+    ) {
       const row = municipal.locate(x, y);
       if (row >= 0) return { kind: "municipality", row };
     }
@@ -339,7 +356,8 @@ export class MapRenderer {
     }
     if (layers.has("provinces")) {
       const fine = useFineBorders(store, layers, scale);
-      const index = fine && store.detail !== undefined ? store.detail.provinceIndex : store.overview?.index;
+      const index =
+        fine && store.detail !== undefined ? store.detail.provinceIndex : store.overview?.index;
       const row = index?.locate(x, y) ?? -1;
       if (row >= 0) return { kind: "province", row };
     }
@@ -361,14 +379,24 @@ export class MapRenderer {
         if (places === undefined) return undefined;
         const x = places.at[feature.row * 2] as number;
         const y = places.at[feature.row * 2 + 1] as number;
-        return [x - CITY_SURROUNDINGS, y - CITY_SURROUNDINGS, x + CITY_SURROUNDINGS, y + CITY_SURROUNDINGS];
+        return [
+          x - CITY_SURROUNDINGS,
+          y - CITY_SURROUNDINGS,
+          x + CITY_SURROUNDINGS,
+          y + CITY_SURROUNDINGS,
+        ];
       }
       case "peak": {
         const peaks = store.peaks;
         if (peaks === undefined) return undefined;
         const x = peaks.at[feature.row * 2] as number;
         const y = peaks.at[feature.row * 2 + 1] as number;
-        return [x - CITY_SURROUNDINGS, y - CITY_SURROUNDINGS, x + CITY_SURROUNDINGS, y + CITY_SURROUNDINGS];
+        return [
+          x - CITY_SURROUNDINGS,
+          y - CITY_SURROUNDINGS,
+          x + CITY_SURROUNDINGS,
+          y + CITY_SURROUNDINGS,
+        ];
       }
       case "river":
         return riverBox(store, feature.name);

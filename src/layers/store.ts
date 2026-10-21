@@ -137,7 +137,8 @@ function readPeaks(table: PeakTable): Peaks {
     at: decodeLines(table.at).xy,
     isolation: decodeInts(table.isolation),
     major: decodeInts(table.major),
-    height: facts.find((fact) => fact.key === "height")?.values ?? new Int32Array(table.names.length),
+    height:
+      facts.find((fact) => fact.key === "height")?.values ?? new Int32Array(table.names.length),
     facts,
   };
 }
@@ -209,7 +210,10 @@ const readArcs = (set: ArcSet): Borders => ({
   b: decodeInts(set.b),
 });
 
-const readTerrain = (set: TerrainSet): Terrain => ({ levels: set.levels, bands: set.bands.map(decodeLines) });
+const readTerrain = (set: TerrainSet): Terrain => ({
+  levels: set.levels,
+  bands: set.bands.map(decodeLines),
+});
 
 function readRivers(set: RiverSet): Rivers {
   const lines = decodeLines(set.lines);
@@ -309,7 +313,8 @@ export class MapStore {
   public sources(): SourceInfo[] {
     const seen = new Map<string, SourceInfo>();
     for (const id of CHUNK_IDS) {
-      for (const source of this.loaded.get(id) ?? []) if (!seen.has(source.id)) seen.set(source.id, source);
+      for (const source of this.loaded.get(id) ?? [])
+        if (!seen.has(source.id)) seen.set(source.id, source);
     }
     return [...seen.values()];
   }
@@ -320,7 +325,9 @@ export class MapStore {
 
   public add(chunk: Chunk): void {
     if (chunk.format !== DATA_FORMAT) {
-      throw new Error(`map data "${chunk.id}" is in format ${chunk.format}, this card reads ${DATA_FORMAT}`);
+      throw new Error(
+        `map data "${chunk.id}" is in format ${chunk.format}, this card reads ${DATA_FORMAT}`,
+      );
     }
     if (this.loaded.has(chunk.id)) return;
     switch (chunk.id) {
@@ -408,7 +415,11 @@ export class MapStore {
    * municipality is bounded by arcs of every level.
    */
   public get municipalityIndex(): ArcIndex | undefined {
-    if (this.municipal === undefined && this.detail !== undefined && this.municipalArcs !== undefined) {
+    if (
+      this.municipal === undefined &&
+      this.detail !== undefined &&
+      this.municipalArcs !== undefined
+    ) {
       const upper = this.detail.arcs;
       const lower = this.municipalArcs;
       this.municipal = new ArcIndex(

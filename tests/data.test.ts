@@ -31,27 +31,27 @@ describe("the chunk files", () => {
   it.each(CHUNK_IDS.map((id) => [id]))(
     "%s is an ES module with one default export in the current format",
     (id) => {
-      const text = CHUNK_TEXT[id as ChunkId];
+      const text = CHUNK_TEXT[id];
       expect(text.startsWith(`/*! Austria Map Card, map data "${id}".`)).toBe(true);
       expect(text.match(/export default /g)).toHaveLength(1);
-      const data = chunk(id as ChunkId);
+      const data = chunk(id);
       expect(data.id).toBe(id);
       expect(data.format).toBe(DATA_FORMAT);
-      expect(chunkFile(id as ChunkId)).toBe(`austria-map-data-${id}.js`);
+      expect(chunkFile(id)).toBe(`austria-map-data-${id}.js`);
     },
   );
 
   it.each(CHUNK_IDS.map((id) => [id]))(
     "%s names its sources, all CC BY 4.0, each with a date and a link",
     (id) => {
-      const { sources } = chunk(id as ChunkId);
+      const { sources } = chunk(id);
       expect(sources.length).toBeGreaterThan(0);
       for (const source of sources) {
         expect(source.licence).toBe("CC BY 4.0");
         expect(source.holder).toMatch(/^(BEV|BMLUK|Statistik Austria)$/);
         expect(source.stand).toMatch(/\d{4}/);
         expect(source.url).toMatch(/^https:\/\//);
-        expect(text(id as ChunkId)).toContain(source.name);
+        expect(text(id)).toContain(source.name);
       }
     },
   );
@@ -341,7 +341,7 @@ describe("places", () => {
     }
     // Most municipalities are named after a place in them.
     expect(seats).toBeGreaterThan(1800);
-    expect(new Set([...places.kind])).toEqual(new Set([0, 1, 2]));
+    expect(new Set(places.kind)).toEqual(new Set([0, 1, 2]));
   });
 });
 

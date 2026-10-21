@@ -72,7 +72,7 @@ export function joinPieces(pieces: ReadonlyArray<readonly Point[]>): Point[][] {
     return other === undefined || used[other] ? undefined : other;
   };
   const grow = (line: Point[], from: number): void => {
-    for (let piece = next(line[line.length - 1] as Point, from); piece !== undefined; ) {
+    for (let piece = next(line[line.length - 1] as Point, from); piece !== undefined;) {
       used[piece] = 1;
       const points = pieces[piece] as readonly Point[];
       const forward = keyOf(points[0] as Point) === keyOf(line[line.length - 1] as Point);
@@ -97,7 +97,13 @@ export function joinPieces(pieces: ReadonlyArray<readonly Point[]>): Point[][] {
 export const lengthOf = (points: readonly Point[]): number =>
   points.reduce(
     (sum, point, index) =>
-      index === 0 ? 0 : sum + Math.hypot(point[0] - (points[index - 1] as Point)[0], point[1] - (points[index - 1] as Point)[1]),
+      index === 0
+        ? 0
+        : sum +
+          Math.hypot(
+            point[0] - (points[index - 1] as Point)[0],
+            point[1] - (points[index - 1] as Point)[1],
+          ),
     0,
   );
 
@@ -131,8 +137,14 @@ export function routeLength(lines: ReadonlyArray<readonly Point[]>, pairDistance
   lines.forEach((points, line) => {
     for (let index = 1; index < points.length; index += 1) {
       const segment = { a: points[index - 1] as Point, b: points[index] as Point, line };
-      const [x0, x1] = [Math.min(segment.a[0], segment.b[0]), Math.max(segment.a[0], segment.b[0])].map((v) => Math.floor(v / cell));
-      const [y0, y1] = [Math.min(segment.a[1], segment.b[1]), Math.max(segment.a[1], segment.b[1])].map((v) => Math.floor(v / cell));
+      const [x0, x1] = [
+        Math.min(segment.a[0], segment.b[0]),
+        Math.max(segment.a[0], segment.b[0]),
+      ].map((v) => Math.floor(v / cell));
+      const [y0, y1] = [
+        Math.min(segment.a[1], segment.b[1]),
+        Math.max(segment.a[1], segment.b[1]),
+      ].map((v) => Math.floor(v / cell));
       for (let x = x0 as number; x <= (x1 as number); x += 1) {
         for (let y = y0 as number; y <= (y1 as number); y += 1) {
           const key = `${x},${y}`;
@@ -157,8 +169,12 @@ export function routeLength(lines: ReadonlyArray<readonly Point[]>, pairDistance
           const vy = (other.b[1] - other.a[1]) / length;
           // Roughly parallel: within 18 degrees.
           if (Math.abs(ux * vx + uy * vy) < 0.95) continue;
-          const t = Math.max(0, Math.min(length, (mid[0] - other.a[0]) * vx + (mid[1] - other.a[1]) * vy));
-          if (Math.hypot(mid[0] - other.a[0] - t * vx, mid[1] - other.a[1] - t * vy) < pairDistance) return true;
+          const t = Math.max(
+            0,
+            Math.min(length, (mid[0] - other.a[0]) * vx + (mid[1] - other.a[1]) * vy),
+          );
+          if (Math.hypot(mid[0] - other.a[0] - t * vx, mid[1] - other.a[1] - t * vy) < pairDistance)
+            return true;
         }
       }
     }
@@ -172,7 +188,9 @@ export function routeLength(lines: ReadonlyArray<readonly Point[]>, pairDistance
       const length = Math.hypot(b[0] - a[0], b[1] - a[1]);
       if (length === 0) continue;
       const mid: Point = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
-      total += paired(mid, (b[0] - a[0]) / length, (b[1] - a[1]) / length, line) ? length / 2 : length;
+      total += paired(mid, (b[0] - a[0]) / length, (b[1] - a[1]) / length, line)
+        ? length / 2
+        : length;
     }
   });
   return total;

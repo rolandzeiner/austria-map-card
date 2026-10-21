@@ -6,10 +6,21 @@ import { SCALES, grown } from "./scales.ts";
 import type { MapStore, Rivers } from "./store.ts";
 
 /** Stroke width in pixels by stream order; 9 is the Danube. */
-export const RIVER_WIDTHS: Readonly<Record<number, number>> = { 9: 2.2, 8: 1.8, 7: 1.5, 6: 1.1, 5: 0.8, 4: 0.6, 3: 0.45 };
+export const RIVER_WIDTHS: Readonly<Record<number, number>> = {
+  9: 2.2,
+  8: 1.8,
+  7: 1.5,
+  6: 1.1,
+  5: 0.8,
+  4: 0.6,
+  3: 0.45,
+};
 
 /** The river set to draw at a scale, and the lowest stream order to show from it. */
-export function riversAt(store: MapStore, scale: number): { rivers: Rivers; set: string; minOrder: number } | undefined {
+export function riversAt(
+  store: MapStore,
+  scale: number,
+): { rivers: Rivers; set: string; minOrder: number } | undefined {
   const detail = scale >= SCALES.riversDetail ? store.riversDetail : undefined;
   if (detail !== undefined) {
     return { rivers: detail, set: "detail", minOrder: scale >= SCALES.streams ? 3 : 4 };
@@ -43,21 +54,31 @@ function draw(dc: DrawContext): void {
     ctx.lineWidth = grown(RIVER_WIDTHS[order] ?? 0.45, scale) / scale;
     tiles.visit(box, order, (tile, lines) => {
       ctx.stroke(
-        shapes.get(`rivers:${current.set}:${order}:${tile}`, (path) => traceLines(path, current.rivers.lines, lines)),
+        shapes.get(`rivers:${current.set}:${order}:${tile}`, (path) =>
+          traceLines(path, current.rivers.lines, lines),
+        ),
       );
     });
   }
 }
 
 /** The lines of one river, by name, in the set drawn at a scale. */
-export function riverLines(store: MapStore, scale: number, name: string): { lines: Lines; which: number[] } | undefined {
+export function riverLines(
+  store: MapStore,
+  scale: number,
+  name: string,
+): { lines: Lines; which: number[] } | undefined {
   const current = riversAt(store, scale);
   if (current === undefined) return undefined;
   const row = current.rivers.names.indexOf(name);
   if (row < 0) return undefined;
   const which: number[] = [];
   for (let line = 0; line < current.rivers.lines.count; line += 1) {
-    if (current.rivers.name[line] === row && (current.rivers.order[line] as number) >= current.minOrder) which.push(line);
+    if (
+      current.rivers.name[line] === row &&
+      (current.rivers.order[line] as number) >= current.minOrder
+    )
+      which.push(line);
   }
   return { lines: current.rivers.lines, which };
 }
@@ -123,7 +144,8 @@ export function riverNear(
       const dx = (xy[point * 2 + 2] as number) - x1;
       const dy = (xy[point * 2 + 3] as number) - y1;
       const length = dx * dx + dy * dy;
-      const t = length === 0 ? 0 : Math.max(0, Math.min(1, ((x - x1) * dx + (y - y1) * dy) / length));
+      const t =
+        length === 0 ? 0 : Math.max(0, Math.min(1, ((x - x1) * dx + (y - y1) * dy) / length));
       const distance = Math.hypot(x - (x1 + t * dx), y - (y1 + t * dy));
       if (distance < best) {
         best = distance;

@@ -58,7 +58,11 @@ export class AustriaMapCardEditor extends LitElement {
     // the kind first and offers the picker for an entity.
     const location = shown.location;
     if (!this._entityMode && !isEntity(location)) return shown;
-    return { ...shown, location: "entity", location_entity: isEntity(location) ? location : undefined };
+    return {
+      ...shown,
+      location: "entity",
+      location_entity: isEntity(location) ? location : undefined,
+    };
   }
 
   private _onChange(ev: CustomEvent<{ value: Record<string, unknown> }>): void {
@@ -76,7 +80,11 @@ export class AustriaMapCardEditor extends LitElement {
     // our own copy current or the form snaps back on the next render.
     this._config = next;
     this.dispatchEvent(
-      new CustomEvent("config-changed", { detail: { config: next }, bubbles: true, composed: true }),
+      new CustomEvent("config-changed", {
+        detail: { config: next },
+        bubbles: true,
+        composed: true,
+      }),
     );
   }
 

@@ -86,13 +86,16 @@ export function rankPlaces(
   const ranked = places.map((place, index) => {
     const residents = population[place.municipality] as number;
     const seat = seats.get(place.municipality) === index;
-    const rank = seat ? residents : Math.min(classFloor(place.sizeClass), Math.floor(residents / 2));
+    const rank = seat
+      ? residents
+      : Math.min(classFloor(place.sizeClass), Math.floor(residents / 2));
     return { ...place, seat, rank };
   });
   // By code unit, not by locale: the order must not depend on the ICU data
   // of the Node that runs the build.
   const byName = (p: string, q: string): number => (p < q ? -1 : p > q ? 1 : 0);
   return ranked.sort(
-    (p, q) => q.rank - p.rank || p.kind - q.kind || byName(p.name, q.name) || p.x - q.x || p.y - q.y,
+    (p, q) =>
+      q.rank - p.rank || p.kind - q.kind || byName(p.name, q.name) || p.x - q.x || p.y - q.y,
   );
 }

@@ -46,7 +46,13 @@ function provincesIn(store: MapStore, mask: number): string[] {
   return names.filter((_, row) => (mask & (1 << row)) !== 0);
 }
 
-const rowInfo = (store: MapStore, table: Table, row: number, kind: string, parents: string[]): FeatureInfo => ({
+const rowInfo = (
+  store: MapStore,
+  table: Table,
+  row: number,
+  kind: string,
+  parents: string[],
+): FeatureInfo => ({
   name: table.names[row] ?? "",
   kind,
   parents,
@@ -63,11 +69,15 @@ export function describeFeature(store: MapStore, feature: Feature): FeatureInfo 
   const detail = store.detail;
   switch (feature.kind) {
     case "province":
-      return provinces === undefined ? null : rowInfo(store, provinces, feature.row, "kinds.province", []);
+      return provinces === undefined
+        ? null
+        : rowInfo(store, provinces, feature.row, "kinds.province", []);
     case "district": {
       if (detail === undefined || provinces === undefined) return null;
       const province = detail.districts.parent?.[feature.row] ?? -1;
-      return rowInfo(store, detail.districts, feature.row, "kinds.district", [provinces.names[province] ?? ""]);
+      return rowInfo(store, detail.districts, feature.row, "kinds.district", [
+        provinces.names[province] ?? "",
+      ]);
     }
     case "municipality": {
       if (detail === undefined || provinces === undefined) return null;
@@ -116,14 +126,23 @@ export function describeFeature(store: MapStore, feature: Feature): FeatureInfo 
         const province = store.overview.index.locate(x, y);
         if (province >= 0) parents.push(provinces.names[province] ?? "");
       }
-      return { name: peaks.names[feature.row] ?? "", kind: "kinds.peak", parents, facts: factsOf(store, peaks.facts, feature.row) };
+      return {
+        name: peaks.names[feature.row] ?? "",
+        kind: "kinds.peak",
+        parents,
+        facts: factsOf(store, peaks.facts, feature.row),
+      };
     }
     case "road": {
       const roads = roadSet(store, classOf(feature.ref));
       const route = roads?.refs.indexOf(feature.ref) ?? -1;
       if (roads === undefined || route < 0) return null;
       const name = roads.names[route] ?? "";
-      const kinds: Record<string, string> = { A: "kinds.motorway", S: "kinds.expressway", B: "kinds.main_road" };
+      const kinds: Record<string, string> = {
+        A: "kinds.motorway",
+        S: "kinds.expressway",
+        B: "kinds.main_road",
+      };
       return {
         // "A1 · West Autobahn"; a route without a name of its own is its number.
         name: name === "" ? feature.ref : `${feature.ref} · ${name}`,
@@ -135,13 +154,16 @@ export function describeFeature(store: MapStore, feature: Feature): FeatureInfo 
     case "river": {
       const source = store.sources().find((entry) => entry.id === "bmluk-ggn");
       // Either river set knows the name's facts; the detail set knows the streams too.
-      const rivers = [store.riversDetail, store.overview?.rivers].find((set) => set?.names.includes(feature.name));
+      const rivers = [store.riversDetail, store.overview?.rivers].find((set) =>
+        set?.names.includes(feature.name),
+      );
       const row = rivers?.names.indexOf(feature.name) ?? -1;
       return {
         name: feature.name,
         // Stream order 5 is where the map's overview starts: a river from there up.
         kind: feature.order >= 5 ? "kinds.river" : "kinds.stream",
-        parents: rivers === undefined || row < 0 ? [] : provincesIn(store, rivers.provinces[row] ?? 0),
+        parents:
+          rivers === undefined || row < 0 ? [] : provincesIn(store, rivers.provinces[row] ?? 0),
         facts: [
           ...(rivers === undefined || row < 0 ? [] : factsOf(store, rivers.facts, row)),
           { label: "facts.stream_order", value: feature.order, format: "integer", source },

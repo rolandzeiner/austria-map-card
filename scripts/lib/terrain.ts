@@ -181,7 +181,7 @@ export function growOutwards(grid: ElevationGrid, reach: number): ElevationGrid 
     for (let row = 0; row < grid.rows; row += 1) {
       for (let column = 0; column < grid.columns; column += 1) {
         const index = row * grid.columns + column;
-        if (!Number.isNaN(values[index] as number)) continue;
+        if (!Number.isNaN(values[index])) continue;
         let sum = 0;
         let count = 0;
         for (let dy = -1; dy <= 1; dy += 1) {
@@ -220,7 +220,7 @@ export function smooth(grid: ElevationGrid, sigma: number): ElevationGrid {
     for (let row = 0; row < grid.rows; row += 1) {
       for (let column = 0; column < grid.columns; column += 1) {
         const index = row * grid.columns + column;
-        if (Number.isNaN(source[index] as number)) continue;
+        if (Number.isNaN(source[index])) continue;
         let sum = 0;
         let weight = 0;
         for (let offset = -radius; offset <= radius; offset += 1) {

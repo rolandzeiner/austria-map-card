@@ -23,14 +23,12 @@ const PARALLEL_NORTH = 49 * RADIANS;
 const ORIGIN_LATITUDE = 47.5 * RADIANS;
 const CENTRAL_MERIDIAN = (13 + 20 / 60) * RADIANS;
 
-const half = (latitude: number): number =>
-  Math.tan(Math.PI / 4 + latitude / 2);
+const half = (latitude: number): number => Math.tan(Math.PI / 4 + latitude / 2);
 
 const CONE =
   Math.log(Math.cos(PARALLEL_SOUTH) / Math.cos(PARALLEL_NORTH)) /
   Math.log(half(PARALLEL_NORTH) / half(PARALLEL_SOUTH));
-const SCALE_FACTOR =
-  (Math.cos(PARALLEL_SOUTH) * Math.pow(half(PARALLEL_SOUTH), CONE)) / CONE;
+const SCALE_FACTOR = (Math.cos(PARALLEL_SOUTH) * Math.pow(half(PARALLEL_SOUTH), CONE)) / CONE;
 const ORIGIN_RADIUS = SCALE_FACTOR / Math.pow(half(ORIGIN_LATITUDE), CONE);
 
 /** The drawing's coordinate space. One unit is about 585 m on the ground. */
@@ -50,8 +48,7 @@ export type MapPoint = readonly [x: number, y: number];
 
 /** Project degrees (on the MGI datum, like every source) onto the card's map. */
 export function project(latitude: number, longitude: number): MapPoint {
-  const radius =
-    SCALE_FACTOR / Math.pow(half(latitude * RADIANS), CONE);
+  const radius = SCALE_FACTOR / Math.pow(half(latitude * RADIANS), CONE);
   const angle = CONE * (longitude * RADIANS - CENTRAL_MERIDIAN);
   const east = radius * Math.sin(angle);
   const north = ORIGIN_RADIUS - radius * Math.cos(angle);

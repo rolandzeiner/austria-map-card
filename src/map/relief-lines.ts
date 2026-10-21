@@ -50,7 +50,8 @@ function crossings(x1: number, y1: number, x2: number, y2: number): number[] {
     if (from === to) return;
     const low = Math.min(from, to);
     const high = Math.max(from, to);
-    for (let edge = Math.floor(low) + 1; edge < high; edge += 1) cuts.push((edge - from) / (to - from));
+    for (let edge = Math.floor(low) + 1; edge < high; edge += 1)
+      cuts.push((edge - from) / (to - from));
   };
   across(x1 - 0.5, x2 - 0.5);
   across(y1 - 0.5, y2 - 0.5);
@@ -62,7 +63,11 @@ function crossings(x1: number, y1: number, x2: number, y2: number): number[] {
  * Segments as x1, y1, x2, y2 for the chosen lines, cut at every edge of the
  * relief's triangles, so each lies flat on the ground. Rings are closed.
  */
-export function segmentsOf(lines: Lines, keep: (line: number) => boolean, closed = lines.closed): Float32Array {
+export function segmentsOf(
+  lines: Lines,
+  keep: (line: number) => boolean,
+  closed = lines.closed,
+): Float32Array {
   const { xy, start } = lines;
   const out: number[] = [];
   const push = (x1: number, y1: number, x2: number, y2: number): void => {
@@ -78,10 +83,20 @@ export function segmentsOf(lines: Lines, keep: (line: number) => boolean, closed
     const from = start[line] as number;
     const to = start[line + 1] as number;
     for (let point = from; point + 1 < to; point += 1) {
-      push(xy[point * 2] as number, xy[point * 2 + 1] as number, xy[point * 2 + 2] as number, xy[point * 2 + 3] as number);
+      push(
+        xy[point * 2] as number,
+        xy[point * 2 + 1] as number,
+        xy[point * 2 + 2] as number,
+        xy[point * 2 + 3] as number,
+      );
     }
     if (closed && to - from > 2) {
-      push(xy[(to - 1) * 2] as number, xy[(to - 1) * 2 + 1] as number, xy[from * 2] as number, xy[from * 2 + 1] as number);
+      push(
+        xy[(to - 1) * 2] as number,
+        xy[(to - 1) * 2 + 1] as number,
+        xy[from * 2] as number,
+        xy[from * 2 + 1] as number,
+      );
     }
   }
   return Float32Array.from(out);
@@ -131,23 +146,41 @@ export function reliefLines(
 
   const colours = [palette.outline, palette.province, palette.district, palette.municipality];
   const border = (level: number, key: string, segments: () => Float32Array): void => {
-    sets.push({ key, segments, colour: rgb(colours[level] as string), width: grown(BORDER_WIDTHS[level] as number, scale) });
+    sets.push({
+      key,
+      segments,
+      colour: rgb(colours[level] as string),
+      width: grown(BORDER_WIDTHS[level] as number, scale),
+    });
   };
   const fine = useFineBorders(store, layers, scale) && store.detail !== undefined;
-  if (layers.has("municipalities") && scale >= SCALES.municipalities && store.municipalArcs !== undefined) {
+  if (
+    layers.has("municipalities") &&
+    scale >= SCALES.municipalities &&
+    store.municipalArcs !== undefined
+  ) {
     const arcs = store.municipalArcs;
     border(3, "borders:municipal", () => segmentsOf(arcs.lines, () => true));
   }
   if (fine) {
     const detail = store.detail!;
-    const levels = [0, 1, 2].filter((level) => level === 0 || (level === 1 ? layers.has("provinces") : layers.has("districts")));
+    const levels = [0, 1, 2].filter(
+      (level) => level === 0 || (level === 1 ? layers.has("provinces") : layers.has("districts")),
+    );
     for (const level of levels.reverse()) {
-      border(level, `borders:fine:${level}`, () => segmentsOf(detail.arcs.lines, (line) => detail.level[line] === level));
+      border(level, `borders:fine:${level}`, () =>
+        segmentsOf(detail.arcs.lines, (line) => detail.level[line] === level),
+      );
     }
   } else if (store.overview !== undefined) {
     const { arcs } = store.overview;
-    if (layers.has("provinces")) border(1, "borders:coarse:1", () => segmentsOf(arcs.lines, (line) => (arcs.a[line] as number) >= 0));
-    border(0, "borders:coarse:0", () => segmentsOf(arcs.lines, (line) => (arcs.a[line] as number) < 0));
+    if (layers.has("provinces"))
+      border(1, "borders:coarse:1", () =>
+        segmentsOf(arcs.lines, (line) => (arcs.a[line] as number) >= 0),
+      );
+    border(0, "borders:coarse:0", () =>
+      segmentsOf(arcs.lines, (line) => (arcs.a[line] as number) < 0),
+    );
   }
 
   // As on the flat map: over the inner borders, under the national one;
@@ -160,13 +193,30 @@ export function reliefLines(
     const key = `roads:${kind}`;
     const all = (): Float32Array => segmentsOf(set.lines, () => true);
     if (scale < style.fullFrom) {
-      roads.push({ key, segments: all, colour: rgb(style.casingColour(palette)), width: style.thin });
+      roads.push({
+        key,
+        segments: all,
+        colour: rgb(style.casingColour(palette)),
+        width: style.thin,
+      });
       continue;
     }
-    roads.push({ key, segments: all, colour: rgb(style.casingColour(palette)), width: grown(style.casing, scale) });
-    roads.push({ key, segments: all, colour: rgb(style.fill(palette)), width: grown(style.width, scale) });
+    roads.push({
+      key,
+      segments: all,
+      colour: rgb(style.casingColour(palette)),
+      width: grown(style.casing, scale),
+    });
+    roads.push({
+      key,
+      segments: all,
+      colour: rgb(style.fill(palette)),
+      width: grown(style.width, scale),
+    });
   }
-  const national = sets.findIndex((set) => set.key.startsWith("borders:") && set.key.endsWith(":0"));
+  const national = sets.findIndex(
+    (set) => set.key.startsWith("borders:") && set.key.endsWith(":0"),
+  );
   sets.splice(national < 0 ? sets.length : national, 0, ...roads);
 
   const accent = rgb(palette.accent);

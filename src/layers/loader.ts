@@ -59,7 +59,8 @@ export class ChunkLoader {
     // A failed import can be remembered by the browser for the life of the
     // page; a changed URL makes the retry a new request.
     const retry = attempt > 0 ? `&retry=${attempt}` : "";
-    return new URL(`${chunkFile(id)}?v=${encodeURIComponent(this.version)}${retry}`, this.base).href;
+    return new URL(`${chunkFile(id)}?v=${encodeURIComponent(this.version)}${retry}`, this.base)
+      .href;
   }
 
   /** Start loading whichever of these chunks have not been asked for yet. */

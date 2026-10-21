@@ -179,7 +179,11 @@ interface LineBuffer {
 /** Light from the north-west, 40° above the horizon: the hill-shading of every atlas. */
 const LIGHT = (() => {
   const altitude = (40 * Math.PI) / 180;
-  const v = [-Math.cos(altitude) / Math.SQRT2, -Math.cos(altitude) / Math.SQRT2, Math.sin(altitude)];
+  const v = [
+    -Math.cos(altitude) / Math.SQRT2,
+    -Math.cos(altitude) / Math.SQRT2,
+    Math.sin(altitude),
+  ];
   return new Float32Array(v);
 })();
 
@@ -199,7 +203,8 @@ const locations = (
   gl: WebGL2RenderingContext,
   program: WebGLProgram,
   names: readonly string[],
-): Record<string, WebGLUniformLocation | null> => Object.fromEntries(names.map((name) => [name, gl.getUniformLocation(program, name)]));
+): Record<string, WebGLUniformLocation | null> =>
+  Object.fromEntries(names.map((name) => [name, gl.getUniformLocation(program, name)]));
 
 function compile(gl: WebGL2RenderingContext, type: number, source: string): WebGLShader {
   const shader = gl.createShader(type);
@@ -298,7 +303,17 @@ export class ReliefGL {
     this.relief = relief;
     gl.bindTexture(gl.TEXTURE_2D, this.heights);
     gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, relief.columns, relief.rows, 0, gl.RED, gl.FLOAT, relief.metres);
+    gl.texImage2D(
+      gl.TEXTURE_2D,
+      0,
+      gl.R32F,
+      relief.columns,
+      relief.rows,
+      0,
+      gl.RED,
+      gl.FLOAT,
+      relief.metres,
+    );
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
   }
@@ -326,7 +341,12 @@ export class ReliefGL {
   }
 
   /** Size the drawing buffer to the canvas's CSS size. */
-  public resize(canvas: HTMLCanvasElement, width: number, height: number, devicePixelRatio: number): void {
+  public resize(
+    canvas: HTMLCanvasElement,
+    width: number,
+    height: number,
+    devicePixelRatio: number,
+  ): void {
     const dpr = Math.min(devicePixelRatio || 1, 2);
     const w = Math.max(1, Math.round(width * dpr));
     const h = Math.max(1, Math.round(height * dpr));

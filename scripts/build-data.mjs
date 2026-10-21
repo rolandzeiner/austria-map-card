@@ -37,14 +37,33 @@ import { fileURLToPath } from "node:url";
 import { gunzipSync, gzipSync, inflateRawSync } from "node:zlib";
 
 import { ArcIndex, groupSides } from "../src/data/arcs.ts";
-import { CHUNK_IDS, DATA_FORMAT, chunkFile, concatLines, decodeInts, decodeLines } from "../src/data/format.ts";
+import {
+  CHUNK_IDS,
+  DATA_FORMAT,
+  chunkFile,
+  concatLines,
+  decodeInts,
+  decodeLines,
+} from "../src/data/format.ts";
 import { MAP_HEIGHT, MAP_WIDTH, project } from "../src/map/projection.ts";
 import { gaussKruegerToGeographic } from "./lib/datum.ts";
 import { encodeInts, encodeLines, encodePoints } from "./lib/encode.ts";
 import { labelStretches } from "./lib/label-lines.ts";
 import { PLACE_KINDS, classFloor, nameKey, rankPlaces } from "./lib/places.ts";
-import { lengthWhere, networks, parseGeoPackageLine, runsInside, simplifyRiver } from "./lib/rivers.ts";
-import { joinPieces, lengthOf as roadLength, parseGeoPackageLines, routeLength, simplifyRoad } from "./lib/roads.ts";
+import {
+  lengthWhere,
+  networks,
+  parseGeoPackageLine,
+  runsInside,
+  simplifyRiver,
+} from "./lib/rivers.ts";
+import {
+  joinPieces,
+  lengthOf as roadLength,
+  parseGeoPackageLines,
+  routeLength,
+  simplifyRoad,
+} from "./lib/roads.ts";
 import { parseDbf, parseShapefilePolygons } from "./lib/shapefile.ts";
 import {
   GridAccumulator,
@@ -352,7 +371,9 @@ const RIVER_LABELS = [
   { step: 1, smoothing: 6, maxTurn: 55, turnSpan: 7, minLength: 24, tolerance: 0.3 },
   { step: 1, smoothing: 14, maxTurn: 60, turnSpan: 14, minLength: 50, tolerance: 0.5 },
 ];
-const STREAM_LABELS = [{ step: 0.5, smoothing: 1.5, maxTurn: 55, turnSpan: 2, minLength: 7, tolerance: 0.12 }];
+const STREAM_LABELS = [
+  { step: 0.5, smoothing: 1.5, maxTurn: 55, turnSpan: 2, minLength: 7, tolerance: 0.12 },
+];
 const LABEL_Q = 0.1;
 
 // Label points and places sit on the same grid as the fine borders.
@@ -492,7 +513,8 @@ async function refreshBorders() {
   const { edges, strays } = borderEdges(
     shapes.map((rings, index) => ({ unit: row.get(records[index].GKZ), rings })),
   );
-  if (strays > 0) throw new Error(`${strays} border edges are claimed more than twice or run the same way twice`);
+  if (strays > 0)
+    throw new Error(`${strays} border edges are claimed more than twice or run the same way twice`);
   const metres = chain(edges);
   const arcs = sortArcs(
     metres.map((arc) => ({ a: arc.a, b: arc.b, points: arc.points.map(fromLambert) })),
@@ -511,7 +533,17 @@ async function refreshBorders() {
     "--refresh-borders",
   );
   for (const unit of units) {
-    lines.push(["unit", unit.code, unit.name, unit.district, unit.districtName, unit.province, unit.provinceName].join("\t"));
+    lines.push(
+      [
+        "unit",
+        unit.code,
+        unit.name,
+        unit.district,
+        unit.districtName,
+        unit.province,
+        unit.provinceName,
+      ].join("\t"),
+    );
   }
   let vertices = 0;
   for (const arc of arcs) {
@@ -606,7 +638,8 @@ async function refreshTerrain() {
       }
     }
   }
-  if (samples < 300000) throw new Error(`only ${samples} elevation samples; expected about 362 000`);
+  if (samples < 300000)
+    throw new Error(`only ${samples} elevation samples; expected about 362 000`);
   const grid = accumulator.toGrid();
   const lines = header(
     TERRAIN,
@@ -717,7 +750,10 @@ function packPeaks(peaks, settings) {
     .sort((p, q) => rank(q) - rank(p) || peaks[q].height - peaks[p].height || p - q);
   return {
     names: kept.map((index) => peaks[index].name),
-    at: encodePoints(kept.map((index) => [onGrid(peaks[index].x), onGrid(peaks[index].y)]), POINT_Q),
+    at: encodePoints(
+      kept.map((index) => [onGrid(peaks[index].x), onGrid(peaks[index].y)]),
+      POINT_Q,
+    ),
     isolation: encodeInts(kept.map((index) => isolation[index])),
     major: encodeInts(kept.map((index) => peaks[index].major)),
     facts: [
@@ -738,7 +774,9 @@ function packPeaks(peaks, settings) {
  */
 function packRoads(strokes, q, provincesOf) {
   const refs = [...new Set(strokes.map((stroke) => stroke.ref))];
-  const names = refs.map((ref) => strokes.find((stroke) => stroke.ref === ref && stroke.name !== "")?.name ?? "");
+  const names = refs.map(
+    (ref) => strokes.find((stroke) => stroke.ref === ref && stroke.name !== "")?.name ?? "",
+  );
   const routes = refs.map((ref) => strokes.filter((stroke) => stroke.ref === ref));
   return {
     refs,
@@ -756,14 +794,27 @@ function packRoads(strokes, q, provincesOf) {
     // keepShort: `route` runs parallel to the lines, so none may go missing.
     // A stroke that shrinks to one grid point would otherwise be dropped and
     // every later line would carry the route of the one after it.
-    lines: encodeLines(strokes.map((stroke) => stroke.points), q, { closed: false, keepShort: true }),
+    lines: encodeLines(
+      strokes.map((stroke) => stroke.points),
+      q,
+      { closed: false, keepShort: true },
+    ),
     route: encodeInts(strokes.map((stroke) => refs.indexOf(stroke.ref))),
   };
 }
 
 const packTerrain = (grid, settings) => ({
   levels: settings.levels,
-  bands: terrainRings(grid, settings).map((rings) => encodeLines(sortArcs(rings.map((points) => ({ points })), SORT_TILE).map((ring) => ring.points), settings.q, { closed: true })),
+  bands: terrainRings(grid, settings).map((rings) =>
+    encodeLines(
+      sortArcs(
+        rings.map((points) => ({ points })),
+        SORT_TILE,
+      ).map((ring) => ring.points),
+      settings.q,
+      { closed: true },
+    ),
+  ),
 });
 
 // ---------------------------------------------------------------------------
@@ -791,7 +842,9 @@ async function refreshRivers() {
   const { DatabaseSync } = await import("node:sqlite");
   const database = new DatabaseSync(fileURLToPath(RIVERS_CACHE), { readOnly: true });
   const rows = database
-    .prepare(`select FLOZ as "order", GEW_NAME as name, geom from "${RIVERS_TABLE}" where FLOZ >= ? order by fid`)
+    .prepare(
+      `select FLOZ as "order", GEW_NAME as name, geom from "${RIVERS_TABLE}" where FLOZ >= ? order by fid`,
+    )
     .all(RIVER_KEEP.minOrder);
   // Every stretch of a named river, of any order, for its length.
   const named = database
@@ -820,14 +873,20 @@ async function refreshRivers() {
     for (const run of runsInside(projected, ([x, y]) => insideCountry(x, y) || nearBorder(x, y))) {
       const points = simplifyRiver(run, RIVER_KEEP.tolerance);
       lines.push(
-        [row.order, (row.name ?? "").trim(), points.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join(" ")].join("\t"),
+        [
+          row.order,
+          (row.name ?? "").trim(),
+          points.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join(" "),
+        ].join("\t"),
       );
       stretches += 1;
     }
   }
   if (stretches < 1000) throw new Error(`only ${stretches} river stretches; expected thousands`);
   writeInput(RIVERS_FILE, lines);
-  console.log(`  kept ${stretches} stretches of ${rows.length} river segments of order ${RIVER_KEEP.minOrder} and up`);
+  console.log(
+    `  kept ${stretches} stretches of ${rows.length} river segments of order ${RIVER_KEEP.minOrder} and up`,
+  );
 
   // Lengths in Austria, measured on the network in Lambert metres, before
   // any simplifying: the meanders are the length.
@@ -856,16 +915,24 @@ async function refreshRivers() {
     const members = byName.get(name);
     const rivers = networks(members, RIVER_LENGTH.snap)
       .map((network) => network.map((line) => members[line]))
-      .filter((network) => network.reduce((sum, points) => sum + roadLength(points), 0) >= RIVER_LENGTH.minNetwork);
+      .filter(
+        (network) =>
+          network.reduce((sum, points) => sum + roadLength(points), 0) >= RIVER_LENGTH.minNetwork,
+      );
     let metres = 0;
     if (rivers.length > 1) shared += 1;
     else if (rivers.length === 1) {
-      metres = Math.round(rivers[0].reduce((sum, points) => sum + lengthWhere(points, inAustria), 0) / 100) * 100;
+      metres =
+        Math.round(
+          rivers[0].reduce((sum, points) => sum + lengthWhere(points, inAustria), 0) / 100,
+        ) * 100;
     }
     lengths.push(`${name}\t${metres}`);
   }
   writeInput(RIVER_LENGTHS_FILE, lengths);
-  console.log(`  measured ${keptNames.size - 1} rivers; ${shared} names are shared by several rivers and get no length`);
+  console.log(
+    `  measured ${keptNames.size - 1} rivers; ${shared} names are shared by several rivers and get no length`,
+  );
 }
 
 /** Metres in Austria per river name; 0 where it is not known. */
@@ -881,7 +948,11 @@ function readRiverLengths() {
 function readRivers() {
   return readInput(RIVERS_FILE).map((line) => {
     const [order, name, points] = line.split("\t");
-    return { order: Number(order), name, points: points.split(" ").map((pair) => pair.split(",").map(Number)) };
+    return {
+      order: Number(order),
+      name,
+      points: points.split(" ").map((pair) => pair.split(",").map(Number)),
+    };
   });
 }
 
@@ -909,7 +980,11 @@ function packRivers(stretches, settings, labelLevels, about, labelBelow = Infini
   for (const members of groups.values()) {
     const { name, order } = members[0];
     for (const arc of chain(members.map((stretch) => ({ a: 0, b: 1, points: stretch.points })))) {
-      lines.push({ name: nameRow.get(name), order, points: simplifyRiver(arc.points, settings.tolerance) });
+      lines.push({
+        name: nameRow.get(name),
+        order,
+        points: simplifyRiver(arc.points, settings.tolerance),
+      });
     }
   }
   const sorted = sortArcs(lines, SORT_TILE);
@@ -923,7 +998,10 @@ function packRivers(stretches, settings, labelLevels, about, labelBelow = Infini
     const order = Math.max(...members.map((stretch) => stretch.order));
     if (order >= labelBelow) continue;
     labelLevels.forEach((labelSettings, level) => {
-      for (const points of labelStretches(members.map((stretch) => stretch.points), labelSettings)) {
+      for (const points of labelStretches(
+        members.map((stretch) => stretch.points),
+        labelSettings,
+      )) {
         labels.push({ name: nameRow.get(name), order, level, points });
       }
     });
@@ -942,10 +1020,18 @@ function packRivers(stretches, settings, labelLevels, about, labelBelow = Infini
       },
     ],
     provinces: encodeInts(names.map((name) => about.provinces.get(name) ?? 0)),
-    lines: encodeLines(sorted.map((line) => line.points), settings.q, { closed: false, keepShort: true }),
+    lines: encodeLines(
+      sorted.map((line) => line.points),
+      settings.q,
+      { closed: false, keepShort: true },
+    ),
     name: encodeInts(sorted.map((line) => line.name)),
     order: encodeInts(sorted.map((line) => line.order)),
-    labels: encodeLines(sortedLabels.map((label) => label.points), LABEL_Q, { closed: false, keepShort: true }),
+    labels: encodeLines(
+      sortedLabels.map((label) => label.points),
+      LABEL_Q,
+      { closed: false, keepShort: true },
+    ),
     labelName: encodeInts(sortedLabels.map((label) => label.name)),
     labelOrder: encodeInts(sortedLabels.map((label) => label.order)),
     labelLevel: encodeInts(sortedLabels.map((label) => label.level)),
@@ -1004,7 +1090,11 @@ function readPopulation() {
 /** An index over the municipalities on the committed mesh, at full resolution. */
 function meshIndex(mesh) {
   const lines = decodeLines(
-    encodeLines(mesh.arcs.map((arc) => arc.points), MESH_Q, { closed: false, keepShort: true }),
+    encodeLines(
+      mesh.arcs.map((arc) => arc.points),
+      MESH_Q,
+      { closed: false, keepShort: true },
+    ),
   );
   return new ArcIndex(
     lines,
@@ -1026,7 +1116,8 @@ async function refreshPlaces() {
   const [{ srs }] = database
     .prepare(`select srs_id as srs from gpkg_geometry_columns where table_name = ?`)
     .all(PLACES_TABLE);
-  if (srs !== 31255) throw new Error(`place names are in EPSG:${srs}, not MGI / Austria GK Central (31255)`);
+  if (srs !== 31255)
+    throw new Error(`place names are in EPSG:${srs}, not MGI / Austria GK Central (31255)`);
   const rows = database
     .prepare(
       `select NAME as name, F_CODE as code, EINWOHNER_KLASSE as size, geom from "${PLACES_TABLE}" ` +
@@ -1051,7 +1142,9 @@ async function refreshPlaces() {
     if (kind === 2 && !named && classFloor(row.size) < 2000) continue;
     kept.push({ kind, name: row.name.trim(), size: row.size, x: x.toFixed(2), y: y.toFixed(2) });
   }
-  kept.sort((p, q) => byCodeUnit(p.name, q.name) || Number(p.x) - Number(q.x) || Number(p.y) - Number(q.y));
+  kept.sort(
+    (p, q) => byCodeUnit(p.name, q.name) || Number(p.x) - Number(q.x) || Number(p.y) - Number(q.y),
+  );
   const lines = header(
     PLACES,
     [
@@ -1061,9 +1154,12 @@ async function refreshPlaces() {
     ],
     "--refresh-places",
   );
-  for (const place of kept) lines.push([place.kind, place.name, place.size, place.x, place.y].join("\t"));
+  for (const place of kept)
+    lines.push([place.kind, place.name, place.size, place.x, place.y].join("\t"));
   writeInput(PLACES_FILE, lines);
-  console.log(`  kept ${kept.length} of ${rows.length} settlements (${outside} lie outside every municipality)`);
+  console.log(
+    `  kept ${kept.length} of ${rows.length} settlements (${outside} lie outside every municipality)`,
+  );
 }
 
 /** A GeoPackage point in MGI / Austria GK Central as latitude and longitude: the header, then byte order, type, x, y. */
@@ -1086,7 +1182,8 @@ async function refreshPeaks() {
   const [{ srs }] = database
     .prepare(`select srs_id as srs from gpkg_geometry_columns where table_name = ?`)
     .all(PEAKS_TABLE);
-  if (srs !== 31255) throw new Error(`landforms are in EPSG:${srs}, not MGI / Austria GK Central (31255)`);
+  if (srs !== 31255)
+    throw new Error(`landforms are in EPSG:${srs}, not MGI / Austria GK Central (31255)`);
   const rows = database
     .prepare(
       `select NAME as name, HOEHE_BODEN as height, BEDEUTUNG as weight, geom from "${PEAKS_TABLE}" ` +
@@ -1104,9 +1201,17 @@ async function refreshPeaks() {
     if (column < 0 || line < 0 || column >= grid.columns || line >= grid.rows) continue;
     if (Number.isNaN(grid.values[line * grid.columns + column])) continue;
     const major = row.weight === "Bedeutend" ? 1 : 0;
-    kept.push({ name: row.name.trim(), height: Math.round(row.height), major, x: x.toFixed(2), y: y.toFixed(2) });
+    kept.push({
+      name: row.name.trim(),
+      height: Math.round(row.height),
+      major,
+      x: x.toFixed(2),
+      y: y.toFixed(2),
+    });
   }
-  kept.sort((p, q) => q.height - p.height || byCodeUnit(p.name, q.name) || Number(p.x) - Number(q.x));
+  kept.sort(
+    (p, q) => q.height - p.height || byCodeUnit(p.name, q.name) || Number(p.x) - Number(q.x),
+  );
   const lines = header(
     PLACES,
     [
@@ -1115,7 +1220,8 @@ async function refreshPeaks() {
     ],
     "--refresh-peaks",
   );
-  for (const peak of kept) lines.push([peak.name, peak.height, peak.major, peak.x, peak.y].join("\t"));
+  for (const peak of kept)
+    lines.push([peak.name, peak.height, peak.major, peak.x, peak.y].join("\t"));
   writeInput(PEAKS_FILE, lines);
   console.log(`  kept ${kept.length} of ${rows.length} summits`);
 }
@@ -1139,7 +1245,8 @@ async function refreshRoads(kind) {
   const [{ srs }] = database
     .prepare(`select srs_id as srs from gpkg_geometry_columns where table_name = ?`)
     .all(ROADS_TABLE);
-  if (srs !== 31255) throw new Error(`roads are in EPSG:${srs}, not MGI / Austria GK Central (31255)`);
+  if (srs !== 31255)
+    throw new Error(`roads are in EPSG:${srs}, not MGI / Austria GK Central (31255)`);
   const rows = database
     .prepare(
       `select KURZBEZ_NAT as ref, NAME as name, SHAPE_LEN as length, geom from "${ROADS_TABLE}" ` +
@@ -1171,24 +1278,36 @@ async function refreshRoads(kind) {
       `src/map/projection.ts. The length is the whole route's, on every stroke of it: measured along the`,
       `road before simplifying, rounded to 100 m, a motorway's two carriageways counted once.`,
       `Pieces joined per route, simplified to ${settings.tolerance} units` +
-        (settings.minLength > 0 ? `, strokes shorter than ${settings.minLength} units dropped.` : "."),
+        (settings.minLength > 0
+          ? `, strokes shorter than ${settings.minLength} units dropped.`
+          : "."),
     ],
     settings.flag,
   );
   const number = (ref) => Number.parseInt(ref.slice(1), 10);
   let strokes = 0;
-  for (const ref of [...byRef.keys()].sort((p, q) => byCodeUnit(p[0], q[0]) || number(p) - number(q) || byCodeUnit(p, q))) {
+  for (const ref of [...byRef.keys()].sort(
+    (p, q) => byCodeUnit(p[0], q[0]) || number(p) - number(q) || byCodeUnit(p, q),
+  )) {
     const route = byRef.get(ref);
     const name = [...route.names].sort((p, q) => q[1] - p[1])[0]?.[0] ?? "";
     const metres = Math.round(routeLength(joinPieces(route.metres), CARRIAGEWAY_PAIR) / 100) * 100;
     for (const line of joinPieces(route.pieces)) {
       if (roadLength(line) < settings.minLength) continue;
       const points = simplifyRoad(line, settings.tolerance);
-      lines.push([ref, name, metres, points.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join(" ")].join("\t"));
+      lines.push(
+        [
+          ref,
+          name,
+          metres,
+          points.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join(" "),
+        ].join("\t"),
+      );
       strokes += 1;
     }
   }
-  if (byRef.size < settings.minRoutes) throw new Error(`only ${byRef.size} ${kind} routes; expected ${settings.minRoutes} or more`);
+  if (byRef.size < settings.minRoutes)
+    throw new Error(`only ${byRef.size} ${kind} routes; expected ${settings.minRoutes} or more`);
   writeInput(settings.file, lines);
   console.log(`  kept ${strokes} strokes on ${byRef.size} routes from ${rows.length} road pieces`);
 }
@@ -1196,7 +1315,12 @@ async function refreshRoads(kind) {
 function readRoads(kind) {
   return readInput(ROAD_KINDS[kind].file).map((line) => {
     const [ref, name, metres, points] = line.split("\t");
-    return { ref, name, metres: Number(metres), points: points.split(" ").map((pair) => pair.split(",").map(Number)) };
+    return {
+      ref,
+      name,
+      metres: Number(metres),
+      points: points.split(" ").map((pair) => pair.split(",").map(Number)),
+    };
   });
 }
 
@@ -1219,7 +1343,11 @@ function readPlaces() {
 // ---------------------------------------------------------------------------
 
 const packArcs = (arcs, q) => ({
-  lines: encodeLines(arcs.map((arc) => arc.points), q, { closed: false, keepShort: true }),
+  lines: encodeLines(
+    arcs.map((arc) => arc.points),
+    q,
+    { closed: false, keepShort: true },
+  ),
   a: encodeInts(arcs.map((arc) => arc.a)),
   b: encodeInts(arcs.map((arc) => arc.b)),
 });
@@ -1248,9 +1376,18 @@ function labelPoints(index, names) {
 
 /** The fine borders, split by level, and the index the card will build from them. */
 function fineBorders(mesh, level, settings) {
-  const simplified = mesh.arcs.map((arc) => ({ ...arc, points: simplifyArc(arc.points, settings.tolerance) }));
-  const upper = sortArcs(simplified.filter((arc) => level(arc) < 3), SORT_TILE);
-  const lower = sortArcs(simplified.filter((arc) => level(arc) === 3), SORT_TILE);
+  const simplified = mesh.arcs.map((arc) => ({
+    ...arc,
+    points: simplifyArc(arc.points, settings.tolerance),
+  }));
+  const upper = sortArcs(
+    simplified.filter((arc) => level(arc) < 3),
+    SORT_TILE,
+  );
+  const lower = sortArcs(
+    simplified.filter((arc) => level(arc) === 3),
+    SORT_TILE,
+  );
   return { upper: packArcs(upper, settings.q), lower: packArcs(lower, settings.q) };
 }
 
@@ -1265,8 +1402,12 @@ function build(settings = {}) {
 
   // Population, one to one with the borders or not at all.
   const population = readPopulation();
-  const missing = mesh.units.filter((unit) => !population.byCode.has(unit.code)).map((unit) => unit.code);
-  const extra = [...population.byCode.keys()].filter((code) => !mesh.units.some((unit) => unit.code === code));
+  const missing = mesh.units
+    .filter((unit) => !population.byCode.has(unit.code))
+    .map((unit) => unit.code);
+  const extra = [...population.byCode.keys()].filter(
+    (code) => !mesh.units.some((unit) => unit.code === code),
+  );
   if (missing.length > 0 || extra.length > 0) {
     throw new Error(
       `borders and population disagree about the municipalities: ` +
@@ -1287,7 +1428,13 @@ function build(settings = {}) {
 
   // --- Fine borders, as the card will read them back ---
   const level = (arc) =>
-    arc.a < 0 ? 0 : provinceOf[arc.a] !== provinceOf[arc.b] ? 1 : districtOf[arc.a] !== districtOf[arc.b] ? 2 : 3;
+    arc.a < 0
+      ? 0
+      : provinceOf[arc.a] !== provinceOf[arc.b]
+        ? 1
+        : districtOf[arc.a] !== districtOf[arc.b]
+          ? 2
+          : 3;
   const { upper, lower } = fineBorders(mesh, level, fine);
   const upperLines = decodeLines(upper.lines);
   const lowerLines = decodeLines(lower.lines);
@@ -1324,34 +1471,59 @@ function build(settings = {}) {
   const [left, top, right, bottom] = coarse.reduce(
     (box, arc) =>
       arc.points.reduce(
-        (inner, [x, y]) => [Math.min(inner[0], x), Math.min(inner[1], y), Math.max(inner[2], x), Math.max(inner[3], y)],
+        (inner, [x, y]) => [
+          Math.min(inner[0], x),
+          Math.min(inner[1], y),
+          Math.max(inner[2], x),
+          Math.max(inner[3], y),
+        ],
         box,
       ),
     [Infinity, Infinity, -Infinity, -Infinity],
   );
   if (left < 10 || top < 10 || right > MAP_WIDTH - 10 || bottom > MAP_HEIGHT - 10) {
-    throw new Error(`the outline leaves the ${MAP_WIDTH}x${MAP_HEIGHT} view box margin; refit src/map/projection.ts`);
+    throw new Error(
+      `the outline leaves the ${MAP_WIDTH}x${MAP_HEIGHT} view box margin; refit src/map/projection.ts`,
+    );
   }
 
   // --- Tables ---
   const provinceTable = {
     ids: provinces.map((province) => province.code),
     names: provinces.map((province) => province.name),
-    at: encodePoints(labelPoints(provinceIndex, provinces.map((province) => province.name)), POINT_Q),
+    at: encodePoints(
+      labelPoints(
+        provinceIndex,
+        provinces.map((province) => province.name),
+      ),
+      POINT_Q,
+    ),
     facts: [populationFact(sumBy(provinceOf, provinces.length))],
   };
   const districtTable = {
     ids: districts.map((district) => district.code),
     names: districts.map((district) => district.name),
     parent: encodeInts(provinceOfDistrict),
-    at: encodePoints(labelPoints(districtIndex, districts.map((district) => district.name)), POINT_Q),
+    at: encodePoints(
+      labelPoints(
+        districtIndex,
+        districts.map((district) => district.name),
+      ),
+      POINT_Q,
+    ),
     facts: [populationFact(sumBy(districtOf, districts.length))],
   };
   const municipalityTable = {
     ids: mesh.units.map((unit) => unit.code),
     names: mesh.units.map((unit) => unit.name),
     parent: encodeInts(districtOf),
-    at: encodePoints(labelPoints(municipalityIndex, mesh.units.map((unit) => `${unit.name} (${unit.code})`)), POINT_Q),
+    at: encodePoints(
+      labelPoints(
+        municipalityIndex,
+        mesh.units.map((unit) => `${unit.name} (${unit.code})`),
+      ),
+      POINT_Q,
+    ),
     facts: [populationFact(residents)],
   };
 
@@ -1366,19 +1538,26 @@ function build(settings = {}) {
     if (municipality < 0) adrift += 1;
     else located.push({ ...place, x, y, municipality });
   }
-  if (adrift > located.length / 100) throw new Error(`${adrift} places lie outside every municipality`);
+  if (adrift > located.length / 100)
+    throw new Error(`${adrift} places lie outside every municipality`);
   const places = rankPlaces(located, municipalityTable.names, residents);
   const seated = new Set(places.filter((place) => place.seat).map((place) => place.municipality));
   if (seated.size < mesh.units.length * 0.8) {
-    throw new Error(`only ${seated.size} of ${mesh.units.length} municipalities have a place of their name in them`);
+    throw new Error(
+      `only ${seated.size} of ${mesh.units.length} municipalities have a place of their name in them`,
+    );
   }
-  const capitalOf = (place) => (place.seat ? (CAPITALS.get(mesh.units[place.municipality].code) ?? 0) : 0);
+  const capitalOf = (place) =>
+    place.seat ? (CAPITALS.get(mesh.units[place.municipality].code) ?? 0) : 0;
   if (places.filter((place) => capitalOf(place) > 0).length !== CAPITALS.size) {
     throw new Error("not every capital was found among the places");
   }
   const placeTable = {
     names: places.map((place) => place.name),
-    at: encodePoints(places.map((place) => [place.x, place.y]), POINT_Q),
+    at: encodePoints(
+      places.map((place) => [place.x, place.y]),
+      POINT_Q,
+    ),
     kind: encodeInts(places.map((place) => place.kind)),
     capital: encodeInts(places.map(capitalOf)),
     municipality: encodeInts(places.map((place) => place.municipality)),
@@ -1409,7 +1588,10 @@ function build(settings = {}) {
         if (district >= 0) inProvince[provinceOfDistrict[district]] += Math.hypot(bx - ax, by - ay);
       }
     }
-    return inProvince.reduce((mask, length, province) => (length >= PROVINCE_REACH ? mask | (1 << province) : mask), 0);
+    return inProvince.reduce(
+      (mask, length, province) => (length >= PROVINCE_REACH ? mask | (1 << province) : mask),
+      0,
+    );
   };
 
   // --- Terrain and rivers ---
@@ -1420,7 +1602,12 @@ function build(settings = {}) {
   for (const name of new Set(stretches.map((stretch) => stretch.name))) {
     // A shared name has no length, and its provinces would be two rivers'.
     if ((riverLengths.get(name) ?? 0) === 0) continue;
-    riverProvinces.set(name, provincesOf(stretches.filter((stretch) => stretch.name === name).map((stretch) => stretch.points)));
+    riverProvinces.set(
+      name,
+      provincesOf(
+        stretches.filter((stretch) => stretch.name === name).map((stretch) => stretch.points),
+      ),
+    );
   }
   const aboutRivers = { lengths: riverLengths, provinces: riverProvinces };
 
@@ -1440,22 +1627,39 @@ function build(settings = {}) {
       arcs: upper,
     },
     gemeinden: { ...head("gemeinden", [BORDERS]), arcs: lower },
-    "terrain-detail": { ...head("terrain-detail", [TERRAIN]), terrain: packTerrain(grid, terrainDetail) },
+    "terrain-detail": {
+      ...head("terrain-detail", [TERRAIN]),
+      terrain: packTerrain(grid, terrainDetail),
+    },
     "rivers-detail": {
       ...head("rivers-detail", [RIVERS]),
-      rivers: packRivers(stretches, riversDetail, STREAM_LABELS, aboutRivers, RIVERS_OVERVIEW.minOrder),
+      rivers: packRivers(
+        stretches,
+        riversDetail,
+        STREAM_LABELS,
+        aboutRivers,
+        RIVERS_OVERVIEW.minOrder,
+      ),
     },
     places: { ...head("places", [PLACES, POPULATION]), places: placeTable },
     relief: { ...head("relief", [TERRAIN]), relief: packRelief(grid, RELIEF) },
     peaks: { ...head("peaks", [PLACES]), peaks: packPeaks(readPeaks(), PEAKS) },
-    motorways: { ...head("motorways", [ROADS]), motorways: packRoads(readRoads("motorways"), ROAD_KINDS.motorways.q, provincesOf) },
-    "main-roads": { ...head("main-roads", [ROADS]), roads: packRoads(readRoads("main-roads"), ROAD_KINDS["main-roads"].q, provincesOf) },
+    motorways: {
+      ...head("motorways", [ROADS]),
+      motorways: packRoads(readRoads("motorways"), ROAD_KINDS.motorways.q, provincesOf),
+    },
+    "main-roads": {
+      ...head("main-roads", [ROADS]),
+      roads: packRoads(readRoads("main-roads"), ROAD_KINDS["main-roads"].q, provincesOf),
+    },
   };
 
   const files = new Map();
   for (const id of CHUNK_IDS) {
     const chunk = chunks[id];
-    const credit = chunk.sources.map((source) => `${source.holder}, ${source.name} (${source.stand})`).join("; ");
+    const credit = chunk.sources
+      .map((source) => `${source.holder}, ${source.name} (${source.stand})`)
+      .join("; ");
     files.set(
       id,
       `/*! Austria Map Card, map data "${id}". ${credit}. ${LICENCE}. ` +
@@ -1478,23 +1682,50 @@ function build(settings = {}) {
 }
 
 const kb = (bytes) => `${(bytes / 1024).toFixed(1)} KB`;
-const sizes = (text) => `${kb(Buffer.byteLength(text))} (${kb(gzipSync(text, { level: 9 }).length)})`;
+const sizes = (text) =>
+  `${kb(Buffer.byteLength(text))} (${kb(gzipSync(text, { level: 9 }).length)})`;
 
 /** The tables behind the settings at the top of this file. */
 function measure() {
   const size = (settings, id) => sizes(build(settings).files.get(id));
   console.log("Fine borders: tolerance, grid -> borders chunk, gemeinden chunk");
-  for (const [tolerance, q] of [[0.03, 0.02], [0.03, 0.05], [0.06, 0.05], [0.1, 0.05], [0.1, 0.1], [0.2, 0.1]]) {
+  for (const [tolerance, q] of [
+    [0.03, 0.02],
+    [0.03, 0.05],
+    [0.06, 0.05],
+    [0.1, 0.05],
+    [0.1, 0.1],
+    [0.2, 0.1],
+  ]) {
     const { files } = build({ fine: { tolerance, q } });
-    console.log(`  ${tolerance}  ${q}  ${sizes(files.get("borders"))}  ${sizes(files.get("gemeinden"))}`);
+    console.log(
+      `  ${tolerance}  ${q}  ${sizes(files.get("borders"))}  ${sizes(files.get("gemeinden"))}`,
+    );
   }
   console.log("Terrain detail: tolerance, smallest ring, grid -> chunk");
-  for (const [tolerance, minArea, q] of [[0.08, 0.6, 0.05], [0.14, 1.2, 0.05], [0.2, 2, 0.05], [0.2, 2, 0.1], [0.3, 3, 0.1]]) {
-    console.log(`  ${tolerance}  ${minArea}  ${q}  ${size({ terrainDetail: { ...TERRAIN_DETAIL, tolerance, minArea, q } }, "terrain-detail")}`);
+  for (const [tolerance, minArea, q] of [
+    [0.08, 0.6, 0.05],
+    [0.14, 1.2, 0.05],
+    [0.2, 2, 0.05],
+    [0.2, 2, 0.1],
+    [0.3, 3, 0.1],
+  ]) {
+    console.log(
+      `  ${tolerance}  ${minArea}  ${q}  ${size({ terrainDetail: { ...TERRAIN_DETAIL, tolerance, minArea, q } }, "terrain-detail")}`,
+    );
   }
   console.log("Rivers detail: lowest order, tolerance, grid -> chunk");
-  for (const [minOrder, tolerance, q] of [[4, 0.08, 0.05], [4, 0.12, 0.05], [4, 0.2, 0.1], [3, 0.08, 0.05], [3, 0.12, 0.05], [3, 0.2, 0.1]]) {
-    console.log(`  ${minOrder}  ${tolerance}  ${q}  ${size({ riversDetail: { minOrder, tolerance, q } }, "rivers-detail")}`);
+  for (const [minOrder, tolerance, q] of [
+    [4, 0.08, 0.05],
+    [4, 0.12, 0.05],
+    [4, 0.2, 0.1],
+    [3, 0.08, 0.05],
+    [3, 0.12, 0.05],
+    [3, 0.2, 0.1],
+  ]) {
+    console.log(
+      `  ${minOrder}  ${tolerance}  ${q}  ${size({ riversDetail: { minOrder, tolerance, q } }, "rivers-detail")}`,
+    );
   }
 }
 

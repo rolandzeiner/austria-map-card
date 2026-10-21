@@ -28,7 +28,10 @@ export function buildSchema(
     {
       name: "view",
       selector: {
-        select: { mode: "dropdown", options: VIEWS.map((value) => ({ value, label: t(`view_${value}`) })) },
+        select: {
+          mode: "dropdown",
+          options: VIEWS.map((value) => ({ value, label: t(`view_${value}`) })),
+        },
       },
     },
     {
@@ -51,14 +54,22 @@ export function buildSchema(
             selector: {
               select: {
                 mode: "dropdown" as const,
-                options: LOCATION_CHOICES.map((value) => ({ value, label: t(`location_mode_${value}`) })),
+                options: LOCATION_CHOICES.map((value) => ({
+                  value,
+                  label: t(`location_mode_${value}`),
+                })),
               },
             },
           },
         ]
       : []),
     ...(location.shown && location.entity
-      ? [{ name: "location_entity", selector: { entity: { filter: [{ domain: "person" }, { domain: "device_tracker" }] } } }]
+      ? [
+          {
+            name: "location_entity",
+            selector: { entity: { filter: [{ domain: "person" }, { domain: "device_tracker" }] } },
+          },
+        ]
       : []),
   ];
 }

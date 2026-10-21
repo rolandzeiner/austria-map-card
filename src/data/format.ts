@@ -60,7 +60,8 @@ export function packChar(value: number): string {
   return String.fromCharCode(code);
 }
 
-const unpackChar = (code: number): number => (code === 0x21 ? 0 : code < 0x5c ? code - 0x22 : code - 0x23);
+const unpackChar = (code: number): number =>
+  code === 0x21 ? 0 : code < 0x5c ? code - 0x22 : code - 0x23;
 
 /** Read a packed list of integers. */
 export function decodeInts(text: string): Int32Array {
@@ -178,7 +179,11 @@ export function lineBoxes(lines: Lines): Float32Array {
     let top = Infinity;
     let right = -Infinity;
     let bottom = -Infinity;
-    for (let point = lines.start[line] as number; point < (lines.start[line + 1] as number); point += 1) {
+    for (
+      let point = lines.start[line] as number;
+      point < (lines.start[line + 1] as number);
+      point += 1
+    ) {
       const x = lines.xy[point * 2] as number;
       const y = lines.xy[point * 2 + 1] as number;
       if (x < left) left = x;

@@ -43,17 +43,24 @@ export function drawBorders(dc: DrawContext, level: BorderLevel): void {
     set = "fine";
   } else if (store.overview !== undefined && level < 2) {
     const { arcs } = store.overview;
-    tiles = tiledBorders(arcs, Uint8Array.from(arcs.a, (side) => (side < 0 ? 0 : 1)));
+    tiles = tiledBorders(
+      arcs,
+      Uint8Array.from(arcs.a, (side) => (side < 0 ? 0 : 1)),
+    );
     set = "coarse";
   }
   if (tiles === undefined) return;
   const lines = tiles.lines;
-  ctx.strokeStyle = [palette.outline, palette.province, palette.district, palette.municipality][level] as string;
+  ctx.strokeStyle = [palette.outline, palette.province, palette.district, palette.municipality][
+    level
+  ] as string;
   ctx.lineWidth = grown(BORDER_WIDTHS[level] as number, scale) / scale;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   tiles.visit(box, group, (tile, which) => {
-    ctx.stroke(shapes.get(`borders:${set}:${level}:${tile}`, (path) => traceLines(path, lines, which)));
+    ctx.stroke(
+      shapes.get(`borders:${set}:${level}:${tile}`, (path) => traceLines(path, lines, which)),
+    );
   });
 }
 

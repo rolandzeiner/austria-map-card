@@ -21,8 +21,8 @@ const placeholders = (s: string): string[] =>
   [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1] ?? "").sort();
 
 describe("translations", () => {
-  const enKeys = flatten(en as Dict);
-  const deKeys = flatten(de as Dict);
+  const enKeys = flatten(en);
+  const deKeys = flatten(de);
 
   it("has the same keys in English and German", () => {
     expect([...deKeys.keys()].sort()).toEqual([...enKeys.keys()].sort());

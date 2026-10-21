@@ -64,7 +64,13 @@ export function encodeLines(
       // A ring given with its first point repeated at the end.
       const first = points[0];
       const last = points[points.length - 1];
-      if (points.length > 1 && first !== undefined && last !== undefined && first[0] === last[0] && first[1] === last[1]) {
+      if (
+        points.length > 1 &&
+        first !== undefined &&
+        last !== undefined &&
+        first[0] === last[0] &&
+        first[1] === last[1]
+      ) {
         points.pop();
       }
     }

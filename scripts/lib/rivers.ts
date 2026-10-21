@@ -103,8 +103,12 @@ export function networks(lines: ReadonlyArray<readonly Point[]>, snap: number): 
     return root;
   };
   // Ends on a grid of `snap`: two ends that touch share a cell or a neighbour.
-  const cellOf = (point: Point): [number, number] => [Math.floor(point[0] / snap), Math.floor(point[1] / snap)];
-  const endsOf = (points: readonly Point[]): Point[] => (points.length === 0 ? [] : [points[0] as Point, points[points.length - 1] as Point]);
+  const cellOf = (point: Point): [number, number] => [
+    Math.floor(point[0] / snap),
+    Math.floor(point[1] / snap),
+  ];
+  const endsOf = (points: readonly Point[]): Point[] =>
+    points.length === 0 ? [] : [points[0] as Point, points[points.length - 1] as Point];
   const ends = new Map<string, number[]>();
   lines.forEach((points, line) => {
     for (const end of endsOf(points)) {
@@ -120,7 +124,9 @@ export function networks(lines: ReadonlyArray<readonly Point[]>, snap: number): 
       for (let x = cx - 1; x <= cx + 1; x += 1) {
         for (let y = cy - 1; y <= cy + 1; y += 1) {
           for (const other of ends.get(`${x},${y}`) ?? []) {
-            const near = endsOf(lines[other] as readonly Point[]).some((point) => Math.hypot(point[0] - end[0], point[1] - end[1]) <= snap);
+            const near = endsOf(lines[other] as readonly Point[]).some(
+              (point) => Math.hypot(point[0] - end[0], point[1] - end[1]) <= snap,
+            );
             if (near) parent[find(line)] = find(other);
           }
         }

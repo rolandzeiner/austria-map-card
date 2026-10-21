@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import { toMap, zoomOf, type Camera } from "../src/map/camera.ts";
 import {
@@ -141,7 +141,9 @@ describe("the wheel", () => {
 
   it("caps one event, however large its delta", () => {
     expect(wheelFactor(-5000)).toBe(wheelFactor(-120));
-    expect(zoomOf({ x: 0, y: 0, k: wheelFactor(-5000) }, { width: 1000, height: 530 })).toBeLessThan(2);
+    expect(
+      zoomOf({ x: 0, y: 0, k: wheelFactor(-5000) }, { width: 1000, height: 530 }),
+    ).toBeLessThan(2);
   });
 });
 
@@ -198,8 +200,16 @@ describe("tilting and turning", () => {
   });
 
   it("offers Shift and the arrows to tilt and turn, but only where the map can tilt", () => {
-    expect(keyCommand("ArrowUp", true, true)).toEqual({ kind: "orient", pitch: KEY_TILT, bearing: 0 });
-    expect(keyCommand("ArrowRight", true, true)).toEqual({ kind: "orient", pitch: 0, bearing: -KEY_TURN });
+    expect(keyCommand("ArrowUp", true, true)).toEqual({
+      kind: "orient",
+      pitch: KEY_TILT,
+      bearing: 0,
+    });
+    expect(keyCommand("ArrowRight", true, true)).toEqual({
+      kind: "orient",
+      pitch: 0,
+      bearing: -KEY_TURN,
+    });
     expect(keyCommand("ArrowUp", true, false)).toEqual({ kind: "pan", dx: 0, dy: KEY_PAN });
     // "+" takes Shift on many keyboards and still zooms.
     expect(keyCommand("+", true, true)).toEqual({ kind: "zoom", factor: ZOOM_STEP });

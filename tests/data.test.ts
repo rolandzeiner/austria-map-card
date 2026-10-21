@@ -6,7 +6,7 @@
  * is found by the build on the geometry it wrote, and here the card's index
  * has to find the same unit again from the bytes a browser would get.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import { CHUNK_IDS, DATA_FORMAT, chunkFile, decodeInts, type ChunkId } from "../src/data/format.ts";
 import { heightAt, type Rivers, type Table } from "../src/layers/store.ts";
@@ -22,31 +22,39 @@ const places = store.places!;
 /** Residents of Austria on 1 January 2026: the total of Statistik Austria's table. */
 const RESIDENTS = 9_215_956;
 
-const population = (table: Table): Int32Array => table.facts.find((fact) => fact.key === "population")!.values;
-const sum = (values: Iterable<number>): number => [...values].reduce((total, value) => total + value, 0);
+const population = (table: Table): Int32Array =>
+  table.facts.find((fact) => fact.key === "population")!.values;
+const sum = (values: Iterable<number>): number =>
+  [...values].reduce((total, value) => total + value, 0);
 
 describe("the chunk files", () => {
-  it.each(CHUNK_IDS.map((id) => [id]))("%s is an ES module with one default export in the current format", (id) => {
-    const text = CHUNK_TEXT[id as ChunkId];
-    expect(text.startsWith(`/*! Austria Map Card, map data "${id}".`)).toBe(true);
-    expect(text.match(/export default /g)).toHaveLength(1);
-    const data = chunk(id as ChunkId);
-    expect(data.id).toBe(id);
-    expect(data.format).toBe(DATA_FORMAT);
-    expect(chunkFile(id as ChunkId)).toBe(`austria-map-data-${id}.js`);
-  });
+  it.each(CHUNK_IDS.map((id) => [id]))(
+    "%s is an ES module with one default export in the current format",
+    (id) => {
+      const text = CHUNK_TEXT[id as ChunkId];
+      expect(text.startsWith(`/*! Austria Map Card, map data "${id}".`)).toBe(true);
+      expect(text.match(/export default /g)).toHaveLength(1);
+      const data = chunk(id as ChunkId);
+      expect(data.id).toBe(id);
+      expect(data.format).toBe(DATA_FORMAT);
+      expect(chunkFile(id as ChunkId)).toBe(`austria-map-data-${id}.js`);
+    },
+  );
 
-  it.each(CHUNK_IDS.map((id) => [id]))("%s names its sources, all CC BY 4.0, each with a date and a link", (id) => {
-    const { sources } = chunk(id as ChunkId);
-    expect(sources.length).toBeGreaterThan(0);
-    for (const source of sources) {
-      expect(source.licence).toBe("CC BY 4.0");
-      expect(source.holder).toMatch(/^(BEV|BMLUK|Statistik Austria)$/);
-      expect(source.stand).toMatch(/\d{4}/);
-      expect(source.url).toMatch(/^https:\/\//);
-      expect(text(id as ChunkId)).toContain(source.name);
-    }
-  });
+  it.each(CHUNK_IDS.map((id) => [id]))(
+    "%s names its sources, all CC BY 4.0, each with a date and a link",
+    (id) => {
+      const { sources } = chunk(id as ChunkId);
+      expect(sources.length).toBeGreaterThan(0);
+      for (const source of sources) {
+        expect(source.licence).toBe("CC BY 4.0");
+        expect(source.holder).toMatch(/^(BEV|BMLUK|Statistik Austria)$/);
+        expect(source.stand).toMatch(/\d{4}/);
+        expect(source.url).toMatch(/^https:\/\//);
+        expect(text(id as ChunkId)).toContain(source.name);
+      }
+    },
+  );
 
   it("credits every fact to a source its chunk carries", () => {
     for (const [id, tables] of [
@@ -67,7 +75,8 @@ describe("the chunk files", () => {
     expect(bytes.base).toBeLessThan(100_000);
     // The relief is the full 585 m grid and loads only for the tilted map:
     // 523 KB as written, 162 KB as served gzipped.
-    for (const id of CHUNK_IDS) expect(bytes[id], id).toBeLessThan(id === "relief" ? 600_000 : 350_000);
+    for (const id of CHUNK_IDS)
+      expect(bytes[id], id).toBeLessThan(id === "relief" ? 600_000 : 350_000);
   });
 });
 
@@ -100,7 +109,17 @@ describe("the administrative units", () => {
     expect(overview.provinces.count).toBe(9);
     expect(detail.districts.count).toBe(94);
     expect(detail.municipalities.count).toBe(2092);
-    expect([...overview.provinces.ids]).toEqual(["AT-1", "AT-2", "AT-3", "AT-4", "AT-5", "AT-6", "AT-7", "AT-8", "AT-9"]);
+    expect([...overview.provinces.ids]).toEqual([
+      "AT-1",
+      "AT-2",
+      "AT-3",
+      "AT-4",
+      "AT-5",
+      "AT-6",
+      "AT-7",
+      "AT-8",
+      "AT-9",
+    ]);
   });
 
   it("have unique official codes, and names that are not unique", () => {
@@ -172,9 +191,17 @@ describe("the borders", () => {
     const { municipalities } = detail;
     const districtOf = municipalities.parent!;
     const levelOf = (a: number, b: number): number =>
-      a < 0 ? 0 : detail.provinceOf[a] !== detail.provinceOf[b] ? 1 : districtOf[a] !== districtOf[b] ? 2 : 3;
+      a < 0
+        ? 0
+        : detail.provinceOf[a] !== detail.provinceOf[b]
+          ? 1
+          : districtOf[a] !== districtOf[b]
+            ? 2
+            : 3;
     const upper = Array.from(detail.arcs.a, (a, arc) => levelOf(a, detail.arcs.b[arc]!));
-    const lower = Array.from(store.municipalArcs!.a, (a, arc) => levelOf(a, store.municipalArcs!.b[arc]!));
+    const lower = Array.from(store.municipalArcs!.a, (a, arc) =>
+      levelOf(a, store.municipalArcs!.b[arc]!),
+    );
     expect(new Set(upper)).toEqual(new Set([0, 1, 2]));
     expect(new Set(lower)).toEqual(new Set([3]));
     expect(upper).toEqual([...detail.level]);
@@ -204,12 +231,16 @@ describe("the borders", () => {
   });
 
   it("give every unit an outline that closes", () => {
-    for (let row = 0; row < 9; row += 1) expect(overview.index.rings(row).length, `province ${row}`).toBeGreaterThan(0);
-    for (let row = 0; row < 94; row += 1) expect(detail.districtIndex.rings(row).length, `district ${row}`).toBeGreaterThan(0);
+    for (let row = 0; row < 9; row += 1)
+      expect(overview.index.rings(row).length, `province ${row}`).toBeGreaterThan(0);
+    for (let row = 0; row < 94; row += 1)
+      expect(detail.districtIndex.rings(row).length, `district ${row}`).toBeGreaterThan(0);
     for (let row = 0; row < 2092; row += 1) {
       const arcs = municipalityIndex.arcsOf(row).length;
       expect(arcs, detail.municipalities.ids[row]).toBeGreaterThan(0);
-      expect(municipalityIndex.rings(row).length, detail.municipalities.ids[row]).toBeGreaterThan(0);
+      expect(municipalityIndex.rings(row).length, detail.municipalities.ids[row]).toBeGreaterThan(
+        0,
+      );
     }
   });
 });
@@ -244,7 +275,9 @@ describe("label points", () => {
     const { at, parent } = detail.municipalities;
     for (let row = 0; row < 2092; row += 1) {
       expect(detail.districtIndex.locate(at[row * 2]!, at[row * 2 + 1]!)).toBe(parent![row]);
-      expect(detail.provinceIndex.locate(at[row * 2]!, at[row * 2 + 1]!)).toBe(detail.provinceOf[row]);
+      expect(detail.provinceIndex.locate(at[row * 2]!, at[row * 2 + 1]!)).toBe(
+        detail.provinceOf[row],
+      );
     }
   });
 });
@@ -252,9 +285,10 @@ describe("label points", () => {
 describe("places", () => {
   it("lie inside the municipality they are filed under", () => {
     for (let row = 0; row < places.count; row += 1) {
-      expect(municipalityIndex.locate(places.at[row * 2]!, places.at[row * 2 + 1]!), places.names[row]).toBe(
-        places.municipality[row],
-      );
+      expect(
+        municipalityIndex.locate(places.at[row * 2]!, places.at[row * 2 + 1]!),
+        places.names[row],
+      ).toBe(places.municipality[row]);
     }
   });
 
@@ -268,14 +302,31 @@ describe("places", () => {
   it("mark Vienna and the eight provincial capitals", () => {
     const capitals = [...places.names].filter((_, row) => places.capital[row]! > 0);
     expect(capitals.sort()).toEqual(
-      ["Bregenz", "Eisenstadt", "Graz", "Innsbruck", "Klagenfurt am Wörthersee", "Linz", "Salzburg", "St. Pölten", "Wien"].sort(),
+      [
+        "Bregenz",
+        "Eisenstadt",
+        "Graz",
+        "Innsbruck",
+        "Klagenfurt am Wörthersee",
+        "Linz",
+        "Salzburg",
+        "St. Pölten",
+        "Wien",
+      ].sort(),
     );
     expect(places.capital[places.names.indexOf("Wien")]).toBe(2);
   });
 
   it("rank the six cities over 100 000 by today's population, Klagenfurt among them", () => {
     const large = [...places.names].filter((_, row) => places.rank[row]! >= 100_000);
-    expect(large).toEqual(["Wien", "Graz", "Linz", "Salzburg", "Innsbruck", "Klagenfurt am Wörthersee"]);
+    expect(large).toEqual([
+      "Wien",
+      "Graz",
+      "Linz",
+      "Salzburg",
+      "Innsbruck",
+      "Klagenfurt am Wörthersee",
+    ]);
   });
 
   it("give a place its municipality's population only where it is the municipality's namesake", () => {
@@ -333,12 +384,15 @@ describe("rivers", () => {
     expect(longest(2)).toBeGreaterThan(300);
   });
 
-  it.each(sets)("%s: every name has a length in Austria and the provinces it runs through", (_, rivers) => {
-    const length = rivers.facts.find((fact) => fact.key === "length")!;
-    expect(length.format).toBe("kilometres");
-    expect(length.values).toHaveLength(rivers.names.length);
-    expect(rivers.provinces).toHaveLength(rivers.names.length);
-  });
+  it.each(sets)(
+    "%s: every name has a length in Austria and the provinces it runs through",
+    (_, rivers) => {
+      const length = rivers.facts.find((fact) => fact.key === "length")!;
+      expect(length.format).toBe("kilometres");
+      expect(length.values).toHaveLength(rivers.names.length);
+      expect(rivers.provinces).toHaveLength(rivers.names.length);
+    },
+  );
 
   it("measures the rivers in Austria as published, in tenths of a kilometre", () => {
     const rivers = store.riversDetail!;
@@ -352,7 +406,9 @@ describe("rivers", () => {
     expect(km("Krems")).toBe(0);
     expect(rivers.provinces[rivers.names.indexOf("Krems")]).toBe(0);
     const provinces = (name: string): string[] =>
-      overview.provinces.names.filter((_, row) => (rivers.provinces[rivers.names.indexOf(name)]! & (1 << row)) !== 0);
+      overview.provinces.names.filter(
+        (_, row) => (rivers.provinces[rivers.names.indexOf(name)]! & (1 << row)) !== 0,
+      );
     expect(provinces("Mur")).toEqual(["Salzburg", "Steiermark"]);
     expect(provinces("Donau")).toEqual(["Niederösterreich", "Oberösterreich", "Wien"]);
   });
@@ -365,9 +421,14 @@ describe("rivers", () => {
   it("the overview holds the rivers of order 5 and up, the Danube as the only 9", () => {
     const rivers = overview.rivers;
     expect(Math.min(...rivers.order)).toBe(5);
-    const nines = new Set([...rivers.name].filter((_, line) => rivers.order[line] === 9).map((row) => rivers.names[row]));
+    const nines = new Set(
+      [...rivers.name]
+        .filter((_, line) => rivers.order[line] === 9)
+        .map((row) => rivers.names[row]),
+    );
     expect([...nines]).toEqual(["Donau"]);
-    for (const name of ["Donau", "Inn", "Salzach", "Mur", "Drau", "Enns", "Traun"]) expect(rivers.names).toContain(name);
+    for (const name of ["Donau", "Inn", "Salzach", "Mur", "Drau", "Enns", "Traun"])
+      expect(rivers.names).toContain(name);
   });
 
   it("the detail goes down to streams of order 3 and labels only what the overview does not", () => {
@@ -385,7 +446,11 @@ describe("rivers", () => {
     for (let line = 0; line < rivers.labels.count; line += 1) {
       // The closest-following stretches only; the smoother levels cover the same river again.
       if (rivers.labelName[line] !== row || rivers.labelLevel[line] !== 0) continue;
-      for (let point = rivers.labels.start[line]! + 1; point < rivers.labels.start[line + 1]!; point += 1) {
+      for (
+        let point = rivers.labels.start[line]! + 1;
+        point < rivers.labels.start[line + 1]!;
+        point += 1
+      ) {
         length += Math.hypot(
           rivers.labels.xy[point * 2]! - rivers.labels.xy[point * 2 - 2]!,
           rivers.labels.xy[point * 2 + 1]! - rivers.labels.xy[point * 2 - 1]!,
@@ -418,10 +483,12 @@ describe("terrain", () => {
       const areas = terrain.bands.map((band) => {
         expect(band.closed).toBe(true);
         let total = 0;
-        for (let ring = 0; ring < band.count; ring += 1) total += area(band.xy, band.start[ring]!, band.start[ring + 1]!);
+        for (let ring = 0; ring < band.count; ring += 1)
+          total += area(band.xy, band.start[ring]!, band.start[ring + 1]!);
         return total;
       });
-      for (let level = 1; level < areas.length; level += 1) expect(areas[level]!).toBeLessThan(areas[level - 1]!);
+      for (let level = 1; level < areas.length; level += 1)
+        expect(areas[level]!).toBeLessThan(areas[level - 1]!);
     }
   });
 });

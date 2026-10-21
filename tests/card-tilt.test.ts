@@ -5,11 +5,24 @@
  * WebGL renderer is put in its place: what is tested is the card around it,
  * the names and the pin drawn over it, and the hit test through it.
  */
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vite-plus/test";
 
 import { project } from "../src/map/projection.ts";
 import { FLAT, TILT_PITCH, View3D, type Orientation } from "../src/map/view3d.ts";
-import { $, fake, hassDe, key, mount, pageLoader, settle, setUp, tap, tearDown, tool, type CardInternals } from "./card-harness.ts";
+import {
+  $,
+  fake,
+  hassDe,
+  key,
+  mount,
+  pageLoader,
+  settle,
+  setUp,
+  tap,
+  tearDown,
+  tool,
+  type CardInternals,
+} from "./card-harness.ts";
 import { pinTip } from "./fake-canvas.ts";
 
 interface TiltInternals extends CardInternals {
@@ -20,7 +33,10 @@ interface TiltInternals extends CardInternals {
 }
 
 /** What the card asks of the WebGL renderer, recorded. */
-function stubGL(): { draws: View3D[]; lines: string[][]; drapes: string[]; lost: boolean } & Record<string, unknown> {
+function stubGL(): { draws: View3D[]; lines: string[][]; drapes: string[]; lost: boolean } & Record<
+  string,
+  unknown
+> {
   const stub = {
     draws: [] as View3D[],
     lines: [] as string[][],
@@ -47,9 +63,14 @@ afterEach(() => {
   delete globalThis.WebGL2RenderingContext;
 });
 
-async function mountTilting(config: Record<string, unknown> = {}): Promise<{ card: TiltInternals; gl: ReturnType<typeof stubGL> }> {
+async function mountTilting(
+  config: Record<string, unknown> = {},
+): Promise<{ card: TiltInternals; gl: ReturnType<typeof stubGL> }> {
   vi.stubGlobal("WebGL2RenderingContext", FakeWebGL2);
-  const card = (await mount(config, { ...hassDe, config: { latitude: 47.2692, longitude: 11.4041 } })) as TiltInternals;
+  const card = (await mount(config, {
+    ...hassDe,
+    config: { latitude: 47.2692, longitude: 11.4041 },
+  })) as TiltInternals;
   card._canTilt = true;
   const gl = stubGL();
   card._gl = gl;

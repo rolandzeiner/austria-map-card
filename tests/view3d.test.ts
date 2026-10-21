@@ -3,7 +3,7 @@
  * tilted, that the WebGL matrix and the names drawn over it agree, and that
  * a tap finds the ground point it was over.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import { fitScale, panBy, toScreen, type Camera } from "../src/map/camera.ts";
 import { project } from "../src/map/projection.ts";
@@ -51,7 +51,11 @@ describe("orientation", () => {
 describe("the 3D view", () => {
   it("shows ground at sea level where the flat map does, when not tilted", () => {
     const view = new View3D(camera, FLAT, size, undefined);
-    for (const [x, y] of [[330, 330], [300, 310], [360, 345]] as const) {
+    for (const [x, y] of [
+      [330, 330],
+      [300, 310],
+      [360, 345],
+    ] as const) {
       const [px, py] = view.project(x, y, 0)!;
       const [fx, fy] = toScreen(camera, size, x, y);
       expect(px).toBeCloseTo(fx, 3);
@@ -79,7 +83,10 @@ describe("the 3D view", () => {
     const view = new View3D(camera, tilted, size, relief);
     const m = view.matrix();
     const point = [345, 322, 4];
-    const clip = [0, 1, 2, 3].map((row) => m[row]! * point[0]! + m[4 + row]! * point[1]! + m[8 + row]! * point[2]! + m[12 + row]!);
+    const clip = [0, 1, 2, 3].map(
+      (row) =>
+        m[row]! * point[0]! + m[4 + row]! * point[1]! + m[8 + row]! * point[2]! + m[12 + row]!,
+    );
     const ndc = clip.map((value) => value / clip[3]!);
     const [px, py] = view.project(point[0]!, point[1]!, point[2]!)!;
     expect(((ndc[0]! + 1) / 2) * size.width).toBeCloseTo(px, 2);
@@ -89,7 +96,12 @@ describe("the 3D view", () => {
 
   it("finds the ground seen at a pixel, over the mountains too", () => {
     const view = new View3D(camera, tilted, size, relief);
-    for (const [px, py] of [[380, 200], [120, 330], [600, 90], [700, 380]] as const) {
+    for (const [px, py] of [
+      [380, 200],
+      [120, 330],
+      [600, 90],
+      [700, 380],
+    ] as const) {
       // A ridge in front hides what is behind it, so the point found is
       // the first ground the ray meets: it is seen at the same pixel.
       const picked = view.pick(px, py, relief)!;
@@ -115,7 +127,12 @@ describe("the 3D view", () => {
     const deep = { x: camera.x, y: camera.y, k: fitScale(size) * 40 };
     // Low over the Inn valley, looking south into the Stubai Alps.
     const [x, y] = project(47.2692, 11.4041);
-    const view = new View3D({ ...deep, x, y }, { pitch: MAX_PITCH, bearing: Math.PI }, size, relief);
+    const view = new View3D(
+      { ...deep, x, y },
+      { pitch: MAX_PITCH, bearing: Math.PI },
+      size,
+      relief,
+    );
     expect(view.eye[2]).toBeGreaterThan(groundZ(relief, view.eye[0], view.eye[1], view.stretch));
   });
 });
@@ -134,6 +151,10 @@ describe("moving a tilted map", () => {
   });
 
   it("keeps the centre on the map and the zoom in range", () => {
-    expect(clampTilted({ x: -50, y: 900, k: 1e-9 }, size)).toEqual({ x: 0, y: 530, k: fitScale(size) });
+    expect(clampTilted({ x: -50, y: 900, k: 1e-9 }, size)).toEqual({
+      x: 0,
+      y: 530,
+      k: fitScale(size),
+    });
   });
 });

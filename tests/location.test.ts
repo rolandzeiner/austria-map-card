@@ -2,7 +2,7 @@
  * Where the pin goes, from each source, and what happens when a source has
  * nothing to say.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import { locate, locationKey } from "../src/location.ts";
 import type { HomeAssistant } from "../src/types.ts";
@@ -13,7 +13,10 @@ const GRAZ = { latitude: 47.0707, longitude: 15.4395 };
 const hass: HomeAssistant = {
   config: LINZ,
   states: {
-    "person.anna": { state: "not_home", attributes: { latitude: GRAZ.latitude, longitude: GRAZ.longitude } },
+    "person.anna": {
+      state: "not_home",
+      attributes: { latitude: GRAZ.latitude, longitude: GRAZ.longitude },
+    },
     "person.ben": { state: "home", attributes: {} },
     "person.cleo": { state: "not_home", attributes: {} },
   },
@@ -48,7 +51,9 @@ describe("locate", () => {
   });
 
   it("ignores coordinates that are not numbers", () => {
-    const odd: HomeAssistant = { states: { "person.x": { state: "x", attributes: { latitude: "48", longitude: 14 } } } };
+    const odd: HomeAssistant = {
+      states: { "person.x": { state: "x", attributes: { latitude: "48", longitude: 14 } } },
+    };
     expect(locate(odd, "person.x", null)).toBeNull();
   });
 });
@@ -57,10 +62,17 @@ describe("locationKey", () => {
   it("changes when the entity moves, and only then", () => {
     const moved: HomeAssistant = {
       ...hass,
-      states: { ...hass.states, "person.anna": { state: "not_home", attributes: { latitude: 47.8, longitude: 13.04 } } },
+      states: {
+        ...hass.states,
+        "person.anna": { state: "not_home", attributes: { latitude: 47.8, longitude: 13.04 } },
+      },
     };
-    expect(locationKey(hass, "person.anna", null)).toBe(locationKey({ ...hass }, "person.anna", null));
-    expect(locationKey(moved, "person.anna", null)).not.toBe(locationKey(hass, "person.anna", null));
+    expect(locationKey(hass, "person.anna", null)).toBe(
+      locationKey({ ...hass }, "person.anna", null),
+    );
+    expect(locationKey(moved, "person.anna", null)).not.toBe(
+      locationKey(hass, "person.anna", null),
+    );
     expect(locationKey(hass, "person.nobody", null)).toBe("");
   });
 });

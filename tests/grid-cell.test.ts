@@ -8,7 +8,7 @@
  * the card take that height. happy-dom and node do no layout, so the guard
  * is on the CSS text.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import { cardStyles } from "../src/styles.ts";
 

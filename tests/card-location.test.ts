@@ -5,18 +5,30 @@
  * default, following an entity as it moves and this device once the
  * browser answers, and the toolbar button that goes to it.
  */
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vite-plus/test";
 
 import { toScreen } from "../src/map/camera.ts";
 import { project } from "../src/map/projection.ts";
-import { fake, hassDe, mount, settle, setUp, tearDown, tool, type CardInternals } from "./card-harness.ts";
+import {
+  fake,
+  hassDe,
+  mount,
+  settle,
+  setUp,
+  tearDown,
+  tool,
+  type CardInternals,
+} from "./card-harness.ts";
 import { pinTip } from "./fake-canvas.ts";
 
 const LINZ = { latitude: 48.3069, longitude: 14.2858 };
 const GRAZ = { latitude: 47.0707, longitude: 15.4395 };
 const SALZBURG = { latitude: 47.8095, longitude: 13.055 };
 
-const hassAt = (home: typeof LINZ, states: Record<string, unknown> = {}): Record<string, unknown> => ({
+const hassAt = (
+  home: typeof LINZ,
+  states: Record<string, unknown> = {},
+): Record<string, unknown> => ({
   ...hassDe,
   config: home,
   states,
@@ -34,8 +46,16 @@ async function drawnPin(card: CardInternals): Promise<[number, number] | undefin
   return pinTip(fake);
 }
 
-function expectPinAt(card: CardInternals, tip: [number, number] | undefined, where: typeof LINZ): void {
-  const [x, y] = toScreen(card._camera!, { width: 760, height: 403 }, ...project(where.latitude, where.longitude));
+function expectPinAt(
+  card: CardInternals,
+  tip: [number, number] | undefined,
+  where: typeof LINZ,
+): void {
+  const [x, y] = toScreen(
+    card._camera!,
+    { width: 760, height: 403 },
+    ...project(where.latitude, where.longitude),
+  );
   expect(tip?.[0]).toBeCloseTo(x);
   expect(tip?.[1]).toBeCloseTo(y);
 }
@@ -61,17 +81,26 @@ describe("the pin", () => {
   });
 
   it("follows an entity as it moves, without anything else changing", async () => {
-    const card = await mount({ show_location: true, location: "person.anna" }, hassAt(LINZ, { "person.anna": away(GRAZ) }));
+    const card = await mount(
+      { show_location: true, location: "person.anna" },
+      hassAt(LINZ, { "person.anna": away(GRAZ) }),
+    );
     expectPinAt(card, await drawnPin(card), GRAZ);
     card.hass = hassAt(LINZ, { "person.anna": away(SALZBURG) });
     expectPinAt(card, await drawnPin(card), SALZBURG);
   });
 
   it("does not redraw for state changes elsewhere in the house", async () => {
-    const card = await mount({ show_location: true, location: "person.anna" }, hassAt(LINZ, { "person.anna": away(GRAZ) }));
+    const card = await mount(
+      { show_location: true, location: "person.anna" },
+      hassAt(LINZ, { "person.anna": away(GRAZ) }),
+    );
     await settle(card);
     const renders = vi.spyOn(card as unknown as { render(): unknown }, "render");
-    card.hass = hassAt(LINZ, { "person.anna": away(GRAZ), "light.kitchen": { state: "on", attributes: {} } });
+    card.hass = hassAt(LINZ, {
+      "person.anna": away(GRAZ),
+      "light.kitchen": { state: "on", attributes: {} },
+    });
     await settle(card);
     expect(renders).not.toHaveBeenCalled();
   });
@@ -91,7 +120,12 @@ describe("the pin", () => {
 });
 
 describe("this device", () => {
-  function stubGeolocation(): { report(where: typeof LINZ): void; refuse(): void; watchPosition: ReturnType<typeof vi.fn>; clearWatch: ReturnType<typeof vi.fn> } {
+  function stubGeolocation(): {
+    report(where: typeof LINZ): void;
+    refuse(): void;
+    watchPosition: ReturnType<typeof vi.fn>;
+    clearWatch: ReturnType<typeof vi.fn>;
+  } {
     let ok: ((fix: { coords: typeof LINZ }) => void) | undefined;
     let fail: ((error: { message: string }) => void) | undefined;
     const watchPosition = vi.fn((success, error) => {
@@ -100,8 +134,16 @@ describe("this device", () => {
       return 7;
     });
     const clearWatch = vi.fn();
-    Object.defineProperty(navigator, "geolocation", { value: { watchPosition, clearWatch }, configurable: true });
-    return { report: (where) => ok?.({ coords: where }), refuse: () => fail?.({ message: "denied" }), watchPosition, clearWatch };
+    Object.defineProperty(navigator, "geolocation", {
+      value: { watchPosition, clearWatch },
+      configurable: true,
+    });
+    return {
+      report: (where) => ok?.({ coords: where }),
+      refuse: () => fail?.({ message: "denied" }),
+      watchPosition,
+      clearWatch,
+    };
   }
 
   it("asks the browser only when the pin follows this device", async () => {

@@ -1,6 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
-import { DARK_THEME, LIGHT_THEME, css, derivePalette, mix, parseColour } from "../src/map/palette.ts";
+import {
+  DARK_THEME,
+  LIGHT_THEME,
+  css,
+  derivePalette,
+  mix,
+  parseColour,
+} from "../src/map/palette.ts";
 
 const luminance = (colour: string): number => {
   const [r, g, b] = parseColour(colour) as readonly [number, number, number];
@@ -43,13 +50,15 @@ describe("the palette", () => {
 
   it("darkens the terrain with height on a light theme", () => {
     const shades = [400, 1000, 1600, 2500].map((level) => luminance(light.band(level)));
-    for (let index = 1; index < shades.length; index += 1) expect(shades[index]!).toBeLessThan(shades[index - 1]!);
+    for (let index = 1; index < shades.length; index += 1)
+      expect(shades[index]!).toBeLessThan(shades[index - 1]!);
     expect(shades[0]!).toBeLessThan(luminance(light.land));
   });
 
   it("lightens the terrain with height on a dark theme", () => {
     const shades = [400, 1000, 1600, 2500].map((level) => luminance(dark.band(level)));
-    for (let index = 1; index < shades.length; index += 1) expect(shades[index]!).toBeGreaterThan(shades[index - 1]!);
+    for (let index = 1; index < shades.length; index += 1)
+      expect(shades[index]!).toBeGreaterThan(shades[index - 1]!);
     expect(shades[0]!).toBeGreaterThan(luminance(dark.land));
   });
 
@@ -61,7 +70,8 @@ describe("the palette", () => {
 
   it("draws heavier borders darker: country, province, district, municipality", () => {
     for (const palette of [light, dark]) {
-      const contrast = (colour: string): number => Math.abs(luminance(colour) - luminance(palette.land));
+      const contrast = (colour: string): number =>
+        Math.abs(luminance(colour) - luminance(palette.land));
       expect(contrast(palette.outline)).toBeGreaterThan(contrast(palette.province));
       expect(contrast(palette.province)).toBeGreaterThan(contrast(palette.district));
       expect(contrast(palette.district)).toBeGreaterThan(contrast(palette.municipality));
@@ -71,7 +81,9 @@ describe("the palette", () => {
 
   it("keeps names readable on the highest ground", () => {
     for (const palette of [light, dark]) {
-      expect(Math.abs(luminance(palette.label) - luminance(palette.band(2500)))).toBeGreaterThan(110);
+      expect(Math.abs(luminance(palette.label) - luminance(palette.band(2500)))).toBeGreaterThan(
+        110,
+      );
     }
   });
 

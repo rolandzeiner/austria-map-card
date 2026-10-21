@@ -5,7 +5,7 @@
  * shows ha-form the config with every default filled in, and answers each
  * change with a `config-changed` event carrying only what differs.
  */
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vite-plus/test";
 
 import "../src/editor.ts";
 import type { HaFormSchema } from "../src/types.ts";
@@ -24,7 +24,10 @@ interface FormElement extends HTMLElement {
 
 const TYPE = "custom:austria-map-card";
 
-async function mount(config: Record<string, unknown>, language = "de"): Promise<{ editor: EditorElement; form: FormElement }> {
+async function mount(
+  config: Record<string, unknown>,
+  language = "de",
+): Promise<{ editor: EditorElement; form: FormElement }> {
   const editor = document.createElement("austria-map-card-editor") as unknown as EditorElement;
   editor.hass = { locale: { language } };
   editor.setConfig(config);
@@ -34,12 +37,18 @@ async function mount(config: Record<string, unknown>, language = "de"): Promise<
 }
 
 /** What Lovelace receives when ha-form reports a change. */
-async function change(editor: EditorElement, form: FormElement, value: Record<string, unknown>): Promise<Record<string, unknown>> {
+async function change(
+  editor: EditorElement,
+  form: FormElement,
+  value: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
   let saved: Record<string, unknown> = {};
   editor.addEventListener("config-changed", (event) => {
     saved = (event as CustomEvent<{ config: Record<string, unknown> }>).detail.config;
   });
-  form.dispatchEvent(new CustomEvent("value-changed", { detail: { value }, bubbles: true, composed: true }));
+  form.dispatchEvent(
+    new CustomEvent("value-changed", { detail: { value }, bubbles: true, composed: true }),
+  );
   await editor.updateComplete;
   return saved;
 }
@@ -121,7 +130,10 @@ describe("the editor", () => {
   it("keeps options it does not know, such as the grid options Lovelace adds", async () => {
     const config = { type: TYPE, grid_options: { columns: 12, rows: 8 }, view: "AT-2" };
     const { editor, form } = await mount(config);
-    expect(await change(editor, form, { ...form.data, show_labels: false })).toEqual({ ...config, show_labels: false });
+    expect(await change(editor, form, { ...form.data, show_labels: false })).toEqual({
+      ...config,
+      show_labels: false,
+    });
   });
 
   it("still opens on a config the card rejects, so it can be repaired", async () => {
@@ -133,7 +145,10 @@ describe("the editor", () => {
   it("asks where the pin comes from once the pin is switched on", async () => {
     const { editor, form } = await mount({ type: TYPE });
     expect(form.schema.map((field) => field.name)).not.toContain("location");
-    expect(await change(editor, form, { ...form.data, show_location: true })).toEqual({ type: TYPE, show_location: true });
+    expect(await change(editor, form, { ...form.data, show_location: true })).toEqual({
+      type: TYPE,
+      show_location: true,
+    });
     expect(form.schema.map((field) => field.name)).toContain("location");
     expect(form.data.location).toBe("home");
   });
@@ -145,16 +160,24 @@ describe("the editor", () => {
       show_location: true,
       location: "device",
     });
-    expect(await change(editor, form, { ...form.data, location: "home" })).toEqual({ type: TYPE, show_location: true });
+    expect(await change(editor, form, { ...form.data, location: "home" })).toEqual({
+      type: TYPE,
+      show_location: true,
+    });
   });
 
   it("offers the entity picker for a person or tracker, and saves the entity as the source", async () => {
     const { editor, form } = await mount({ type: TYPE, show_location: true });
     // Chosen, nothing picked yet: the picker stays, the config stays on home.
-    expect(await change(editor, form, { ...form.data, location: "entity" })).toEqual({ type: TYPE, show_location: true });
+    expect(await change(editor, form, { ...form.data, location: "entity" })).toEqual({
+      type: TYPE,
+      show_location: true,
+    });
     expect(form.data.location).toBe("entity");
     const picker = form.schema.find((field) => field.name === "location_entity");
-    expect(picker?.selector).toEqual({ entity: { filter: [{ domain: "person" }, { domain: "device_tracker" }] } });
+    expect(picker?.selector).toEqual({
+      entity: { filter: [{ domain: "person" }, { domain: "device_tracker" }] },
+    });
     expect(await change(editor, form, { ...form.data, location_entity: "person.anna" })).toEqual({
       type: TYPE,
       show_location: true,
@@ -163,8 +186,15 @@ describe("the editor", () => {
   });
 
   it("shows a saved entity as a person or tracker, with the entity picked", async () => {
-    const { editor, form } = await mount({ type: TYPE, show_location: true, location: "device_tracker.phone" });
-    expect(form.data).toMatchObject({ location: "entity", location_entity: "device_tracker.phone" });
+    const { editor, form } = await mount({
+      type: TYPE,
+      show_location: true,
+      location: "device_tracker.phone",
+    });
+    expect(form.data).toMatchObject({
+      location: "entity",
+      location_entity: "device_tracker.phone",
+    });
     // Unrelated edits keep the entity.
     expect(await change(editor, form, { ...form.data, show_labels: false })).toEqual({
       type: TYPE,

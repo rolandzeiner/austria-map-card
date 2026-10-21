@@ -6,7 +6,7 @@
  * every default. These tests pin the fix in config.ts: the display side
  * fills every default in, the save side takes them back out.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import { DEFAULTS, normaliseConfig, tidyConfig } from "../src/config.ts";
 
@@ -56,7 +56,9 @@ describe("editor defaults", () => {
 
   it("takes an entity id as the pin's source", () => {
     expect(normaliseConfig({ type: TYPE, location: "person.anna" }).location).toBe("person.anna");
-    expect(normaliseConfig({ type: TYPE, location: "device_tracker.pixel_8" }).location).toBe("device_tracker.pixel_8");
+    expect(normaliseConfig({ type: TYPE, location: "device_tracker.pixel_8" }).location).toBe(
+      "device_tracker.pixel_8",
+    );
   });
 
   it("round-trips an untouched config unchanged", () => {
@@ -67,7 +69,10 @@ describe("editor defaults", () => {
 
 describe("config validation", () => {
   it.each([
-    [{ layers: ["roads"] }, /"layers" must be a list of: terrain, rivers, municipalities, districts, provinces, main_roads, motorways, peaks, cities/],
+    [
+      { layers: ["roads"] },
+      /"layers" must be a list of: terrain, rivers, municipalities, districts, provinces, main_roads, motorways, peaks, cities/,
+    ],
     [{ layers: "terrain" }, /"layers" must be a list of/],
     [{ view: "AT-10" }, /"view" must be one of: austria, AT-1/],
     [{ show_labels: "yes" }, /"show_labels" must be true or false/],

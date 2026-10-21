@@ -2,7 +2,7 @@
  * The summits: what the data holds, which of them the map names at which
  * scale, and what a tap on one says.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import { describeFeature } from "../src/layers/info.ts";
 import { fitScale, homeCamera, type Camera } from "../src/map/camera.ts";
@@ -21,7 +21,13 @@ function draw(camera: Camera): { texts: string[]; renderer: MapRenderer; state: 
   const renderer = new MapRenderer(fakeCanvas(fake), store, fakePath);
   renderer.resize(size.width, size.height, 1);
   renderer.setPalette(derivePalette(LIGHT_THEME));
-  const state: RenderState = { camera, layers: new Set(["peaks"]), showLabels: true, selection: null, here: null };
+  const state: RenderState = {
+    camera,
+    layers: new Set(["peaks"]),
+    showLabels: true,
+    selection: null,
+    here: null,
+  };
   renderer.draw(state);
   return { texts: fake.texts(), renderer, state };
 }

@@ -1,13 +1,27 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import { labelStretches, resample, smoothLine, type LabelOptions } from "./label-lines.ts";
 import { lengthOf, type Point } from "./topology.ts";
 
-const options: LabelOptions = { step: 0.5, smoothing: 2, maxTurn: 50, turnSpan: 3, minLength: 10, tolerance: 0.1 };
+const options: LabelOptions = {
+  step: 0.5,
+  smoothing: 2,
+  maxTurn: 50,
+  turnSpan: 3,
+  minLength: 10,
+  tolerance: 0.1,
+};
 
 describe("resampling", () => {
   it("spaces points evenly and keeps both ends", () => {
-    const points = resample([[0, 0], [3, 0], [3, 7]], 1);
+    const points = resample(
+      [
+        [0, 0],
+        [3, 0],
+        [3, 7],
+      ],
+      1,
+    );
     expect(points).toHaveLength(11);
     expect(points[0]).toEqual([0, 0]);
     expect(points[10]).toEqual([3, 7]);
@@ -18,7 +32,10 @@ describe("resampling", () => {
 
 describe("smoothing", () => {
   it("irons out a zigzag and leaves the ends alone", () => {
-    const zigzag: Point[] = Array.from({ length: 41 }, (_, index) => [index, index % 2 === 0 ? 1 : -1]);
+    const zigzag: Point[] = Array.from({ length: 41 }, (_, index) => [
+      index,
+      index % 2 === 0 ? 1 : -1,
+    ]);
     const smooth = smoothLine(zigzag, 4, 2);
     expect(smooth[0]).toEqual(zigzag[0]);
     expect(smooth[40]).toEqual(zigzag[40]);
@@ -30,9 +47,18 @@ describe("label stretches", () => {
   it("joins a river's pieces and runs the stretch left to right", () => {
     // Three pieces of a west-flowing river, out of order and direction.
     const pieces: Point[][] = [
-      [[40, 10], [20, 12]],
-      [[60, 9], [40, 10]],
-      [[0, 11], [20, 12]],
+      [
+        [40, 10],
+        [20, 12],
+      ],
+      [
+        [60, 9],
+        [40, 10],
+      ],
+      [
+        [0, 11],
+        [20, 12],
+      ],
     ];
     const stretches = labelStretches(pieces, options);
     expect(stretches).toHaveLength(1);
@@ -43,7 +69,13 @@ describe("label stretches", () => {
   });
 
   it("cuts at a sharp bend, so no name is set round a corner", () => {
-    const elbow: Point[][] = [[[0, 0], [40, 0], [40, 40]]];
+    const elbow: Point[][] = [
+      [
+        [0, 0],
+        [40, 0],
+        [40, 40],
+      ],
+    ];
     const stretches = labelStretches(elbow, options);
     expect(stretches).toHaveLength(2);
     for (const stretch of stretches) {
@@ -65,11 +97,29 @@ describe("label stretches", () => {
   });
 
   it("has no stretch for a brook too short to carry a name", () => {
-    expect(labelStretches([[[0, 0], [4, 1]]], options)).toEqual([]);
+    expect(
+      labelStretches(
+        [
+          [
+            [0, 0],
+            [4, 1],
+          ],
+        ],
+        options,
+      ),
+    ).toEqual([]);
   });
 
   it("thins the stretch: a straight river needs two points", () => {
-    const [stretch] = labelStretches([[[0, 0], [100, 0]]], options);
+    const [stretch] = labelStretches(
+      [
+        [
+          [0, 0],
+          [100, 0],
+        ],
+      ],
+      options,
+    );
     expect(stretch).toHaveLength(2);
   });
 });

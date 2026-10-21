@@ -2,7 +2,7 @@
  * The roads, motorways and main roads: what the data holds, how they are
  * drawn and lettered, and what a tap on one says.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import { describeFeature } from "../src/layers/info.ts";
 import { roadBox, roadNear } from "../src/layers/roads.ts";
@@ -20,12 +20,21 @@ const motorways = store.motorways!;
 const palette = derivePalette(LIGHT_THEME);
 const size = { width: 760, height: 403 };
 
-function draw(camera: Camera, layers: LayerId[] = ["motorways"]): ReturnType<typeof fakeContext> & { renderer: MapRenderer; state: RenderState } {
+function draw(
+  camera: Camera,
+  layers: LayerId[] = ["motorways"],
+): ReturnType<typeof fakeContext> & { renderer: MapRenderer; state: RenderState } {
   const fake = fakeContext();
   const renderer = new MapRenderer(fakeCanvas(fake), store, fakePath);
   renderer.resize(size.width, size.height, 1);
   renderer.setPalette(palette);
-  const state: RenderState = { camera, layers: new Set(layers), showLabels: true, selection: null, here: null };
+  const state: RenderState = {
+    camera,
+    layers: new Set(layers),
+    showLabels: true,
+    selection: null,
+    here: null,
+  };
   renderer.draw(state);
   return { ...fake, renderer, state };
 }
@@ -59,10 +68,13 @@ describe("drawing motorways", () => {
   });
 
   it("letters route shields, a long route twice at most on the whole country", () => {
-    const shields = draw(homeCamera(size)).texts().filter((text) => /^[AS]\d+$/.test(text));
+    const shields = draw(homeCamera(size))
+      .texts()
+      .filter((text) => /^[AS]\d+$/.test(text));
     expect(shields).toContain("A1");
     expect(shields.length).toBeLessThanOrEqual(16);
-    for (const ref of new Set(shields)) expect(shields.filter((shield) => shield === ref).length).toBeLessThanOrEqual(2);
+    for (const ref of new Set(shields))
+      expect(shields.filter((shield) => shield === ref).length).toBeLessThanOrEqual(2);
   });
 
   it("draws no shields with names off", () => {
@@ -70,7 +82,13 @@ describe("drawing motorways", () => {
     const renderer = new MapRenderer(fakeCanvas(fake), store, fakePath);
     renderer.resize(size.width, size.height, 1);
     renderer.setPalette(palette);
-    renderer.draw({ camera: homeCamera(size), layers: new Set(["motorways"]), showLabels: false, selection: null, here: null });
+    renderer.draw({
+      camera: homeCamera(size),
+      layers: new Set(["motorways"]),
+      showLabels: false,
+      selection: null,
+      here: null,
+    });
     expect(fake.texts()).toEqual([]);
   });
 });
@@ -88,7 +106,10 @@ describe("a tapped motorway", () => {
     const [px, py] = toScreen(camera, size, x, y);
     const hit = renderer.hit(state, px, py + 2)!;
     expect(hit).toEqual({ kind: "road", ref: "A1" });
-    expect(describeFeature(store, hit)).toMatchObject({ name: "A1 · West Autobahn", kind: "kinds.motorway" });
+    expect(describeFeature(store, hit)).toMatchObject({
+      name: "A1 · West Autobahn",
+      kind: "kinds.motorway",
+    });
     expect(describeFeature(store, { kind: "road", ref: "S6" })?.kind).toBe("kinds.expressway");
   });
 
@@ -96,10 +117,15 @@ describe("a tapped motorway", () => {
     const info = describeFeature(store, { kind: "road", ref: "A1" })!;
     expect(info.parents).toEqual(["Niederösterreich", "Oberösterreich", "Salzburg", "Wien"]);
     expect(info.facts).toEqual([
-      expect.objectContaining({ label: "facts.length", format: "kilometres", source: expect.objectContaining({ holder: "BEV" }) }),
+      expect.objectContaining({
+        label: "facts.length",
+        format: "kilometres",
+        source: expect.objectContaining({ holder: "BEV" }),
+      }),
     ]);
     // Published lengths: A1 292 km, S6 105 km, A10 192 km. Tenths of a kilometre.
-    const km = (ref: string): number => describeFeature(store, { kind: "road", ref })!.facts[0]!.value / 10;
+    const km = (ref: string): number =>
+      describeFeature(store, { kind: "road", ref })!.facts[0]!.value / 10;
     expect(km("A1")).toBeCloseTo(292, -1);
     expect(km("S6")).toBeCloseTo(105, -1);
     expect(km("A10")).toBeCloseTo(192, -1);
@@ -134,12 +160,15 @@ describe("main roads", () => {
     expect(roads.refs).toContain("B317");
     expect(roads.refs).toContain("B1");
     expect(roads.refs.length).toBeGreaterThan(200);
-    expect(describeFeature(store, { kind: "road", ref: "B1" })).toMatchObject({ kind: "kinds.main_road" });
+    expect(describeFeature(store, { kind: "road", ref: "B1" })).toMatchObject({
+      kind: "kinds.main_road",
+    });
   });
 
   it("count a hairpin road in full: the Glocknerstraße is not halved", () => {
     // The B3 Donau Straße is published at 195 km; the B107 runs some 35 km on the map's data.
-    const km = (ref: string): number => describeFeature(store, { kind: "road", ref })!.facts[0]!.value / 10;
+    const km = (ref: string): number =>
+      describeFeature(store, { kind: "road", ref })!.facts[0]!.value / 10;
     expect(km("B3")).toBeCloseTo(195, -1);
     expect(km("B107")).toBeGreaterThan(33);
   });
@@ -153,18 +182,26 @@ describe("main roads", () => {
         .filter((style) => style === palette.road || style === palette.roadCasing);
     expect(roadStrokes(homeCamera(size))).toEqual([palette.roadCasing]);
     const [x, y] = project(47.17, 14.66);
-    expect(roadStrokes({ x, y, k: fitScale(size) * 4 })).toEqual([palette.roadCasing, palette.road]);
+    expect(roadStrokes({ x, y, k: fitScale(size) * 4 })).toEqual([
+      palette.roadCasing,
+      palette.road,
+    ]);
   });
 
   it("get shields only once zoomed in", () => {
-    const shields = (camera: Camera): string[] => draw(camera, ["main_roads"]).texts().filter((text) => /^B\d+/.test(text));
+    const shields = (camera: Camera): string[] =>
+      draw(camera, ["main_roads"])
+        .texts()
+        .filter((text) => /^B\d+/.test(text));
     expect(shields(homeCamera(size))).toEqual([]);
     const [x, y] = project(47.17, 14.66);
     expect(shields({ x, y, k: fitScale(size) * 6 }).length).toBeGreaterThan(0);
   });
 
   it("lie under the motorways, on the tilted map too", () => {
-    const keys = reliefLines(store, new Set(["main_roads", "motorways"]), 3, null, palette).map((set) => set.key);
+    const keys = reliefLines(store, new Set(["main_roads", "motorways"]), 3, null, palette).map(
+      (set) => set.key,
+    );
     expect(keys.indexOf("roads:main")).toBeLessThan(keys.indexOf("roads:motorway"));
   });
 
@@ -172,6 +209,8 @@ describe("main roads", () => {
     const line = store.motorways!.route.indexOf(store.motorways!.refs.indexOf("A1"));
     const xy = store.motorways!.lines.xy;
     const at = store.motorways!.lines.start[line]! + 40;
-    expect(roadNear(store, new Set(["motorways", "main_roads"]), xy[at * 2]!, xy[at * 2 + 1]!, 1)).toBe("A1");
+    expect(
+      roadNear(store, new Set(["motorways", "main_roads"]), xy[at * 2]!, xy[at * 2 + 1]!, 1),
+    ).toBe("A1");
   });
 });

@@ -1,7 +1,7 @@
 /**
  * Which lines the tilted map draws, and how they are cut to follow the ground.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import type { Lines } from "../src/data/format.ts";
 import { LIGHT_THEME, derivePalette } from "../src/map/palette.ts";
@@ -11,12 +11,20 @@ import { storeWith } from "./chunks.ts";
 
 const palette = derivePalette(LIGHT_THEME);
 const store = storeWith();
-const keys = (layers: LayerId[], scale: number, selection = null as Parameters<typeof reliefLines>[3]): string[] =>
-  reliefLines(store, new Set(layers), scale, selection, palette).map((set) => set.key);
+const keys = (
+  layers: LayerId[],
+  scale: number,
+  selection = null as Parameters<typeof reliefLines>[3],
+): string[] => reliefLines(store, new Set(layers), scale, selection, palette).map((set) => set.key);
 
 describe("segments", () => {
   it("cuts long steps so a line follows the ground between cells", () => {
-    const line: Lines = { xy: Float32Array.from([0, 0, 2, 0]), start: Uint32Array.from([0, 2]), count: 1, closed: false };
+    const line: Lines = {
+      xy: Float32Array.from([0, 0, 2, 0]),
+      start: Uint32Array.from([0, 2]),
+      count: 1,
+      closed: false,
+    };
     const segments = segmentsOf(line, () => true);
     expect(segments.length / 4).toBe(4);
     expect([...segments.slice(0, 4)]).toEqual([0, 0, 0.5, 0]);
@@ -41,10 +49,16 @@ describe("segments", () => {
     const segments = segmentsOf(line, () => true);
     expect(segments.length / 4).toBeGreaterThan(10);
     for (let at = 0; at < segments.length; at += 4) {
-      const [x1, y1, x2, y2] = segments.slice(at, at + 4) as unknown as [number, number, number, number];
+      const [x1, y1, x2, y2] = segments.slice(at, at + 4) as unknown as [
+        number,
+        number,
+        number,
+        number,
+      ];
       const point = (t: number): [number, number] => [x1 + (x2 - x1) * t, y1 + (y2 - y1) * t];
       // The coarse mesh of the whole-country view too.
-      for (const stride of [1, 2]) expect(triangle(...point(0.25), stride)).toBe(triangle(...point(0.75), stride));
+      for (const stride of [1, 2])
+        expect(triangle(...point(0.25), stride)).toBe(triangle(...point(0.75), stride));
     }
   });
 
@@ -84,7 +98,13 @@ describe("the lines of the tilted map", () => {
     expect(area.key).toBe("selected:province:2:coarse");
     expect(area.segments().length).toBeGreaterThan(0);
     expect(area.colour).toEqual([3, 169, 244]);
-    const river = reliefLines(store, new Set(["rivers"]), 1, { kind: "river", name: "Donau", order: 9 }, palette).at(-1)!;
+    const river = reliefLines(
+      store,
+      new Set(["rivers"]),
+      1,
+      { kind: "river", name: "Donau", order: 9 },
+      palette,
+    ).at(-1)!;
     expect(river.key).toMatch(/^selected:river:Donau:overview/);
   });
 

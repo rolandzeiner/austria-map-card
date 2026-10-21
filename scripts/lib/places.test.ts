@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import { classFloor, nameKey, rankPlaces } from "./places.ts";
 
@@ -32,7 +32,13 @@ describe("the BEV's size classes", () => {
 describe("ranking", () => {
   const municipalities = ["Klagenfurt am Wörthersee", "Baden", "Ebenthal"];
   const population = [104_000, 26_000, 8_000];
-  const place = (name: string, kind: 0 | 1 | 2, sizeClass: string, municipality: number, x = 0) => ({
+  const place = (
+    name: string,
+    kind: 0 | 1 | 2,
+    sizeClass: string,
+    municipality: number,
+    x = 0,
+  ) => ({
     name,
     kind,
     sizeClass,
@@ -43,7 +49,10 @@ describe("ranking", () => {
 
   it("ranks a municipality's namesake by the official population, not by the BEV's stale class", () => {
     const ranked = rankPlaces(
-      [place("Baden", 0, "25.000-100.000", 1), place("Klagenfurt am Wörthersee", 0, "25.000-100.000", 0)],
+      [
+        place("Baden", 0, "25.000-100.000", 1),
+        place("Klagenfurt am Wörthersee", 0, "25.000-100.000", 0),
+      ],
       municipalities,
       population,
     );
@@ -55,17 +64,29 @@ describe("ranking", () => {
 
   it("keeps a part of a municipality below the place the municipality is named after", () => {
     const ranked = rankPlaces(
-      [place("Viktring", 2, "5.000-25.000", 0), place("Klagenfurt am Wörthersee", 0, "25.000-100.000", 0), place("Gurnitz", 2, "< 2.000", 2)],
+      [
+        place("Viktring", 2, "5.000-25.000", 0),
+        place("Klagenfurt am Wörthersee", 0, "25.000-100.000", 0),
+        place("Gurnitz", 2, "< 2.000", 2),
+      ],
       municipalities,
       population,
     );
-    expect(ranked.map((entry) => entry.name)).toEqual(["Klagenfurt am Wörthersee", "Viktring", "Gurnitz"]);
+    expect(ranked.map((entry) => entry.name)).toEqual([
+      "Klagenfurt am Wörthersee",
+      "Viktring",
+      "Gurnitz",
+    ]);
     expect(ranked[1]).toMatchObject({ seat: false, rank: 5_000 });
     expect(ranked[2]).toMatchObject({ seat: false, rank: 0 });
   });
 
   it("caps a part at half its municipality, however large its class", () => {
-    const [part] = rankPlaces([place("Reichenau", 2, "5.000-25.000", 2)], municipalities, population);
+    const [part] = rankPlaces(
+      [place("Reichenau", 2, "5.000-25.000", 2)],
+      municipalities,
+      population,
+    );
     expect(part).toMatchObject({ rank: 4_000, seat: false });
   });
 
@@ -80,9 +101,17 @@ describe("ranking", () => {
   });
 
   it("orders equals the same way on every run", () => {
-    const list = [place("B", 2, "< 2.000", 2, 5), place("A", 2, "< 2.000", 2, 9), place("A", 2, "< 2.000", 2, 3)];
-    const once = rankPlaces(list, municipalities, population).map((entry) => `${entry.name}${entry.x}`);
-    const again = rankPlaces([...list].reverse(), municipalities, population).map((entry) => `${entry.name}${entry.x}`);
+    const list = [
+      place("B", 2, "< 2.000", 2, 5),
+      place("A", 2, "< 2.000", 2, 9),
+      place("A", 2, "< 2.000", 2, 3),
+    ];
+    const once = rankPlaces(list, municipalities, population).map(
+      (entry) => `${entry.name}${entry.x}`,
+    );
+    const again = rankPlaces([...list].reverse(), municipalities, population).map(
+      (entry) => `${entry.name}${entry.x}`,
+    );
     expect(once).toEqual(["A3", "A9", "B5"]);
     expect(again).toEqual(once);
   });

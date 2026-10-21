@@ -1,5 +1,5 @@
 /** The terrain pipeline, piece by piece, on grids small enough to read. */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import {
   GridAccumulator,
@@ -99,7 +99,14 @@ describe("smooth", () => {
   });
 
   it("spreads a single peak without changing the total much", () => {
-    const peak = smooth(grid([[0, 0, 0], [0, 90, 0], [0, 0, 0]]), 1);
+    const peak = smooth(
+      grid([
+        [0, 0, 0],
+        [0, 90, 0],
+        [0, 0, 0],
+      ]),
+      1,
+    );
     expect(peak.values[4]).toBeLessThan(90);
     expect(peak.values[0]).toBeGreaterThan(0);
   });
@@ -107,7 +114,15 @@ describe("smooth", () => {
 
 describe("isoRings", () => {
   it("draws one ring around a single high cell, half-way to its neighbours", () => {
-    const rings = isoRings(grid([[0, 0, 0], [0, 100, 0], [0, 0, 0]]), 50, 10);
+    const rings = isoRings(
+      grid([
+        [0, 0, 0],
+        [0, 100, 0],
+        [0, 0, 0],
+      ]),
+      50,
+      10,
+    );
     expect(rings).toHaveLength(1);
     const xs = rings[0]?.map(([x]) => x) ?? [];
     const ys = rings[0]?.map(([, y]) => y) ?? [];
@@ -119,13 +134,27 @@ describe("isoRings", () => {
 
   it("places the outline where the height crosses the level", () => {
     // 0 at x = 5, 100 at x = 15: the 25 m line is a quarter of the way.
-    const rings = isoRings(grid([[0, 100], [0, 100]]), 25, 10);
+    const rings = isoRings(
+      grid([
+        [0, 100],
+        [0, 100],
+      ]),
+      25,
+      10,
+    );
     const crossing = rings[0]?.find(([x, y]) => x < 15 && y === 5);
     expect(crossing?.[0]).toBeCloseTo(7.5, 6);
   });
 
   it("closes outlines that run into the edge of the data", () => {
-    const rings = isoRings(grid([[100, 100], [100, N]]), 50, 10);
+    const rings = isoRings(
+      grid([
+        [100, 100],
+        [100, N],
+      ]),
+      50,
+      10,
+    );
     expect(rings).toHaveLength(1);
     expect(rings[0]?.length).toBeGreaterThanOrEqual(4);
   });
@@ -137,12 +166,39 @@ describe("isoRings", () => {
   });
 
   it("joins two diagonal peaks only when the saddle between them is high", () => {
-    expect(isoRings(grid([[100, 0], [0, 100]]), 40, 10)).toHaveLength(1);
-    expect(isoRings(grid([[100, 0], [0, 100]]), 60, 10)).toHaveLength(2);
+    expect(
+      isoRings(
+        grid([
+          [100, 0],
+          [0, 100],
+        ]),
+        40,
+        10,
+      ),
+    ).toHaveLength(1);
+    expect(
+      isoRings(
+        grid([
+          [100, 0],
+          [0, 100],
+        ]),
+        60,
+        10,
+      ),
+    ).toHaveLength(2);
   });
 
   it("finds nothing above the highest ground", () => {
-    expect(isoRings(grid([[1, 2], [3, 4]]), 10, 10)).toEqual([]);
+    expect(
+      isoRings(
+        grid([
+          [1, 2],
+          [3, 4],
+        ]),
+        10,
+        10,
+      ),
+    ).toEqual([]);
   });
 });
 

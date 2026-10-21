@@ -1,6 +1,6 @@
 /** Guards on the stylesheet's text: what a missing rule would cost cannot be
  *  seen in a DOM that does no layout. */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import { cardStyles } from "../src/styles.ts";
 
@@ -14,7 +14,9 @@ describe("motion", () => {
     expect(rest).toMatch(/transition-duration:\s*0\.01ms\s*!important/);
     expect(rest).toMatch(/animation-duration:\s*0\.01ms\s*!important/);
     // Nothing after the block but its own closing braces.
-    expect(css.slice(css.indexOf("}", css.indexOf("scroll-behavior", block))).replace(/[\s}]/g, "")).toBe("");
+    expect(
+      css.slice(css.indexOf("}", css.indexOf("scroll-behavior", block))).replace(/[\s}]/g, ""),
+    ).toBe("");
   });
 
   it("animates nothing but the layer switch", () => {

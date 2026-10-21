@@ -1,5 +1,5 @@
 /** The border topology, on a map small enough to check by hand. */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import { ArcIndex, groupSides } from "../../src/data/arcs.ts";
 import { decodeLines } from "../../src/data/format.ts";
@@ -57,7 +57,9 @@ describe("border edges", () => {
   });
 
   it("notices a polygon laid over another", () => {
-    expect(borderEdges([...polygons, { unit: 9, rings: [square(0, 0)] }]).strays).toBeGreaterThan(0);
+    expect(borderEdges([...polygons, { unit: 9, rings: [square(0, 0)] }]).strays).toBeGreaterThan(
+      0,
+    );
   });
 });
 
@@ -68,7 +70,17 @@ describe("arcs", () => {
     // Junctions: where three borders meet. On this grid there are six of
     // them, and nine arcs between them.
     expect(arcs).toHaveLength(9);
-    expect(arcs.map(sides).sort()).toEqual(["-1/0", "-1/1", "-1/2", "-1/3", "0/1", "0/3", "1/2", "1/3", "2/3"]);
+    expect(arcs.map(sides).sort()).toEqual([
+      "-1/0",
+      "-1/1",
+      "-1/2",
+      "-1/3",
+      "0/1",
+      "0/3",
+      "1/2",
+      "1/3",
+      "2/3",
+    ]);
   });
 
   it("keep the whole border: no length is lost in the joining", () => {
@@ -84,7 +96,13 @@ describe("arcs", () => {
   });
 
   it("turn an enclave into one closed loop", () => {
-    const outer = [[0, 0], [0, 9], [9, 9], [9, 0], [0, 0]] as Point[];
+    const outer = [
+      [0, 0],
+      [0, 9],
+      [9, 9],
+      [9, 0],
+      [0, 0],
+    ] as Point[];
     const hole = [...square(4, 4)].reverse();
     const loops = chain(
       borderEdges([
@@ -116,12 +134,29 @@ describe("one level up", () => {
 
 describe("simplifying", () => {
   it("keeps both ends of an arc and drops what is nearly straight", () => {
-    const wobbly: Point[] = [[0, 0], [1, 0.01], [2, -0.01], [3, 0], [3, 3]];
-    expect(simplifyArc(wobbly, 0.05)).toEqual([[0, 0], [3, 0], [3, 3]]);
+    const wobbly: Point[] = [
+      [0, 0],
+      [1, 0.01],
+      [2, -0.01],
+      [3, 0],
+      [3, 3],
+    ];
+    expect(simplifyArc(wobbly, 0.05)).toEqual([
+      [0, 0],
+      [3, 0],
+      [3, 3],
+    ]);
   });
 
   it("never simplifies a loop below a triangle", () => {
-    const tiny: Point[] = [[0, 0], [0.01, 0.02], [0.02, 0.01], [0.03, 0.03], [0.02, 0], [0, 0]];
+    const tiny: Point[] = [
+      [0, 0],
+      [0.01, 0.02],
+      [0.02, 0.01],
+      [0.03, 0.03],
+      [0.02, 0],
+      [0, 0],
+    ];
     const kept = simplifyArc(tiny, 5);
     expect(kept.length).toBeGreaterThanOrEqual(4);
     expect(kept[0]).toEqual(kept[kept.length - 1]);
@@ -136,7 +171,13 @@ describe("simplifying", () => {
 
 describe("the card's index, built from these arcs", () => {
   const arcs = sortArcs(chain(borderEdges(polygons).edges), 10);
-  const lines = decodeLines(encodeLines(arcs.map((arc) => arc.points), 0.05, { closed: false, keepShort: true }));
+  const lines = decodeLines(
+    encodeLines(
+      arcs.map((arc) => arc.points),
+      0.05,
+      { closed: false, keepShort: true },
+    ),
+  );
   const a = Int32Array.from(arcs, (arc) => arc.a);
   const b = Int32Array.from(arcs, (arc) => arc.b);
   const index = new ArcIndex(lines, a, b, 4);
@@ -179,36 +220,92 @@ describe("the label point", () => {
   const ring = (points: number[][]): Float32Array => Float32Array.from(points.flat());
 
   it("is the middle of a square", () => {
-    const [x, y] = labelPoint([ring([[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]])], 0.01);
+    const [x, y] = labelPoint(
+      [
+        ring([
+          [0, 0],
+          [10, 0],
+          [10, 10],
+          [0, 10],
+          [0, 0],
+        ]),
+      ],
+      0.01,
+    );
     expect(x).toBeCloseTo(5, 1);
     expect(y).toBeCloseTo(5, 1);
   });
 
   it("stays inside a shape whose centroid lies outside it", () => {
     // A U: the centroid is in the gap between its arms.
-    const u = ring([[0, 0], [9, 0], [9, 9], [6, 9], [6, 3], [3, 3], [3, 9], [0, 9], [0, 0]]);
+    const u = ring([
+      [0, 0],
+      [9, 0],
+      [9, 9],
+      [6, 9],
+      [6, 3],
+      [3, 3],
+      [3, 9],
+      [0, 9],
+      [0, 0],
+    ]);
     const [x, y] = labelPoint([u], 0.01);
     expect(insideTest([u])(x, y)).toBe(true);
     expect(y).toBeLessThan(3);
   });
 
   it("keeps out of a hole", () => {
-    const outer = ring([[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]]);
-    const hole = ring([[2, 2], [8, 2], [8, 8], [2, 8], [2, 2]]);
+    const outer = ring([
+      [0, 0],
+      [10, 0],
+      [10, 10],
+      [0, 10],
+      [0, 0],
+    ]);
+    const hole = ring([
+      [2, 2],
+      [8, 2],
+      [8, 8],
+      [2, 8],
+      [2, 2],
+    ]);
     const [x, y] = labelPoint([outer, hole], 0.01);
     expect(insideTest([outer, hole])(x, y)).toBe(true);
     expect(x > 2 && x < 8 && y > 2 && y < 8).toBe(false);
   });
 
   it("has nothing to say about a line", () => {
-    expect(() => labelPoint([ring([[0, 0], [5, 0], [0, 0]])], 0.01)).toThrow();
+    expect(() =>
+      labelPoint(
+        [
+          ring([
+            [0, 0],
+            [5, 0],
+            [0, 0],
+          ]),
+        ],
+        0.01,
+      ),
+    ).toThrow();
   });
 });
 
 describe("the fast inside test", () => {
   it("agrees with a ray cast, holes included", () => {
-    const outer: Point[] = [[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]];
-    const hole: Point[] = [[4, 4], [6, 4], [6, 6], [4, 6], [4, 4]];
+    const outer: Point[] = [
+      [0, 0],
+      [10, 0],
+      [10, 10],
+      [0, 10],
+      [0, 0],
+    ];
+    const hole: Point[] = [
+      [4, 4],
+      [6, 4],
+      [6, 6],
+      [4, 6],
+      [4, 4],
+    ];
     const inside = insideTest([outer, hole], 0.7);
     expect(inside(1, 1)).toBe(true);
     expect(inside(5, 5)).toBe(false);

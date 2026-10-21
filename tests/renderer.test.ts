@@ -5,10 +5,17 @@
  * order and how much of it: the draw order, the tiles left out of a
  * zoomed-in frame, the detail that comes in with scale, and the hit test.
  */
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vite-plus/test";
 
 import type { MapStore } from "../src/layers/store.ts";
-import { clampCamera, fitBox, fitScale, homeCamera, toScreen, type Camera } from "../src/map/camera.ts";
+import {
+  clampCamera,
+  fitBox,
+  fitScale,
+  homeCamera,
+  toScreen,
+  type Camera,
+} from "../src/map/camera.ts";
 import { LIGHT_THEME, derivePalette } from "../src/map/palette.ts";
 import { project } from "../src/map/projection.ts";
 import { MapRenderer, type RenderState } from "../src/map/renderer.ts";
@@ -30,7 +37,11 @@ function rendererFor(store: MapStore): MapRenderer {
   return renderer;
 }
 
-const state = (camera: Camera, layers: readonly LayerId[], extra: Partial<RenderState> = {}): RenderState => ({
+const state = (
+  camera: Camera,
+  layers: readonly LayerId[],
+  extra: Partial<RenderState> = {},
+): RenderState => ({
   camera,
   layers: new Set(layers),
   showLabels: true,
@@ -46,7 +57,10 @@ const home = homeCamera(size);
 function cameraAt(code: string, zoom: number): Camera {
   const table = all.detail!.municipalities;
   const row = table.ids.indexOf(code);
-  return clampCamera({ x: table.at[row * 2]!, y: table.at[row * 2 + 1]!, k: fitScale(size) * zoom }, size);
+  return clampCamera(
+    { x: table.at[row * 2]!, y: table.at[row * 2 + 1]!, k: fitScale(size) * zoom },
+    size,
+  );
 }
 
 beforeEach(() => {
@@ -96,22 +110,39 @@ describe("draw order", () => {
       .map((call) => {
         if (call.name === "fill") return call.fillStyle === palette.land ? "land" : "band";
         if (call.name === "stroke") {
-          return call.strokeStyle === palette.water ? "river" : call.strokeStyle === palette.outline ? "outline" : "border";
+          return call.strokeStyle === palette.water
+            ? "river"
+            : call.strokeStyle === palette.outline
+              ? "outline"
+              : "border";
         }
         return call.name;
       });
     // Collapse runs: "band band band" is one step.
     const steps = order.filter((step, index) => step !== order[index - 1]);
-    expect(steps.slice(0, 7)).toEqual(["land", "clip", "band", "restore", "river", "border", "outline"]);
+    expect(steps.slice(0, 7)).toEqual([
+      "land",
+      "clip",
+      "band",
+      "restore",
+      "river",
+      "border",
+      "outline",
+    ]);
     expect(steps.indexOf("fillText")).toBeGreaterThan(steps.indexOf("outline"));
     // The eight bands, all before the clip is lifted.
-    expect(order.slice(0, order.indexOf("restore")).filter((step) => step === "band")).toHaveLength(8);
+    expect(order.slice(0, order.indexOf("restore")).filter((step) => step === "band")).toHaveLength(
+      8,
+    );
   });
 
   it("paints the terrain from the lowest band up, each in its own shade", () => {
     const renderer = rendererFor(storeWith("base"));
     renderer.draw(state(home, ["terrain"]));
-    const shades = fake.named("fill").slice(1).map((call) => call.fillStyle);
+    const shades = fake
+      .named("fill")
+      .slice(1)
+      .map((call) => call.fillStyle);
     expect(shades).toEqual(all.overview!.terrain.levels.map((level) => palette.band(level)));
     for (const call of fake.named("fill")) expect(call.args[1]).toBe("evenodd");
   });
@@ -171,10 +202,14 @@ describe("detail by scale", () => {
   it("draws municipal borders only from the scale at which they can be told apart", () => {
     const renderer = rendererFor(all);
     renderer.draw(state(home, ["municipalities"]));
-    expect(fake.named("stroke").some((call) => call.strokeStyle === palette.municipality)).toBe(false);
+    expect(fake.named("stroke").some((call) => call.strokeStyle === palette.municipality)).toBe(
+      false,
+    );
     fake.reset();
     renderer.draw(state(cameraAt("40709", 9), ["municipalities"]));
-    expect(fake.named("stroke").some((call) => call.strokeStyle === palette.municipality)).toBe(true);
+    expect(fake.named("stroke").some((call) => call.strokeStyle === palette.municipality)).toBe(
+      true,
+    );
   });
 
   it("draws district borders as soon as their chunk is there, at any scale", () => {
@@ -224,7 +259,17 @@ describe("names", () => {
     const renderer = rendererFor(storeWith("base", "places"));
     renderer.draw(state(home, standard));
     const texts = fake.texts();
-    for (const name of ["Wien", "Graz", "Linz", "Salzburg", "Innsbruck", "Klagenfurt", "Bregenz", "Eisenstadt", "St. Pölten"]) {
+    for (const name of [
+      "Wien",
+      "Graz",
+      "Linz",
+      "Salzburg",
+      "Innsbruck",
+      "Klagenfurt",
+      "Bregenz",
+      "Eisenstadt",
+      "St. Pölten",
+    ]) {
       expect(texts, name).toContain(name);
     }
     expect(texts).not.toContain("Klagenfurt am Wörthersee");
@@ -311,8 +356,14 @@ describe("the hit test", () => {
       renderer.draw(view);
       return renderer.hit(view, x, y);
     };
-    expect(hitWith(["provinces", "districts", "municipalities"])).toEqual({ kind: "municipality", row });
-    expect(hitWith(["provinces", "districts"])).toEqual({ kind: "district", row: table.parent![row] });
+    expect(hitWith(["provinces", "districts", "municipalities"])).toEqual({
+      kind: "municipality",
+      row,
+    });
+    expect(hitWith(["provinces", "districts"])).toEqual({
+      kind: "district",
+      row: table.parent![row],
+    });
     expect(hitWith(["provinces"])).toEqual({ kind: "province", row: all.detail!.provinceOf[row] });
     expect(hitWith(["terrain"])).toBeNull();
   });
@@ -327,9 +378,16 @@ describe("the hit test", () => {
   it("finds a river near its line, when rivers are on", () => {
     const renderer = rendererFor(storeWith("base"));
     const rivers = all.overview!.rivers;
-    const line = [...rivers.name].findIndex((row, index) => rivers.names[row] === "Donau" && rivers.order[index] === 9);
+    const line = [...rivers.name].findIndex(
+      (row, index) => rivers.names[row] === "Donau" && rivers.order[index] === 9,
+    );
     const middle = Math.floor((rivers.lines.start[line]! + rivers.lines.start[line + 1]!) / 2);
-    const [x, y] = toScreen(home, size, rivers.lines.xy[middle * 2]!, rivers.lines.xy[middle * 2 + 1]!);
+    const [x, y] = toScreen(
+      home,
+      size,
+      rivers.lines.xy[middle * 2]!,
+      rivers.lines.xy[middle * 2 + 1]!,
+    );
     const on = state(home, ["rivers", "provinces"]);
     renderer.draw(on);
     expect(renderer.hit(on, x + 2, y + 2)).toEqual({ kind: "river", name: "Donau", order: 9 });
@@ -356,7 +414,9 @@ describe("the selection", () => {
 
   it("strokes a selected river in the accent colour", () => {
     const renderer = rendererFor(storeWith("base"));
-    renderer.draw(state(home, ["rivers"], { selection: { kind: "river", name: "Donau", order: 9 } }));
+    renderer.draw(
+      state(home, ["rivers"], { selection: { kind: "river", name: "Donau", order: 9 } }),
+    );
     expect(fake.named("stroke").some((call) => call.strokeStyle === palette.accent)).toBe(true);
   });
 
@@ -370,7 +430,9 @@ describe("the selection", () => {
 
   it("ignores a selection whose data is not loaded", () => {
     const renderer = rendererFor(storeWith("base"));
-    expect(() => renderer.draw(state(home, ["provinces"], { selection: { kind: "municipality", row: 3 } }))).not.toThrow();
+    expect(() =>
+      renderer.draw(state(home, ["provinces"], { selection: { kind: "municipality", row: 3 } })),
+    ).not.toThrow();
     expect(fake.named("fill").some((call) => call.fillStyle === palette.accentFill)).toBe(false);
   });
 });
@@ -378,7 +440,10 @@ describe("the selection", () => {
 describe("zoom here", () => {
   it("frames an area by its outline", () => {
     const renderer = rendererFor(all);
-    const box = renderer.boxOf({ kind: "province", row: all.overview!.provinces.ids.indexOf("AT-9") })!;
+    const box = renderer.boxOf({
+      kind: "province",
+      row: all.overview!.provinces.ids.indexOf("AT-9"),
+    })!;
     // Vienna is about 30 km across: some 50 units.
     expect(box[2] - box[0]).toBeGreaterThan(30);
     expect(box[2] - box[0]).toBeLessThan(80);
@@ -425,7 +490,9 @@ describe("the pin", () => {
     // The head, then the hole: the last two fills of the frame.
     expect(fills.at(-2)?.fillStyle).toBe(palette.accent);
     expect(fills.at(-1)?.fillStyle).toBe(palette.land);
-    expect(fake.calls.findIndex((call) => call.name === "fillText")).toBeLessThan(fake.calls.indexOf(fills.at(-2)!));
+    expect(fake.calls.findIndex((call) => call.name === "fillText")).toBeLessThan(
+      fake.calls.indexOf(fills.at(-2)!),
+    );
   });
 
   it("is drawn with every layer off and names off", () => {

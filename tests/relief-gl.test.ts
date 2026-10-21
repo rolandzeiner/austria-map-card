@@ -3,13 +3,14 @@
  * can be checked here is what made them fail to link once: a uniform that
  * both shaders of a pair declare must have the same precision in both.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import { SHADERS } from "../src/map/relief-gl.ts";
 
 /** Uniform name to its declared or default precision. Vertex floats default to highp. */
 function uniforms(source: string, stage: "vertex" | "fragment"): Map<string, string> {
-  const fallback = stage === "vertex" ? "highp" : (/precision (\w+) float;/.exec(source)?.[1] ?? "none");
+  const fallback =
+    stage === "vertex" ? "highp" : (/precision (\w+) float;/.exec(source)?.[1] ?? "none");
   const found = new Map<string, string>();
   for (const match of source.matchAll(/uniform\s+(?:(lowp|mediump|highp)\s+)?(\w+)\s+(\w+)/g)) {
     const [, precision, type, name] = match;

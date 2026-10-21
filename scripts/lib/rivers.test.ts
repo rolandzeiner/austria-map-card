@@ -1,5 +1,5 @@
 /** Reading and trimming river lines. */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import { lengthWhere, networks, parseGeoPackageLine, runsInside, simplifyRiver } from "./rivers.ts";
 
@@ -21,14 +21,29 @@ function blob(points: number[][], options: { envelope?: boolean; type?: number }
 
 describe("parseGeoPackageLine", () => {
   it("reads the coordinates behind the header", () => {
-    expect(parseGeoPackageLine(blob([[400000, 400000], [400500, 401000]]))).toEqual([
+    expect(
+      parseGeoPackageLine(
+        blob([
+          [400000, 400000],
+          [400500, 401000],
+        ]),
+      ),
+    ).toEqual([
       [400000, 400000],
       [400500, 401000],
     ]);
   });
 
   it("skips an envelope and a Z value", () => {
-    const line = parseGeoPackageLine(blob([[1, 2, 300], [4, 5, 600]], { envelope: true }));
+    const line = parseGeoPackageLine(
+      blob(
+        [
+          [1, 2, 300],
+          [4, 5, 600],
+        ],
+        { envelope: true },
+      ),
+    );
     expect(line).toEqual([
       [1, 2],
       [4, 5],
@@ -66,7 +81,14 @@ describe("runsInside", () => {
 
 describe("simplifyRiver", () => {
   it("drops meanders smaller than the tolerance and keeps both ends", () => {
-    const meander = [[0, 0], [1, 0.2], [2, -0.2], [3, 0.1], [10, 0], [10, 5]] as const;
+    const meander = [
+      [0, 0],
+      [1, 0.2],
+      [2, -0.2],
+      [3, 0.1],
+      [10, 0],
+      [10, 5],
+    ] as const;
     expect(simplifyRiver(meander, 0.5)).toEqual([
       [0, 0],
       [10, 0],
@@ -78,7 +100,12 @@ describe("simplifyRiver", () => {
 
 describe("lengthWhere", () => {
   it("measures the segments whose midpoint is kept", () => {
-    const line: Array<[number, number]> = [[0, 0], [3, 4], [6, 8], [6, 18]];
+    const line: Array<[number, number]> = [
+      [0, 0],
+      [3, 4],
+      [6, 8],
+      [6, 18],
+    ];
     expect(lengthWhere(line, () => true)).toBe(20);
     // Midpoints at x 1.5, 4.5 and 6: the first two segments.
     expect(lengthWhere(line, ([x]) => x < 5)).toBe(10);
@@ -89,9 +116,18 @@ describe("networks", () => {
   it("joins lines whose ends meet, within the snap", () => {
     const groups = networks(
       [
-        [[0, 0], [10, 0]],
-        [[10.5, 0], [20, 0]],
-        [[20, 0], [20, 10]],
+        [
+          [0, 0],
+          [10, 0],
+        ],
+        [
+          [10.5, 0],
+          [20, 0],
+        ],
+        [
+          [20, 0],
+          [20, 10],
+        ],
       ],
       1,
     );
@@ -101,9 +137,18 @@ describe("networks", () => {
   it("keeps lines apart that only cross or pass near the middle", () => {
     const groups = networks(
       [
-        [[0, 0], [100, 0]],
-        [[50, -10], [50, 10]],
-        [[500, 0], [600, 0]],
+        [
+          [0, 0],
+          [100, 0],
+        ],
+        [
+          [50, -10],
+          [50, 10],
+        ],
+        [
+          [500, 0],
+          [600, 0],
+        ],
       ],
       1,
     );

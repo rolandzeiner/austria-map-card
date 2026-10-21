@@ -1,17 +1,36 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import { decodeLines, lineBoxes } from "../src/data/format.ts";
-import { ShapeCache, TiledLines, traceLines, traceRings, traceSmoothRings } from "../src/map/tiles.ts";
+import {
+  ShapeCache,
+  TiledLines,
+  traceLines,
+  traceRings,
+  traceSmoothRings,
+} from "../src/map/tiles.ts";
 import { encodeLines } from "../scripts/lib/encode.ts";
 import { FakePath, fakePath } from "./fake-canvas.ts";
 
 const lines = decodeLines(
   encodeLines(
     [
-      [[10, 10], [20, 20]],
-      [[30, 10], [40, 12], [50, 10]],
-      [[500, 300], [520, 310]],
-      [[60, 60], [200, 60]],
+      [
+        [10, 10],
+        [20, 20],
+      ],
+      [
+        [30, 10],
+        [40, 12],
+        [50, 10],
+      ],
+      [
+        [500, 300],
+        [520, 310],
+      ],
+      [
+        [60, 60],
+        [200, 60],
+      ],
     ],
     0.5,
     { closed: false },
@@ -42,7 +61,19 @@ describe("tracing", () => {
   });
 
   it("closes rings", () => {
-    const rings = decodeLines(encodeLines([[[0, 0], [4, 0], [4, 4]]], 0.5, { closed: true }));
+    const rings = decodeLines(
+      encodeLines(
+        [
+          [
+            [0, 0],
+            [4, 0],
+            [4, 4],
+          ],
+        ],
+        0.5,
+        { closed: true },
+      ),
+    );
     const path = new FakePath();
     traceLines(path as unknown as Path2D, rings);
     expect(path.ops.join("")).toBe("MLLZ");
@@ -52,7 +83,20 @@ describe("tracing", () => {
   });
 
   it("rounds terrain rings: one curve per corner", () => {
-    const rings = decodeLines(encodeLines([[[0, 0], [4, 0], [4, 4], [0, 4]]], 0.5, { closed: true }));
+    const rings = decodeLines(
+      encodeLines(
+        [
+          [
+            [0, 0],
+            [4, 0],
+            [4, 4],
+            [0, 4],
+          ],
+        ],
+        0.5,
+        { closed: true },
+      ),
+    );
     const path = new FakePath();
     traceSmoothRings(path as unknown as Path2D, rings);
     expect(path.ops.join("")).toBe("MQQQQZ");

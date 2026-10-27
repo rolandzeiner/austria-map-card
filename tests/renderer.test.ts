@@ -514,3 +514,38 @@ describe("the pin", () => {
     expect(tip[1]).toBeCloseTo(size.height / 2);
   });
 });
+
+describe("lakes and glaciers", () => {
+  it("fills lakes in the water colour and glaciers in ice, only with their layers on", () => {
+    const renderer = rendererFor(all);
+    const fills = (): unknown[] => fake.named("fill").map((call) => call.fillStyle);
+    renderer.draw(state(cameraAt("70220", 4), ["terrain", "lakes", "glaciers"]));
+    expect(fills()).toContain(palette.water);
+    expect(fills()).toContain(palette.glacier);
+    fake.reset();
+    renderer.draw(state(cameraAt("70220", 4), ["terrain"]));
+    expect(fills()).not.toContain(palette.water);
+    expect(fills()).not.toContain(palette.glacier);
+  });
+
+  it("names a lake once it is large enough on screen", () => {
+    const renderer = rendererFor(all);
+    renderer.draw(state(home, ["lakes"]));
+    expect(fake.texts()).not.toContain("Wörther See");
+    fake.reset();
+    renderer.draw(state(cameraAt("20101", 6), ["lakes"]));
+    expect(fake.texts()).toContain("Wörther See");
+    fake.reset();
+    renderer.draw(state(cameraAt("20101", 6), ["lakes"], { showLabels: false }));
+    expect(fake.texts()).toEqual([]);
+  });
+
+  it("names the longest glaciers first, and none on the whole country", () => {
+    const renderer = rendererFor(all);
+    renderer.draw(state(home, ["glaciers"]));
+    expect(fake.texts()).toEqual([]);
+    fake.reset();
+    renderer.draw(state(cameraAt("70220", 6), ["glaciers"]));
+    expect(fake.texts()).toEqual(expect.arrayContaining(["Gepatschferner", "Gurgler Ferner"]));
+  });
+});

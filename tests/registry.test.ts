@@ -18,9 +18,10 @@ describe("the registry", () => {
     expect(layerById("rivers").id).toBe("rivers");
   });
 
-  it("clips only the terrain and the lakes to the country", () => {
+  it("clips only the terrain, the glaciers and the lakes to the country", () => {
     expect(LAYERS.filter((layer) => layer.clipped).map((layer) => layer.id)).toEqual([
       "terrain",
+      "glaciers",
       "lakes",
     ]);
   });

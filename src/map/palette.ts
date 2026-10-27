@@ -27,6 +27,8 @@ export interface Palette {
   readonly land: string;
   readonly water: string;
   readonly waterLabel: string;
+  /** Glacier ice, lighter than the highest ground in either theme. */
+  readonly glacier: string;
   /** The national border, and the borders inside it from heavy to light. */
   readonly outline: string;
   readonly province: string;
@@ -128,6 +130,7 @@ const ROAD_DARK: Rgb = [196, 170, 92];
 
 const WATER_LIGHT: Rgb = [111, 157, 198];
 const WATER_DARK: Rgb = [92, 148, 204];
+const ICE: Rgb = [236, 244, 250];
 
 export function derivePalette(theme: Theme): Palette {
   const { background, text, dark } = theme;
@@ -148,6 +151,7 @@ export function derivePalette(theme: Theme): Palette {
     land: css(land),
     water: css(water),
     waterLabel: css(mix(water, text, dark ? 0.35 : 0.42)),
+    glacier: css(dark ? mix(ICE, background, 0.08) : ICE),
     outline: css(mix(land, text, 0.72)),
     province: css(mix(land, text, 0.58)),
     district: css(mix(land, text, 0.44)),

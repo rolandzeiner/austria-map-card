@@ -24,6 +24,7 @@ export interface LovelaceCardConfig {
 /** The layers the map can draw, in drawing order. */
 export const LAYER_IDS = [
   "terrain",
+  "glaciers",
   "lakes",
   "rivers",
   "municipalities",

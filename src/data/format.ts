@@ -1,7 +1,7 @@
 /**
  * The format of the map's data chunks, and how to read them.
  *
- * The card's code is one file. The geometry is eleven more, written by
+ * The card's code is one file. The geometry is twelve more, written by
  * `scripts/build-data.mjs` and imported one at a time when a layer or a zoom
  * level first needs them. Each is an ES module whose default export is one
  * of the `Chunk` shapes below.
@@ -31,6 +31,7 @@ export const CHUNK_IDS = [
   "motorways",
   "main-roads",
   "lakes",
+  "glaciers",
 ] as const;
 export type ChunkId = (typeof CHUNK_IDS)[number];
 
@@ -419,6 +420,8 @@ export interface MainRoadsChunk extends ChunkHead {
 export interface LakeSet {
   /** One per lake, largest first; the empty string is a lake the source does not name. */
   readonly names: readonly string[];
+  /** One point per lake, where its name goes; 0, 0 for a lake without one. */
+  readonly at: PackedLines;
   readonly rings: PackedLines;
   /** Packed, per ring: the lake it belongs to, its row in `names`. */
   readonly lake: string;
@@ -427,6 +430,28 @@ export interface LakeSet {
 export interface LakesChunk extends ChunkHead {
   readonly id: "lakes";
   readonly lakes: LakeSet;
+}
+
+/**
+ * Glaciers, as rings to fill with the even-odd rule, and the names of the
+ * glaciers on them. An outline is a whole ice field, often several named
+ * glaciers that meet, so the names are points of their own.
+ */
+export interface GlacierSet {
+  readonly rings: PackedLines;
+  /** Packed, per ring: the ice field it belongs to, so a field and its rock islands are filled together. */
+  readonly field: string;
+  /** Longest glaciers first. */
+  readonly names: readonly string[];
+  /** One point per name. */
+  readonly at: PackedLines;
+  /** Packed, per name: 0 over 6 km long, 1 from 2 to 6 km, 2 under 2 km. */
+  readonly size: string;
+}
+
+export interface GlaciersChunk extends ChunkHead {
+  readonly id: "glaciers";
+  readonly glaciers: GlacierSet;
 }
 
 export interface PeaksChunk extends ChunkHead {
@@ -446,5 +471,6 @@ export interface ChunkMap {
   motorways: MotorwaysChunk;
   "main-roads": MainRoadsChunk;
   lakes: LakesChunk;
+  glaciers: GlaciersChunk;
 }
 export type Chunk = ChunkMap[ChunkId];

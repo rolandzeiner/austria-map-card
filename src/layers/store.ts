@@ -19,6 +19,7 @@ import {
   type Chunk,
   type ChunkId,
   type FactColumn,
+  type GlacierSet,
   type LakeSet,
   type Lines,
   type RoadSet,
@@ -148,6 +149,8 @@ function readPeaks(table: PeakTable): Peaks {
 export interface Lakes {
   /** One per lake. */
   readonly names: readonly string[];
+  /** Where each lake's name goes: x0, y0, x1, y1, ... */
+  readonly at: Float32Array;
   readonly rings: Lines;
   /** Per ring: its lake's row in `names`. */
   readonly lake: Int32Array;
@@ -157,7 +160,37 @@ export interface Lakes {
 
 function readLakes(set: LakeSet): Lakes {
   const rings = decodeLines(set.rings);
-  return { names: set.names, rings, lake: decodeInts(set.lake), boxes: lineBoxes(rings) };
+  return {
+    names: set.names,
+    at: decodeLines(set.at).xy,
+    rings,
+    lake: decodeInts(set.lake),
+    boxes: lineBoxes(rings),
+  };
+}
+
+/** Glaciers: their rings, and the names on them. */
+export interface Glaciers {
+  readonly rings: Lines;
+  /** Per ring: the ice field it belongs to. */
+  readonly field: Int32Array;
+  readonly boxes: Float32Array;
+  readonly names: readonly string[];
+  readonly at: Float32Array;
+  /** Per name: 0 over 6 km long, 1 from 2 to 6 km, 2 under 2 km. */
+  readonly size: Int32Array;
+}
+
+function readGlaciers(set: GlacierSet): Glaciers {
+  const rings = decodeLines(set.rings);
+  return {
+    rings,
+    field: decodeInts(set.field),
+    boxes: lineBoxes(rings),
+    names: set.names,
+    at: decodeLines(set.at).xy,
+    size: decodeInts(set.size),
+  };
 }
 
 /** Ground height in metres, one value per view-box unit; 0 is no data. */
@@ -313,6 +346,7 @@ export class MapStore {
   public motorways: Roads | undefined;
   public mainRoads: Roads | undefined;
   public lakes: Lakes | undefined;
+  public glaciers: Glaciers | undefined;
 
   private readonly loaded = new Map<ChunkId, readonly SourceInfo[]>();
   private municipal: ArcIndex | undefined;
@@ -425,6 +459,9 @@ export class MapStore {
         break;
       case "lakes":
         this.lakes = readLakes(chunk.lakes);
+        break;
+      case "glaciers":
+        this.glaciers = readGlaciers(chunk.glaciers);
         break;
     }
     this.loaded.set(chunk.id, chunk.sources);

@@ -175,6 +175,7 @@ describe("the layer list", () => {
     const rows = all(card, ".layer");
     expect(rows.map((row) => row.querySelector("span span")?.textContent)).toEqual([
       "Gelände",
+      "Gletscher",
       "Seen",
       "Flüsse",
       "Gemeinden",
@@ -187,6 +188,7 @@ describe("the layer list", () => {
     ]);
     expect(rows.map((row) => row.getAttribute("aria-checked"))).toEqual([
       "true",
+      "false",
       "true",
       "true",
       "false",

@@ -3,7 +3,8 @@
  *
  * Everything here is drawn in screen pixels, after the map itself. One pass
  * hands out the space in order of importance: the capitals, the provinces,
- * the other towns by size, the rivers, then districts and municipalities.
+ * the other towns by size, the rivers, the lakes and glaciers, then
+ * districts and municipalities.
  * A name is drawn only where it fits, so zooming in is what brings more of
  * them out.
  */
@@ -11,7 +12,7 @@ import type { ArcIndex } from "../data/arcs.ts";
 import { minimumRank, placeTier } from "../layers/places.ts";
 import { riversAt } from "../layers/rivers.ts";
 import { ROAD_LAYER, roadSet, type RoadClass } from "../layers/roads.ts";
-import type { MapStore, Places, Rivers, Roads, Table } from "../layers/store.ts";
+import type { Lakes, MapStore, Places, Rivers, Roads, Table } from "../layers/store.ts";
 import type { LayerId } from "../types.ts";
 import { toScreen, type Box, type Camera, type Size } from "./camera.ts";
 import {
@@ -82,6 +83,8 @@ export const LABEL_SCALES = {
   riverSweep: [0.95, 2.4],
   /** Below this, a capital goes by its short name: "Klagenfurt". */
   shortNamesBelow: 3,
+  /** Lowest scale at which a glacier is named, by length: over 6 km, 2 to 6 km, under 2 km. */
+  glaciers: [1.4, 3, 7] as readonly number[],
 } as const;
 
 /** Which smoothing level of a river's label stretches suits a scale. */
@@ -117,6 +120,10 @@ const PEAK_SPACING = 40;
 /** Half the width of a summit's triangle, in pixels. */
 const PEAK_SIZE = 4.5;
 const MAX_RIVER_NAMES = 14;
+/** A lake is named once it spans this many pixels, the long way. */
+const LAKE_NAME_SPAN = 28;
+const MAX_LAKE_NAMES = 12;
+const MAX_GLACIER_NAMES = 12;
 /** Two names of the same river keep at least this many pixels apart. */
 const RIVER_REPEAT = 260;
 
@@ -214,6 +221,29 @@ function rankedStretches(rivers: Rivers): number[] {
     ranked.set(rivers, rows);
   }
   return rows;
+}
+
+/** Per lake, the box around all its rings: left, top, right, bottom. */
+const lakeExtents = new WeakMap<Lakes, Float32Array>();
+function lakeBoxes(lakes: Lakes): Float32Array {
+  let boxes = lakeExtents.get(lakes);
+  if (boxes === undefined) {
+    boxes = new Float32Array(lakes.names.length * 4);
+    for (let row = 0; row < lakes.names.length; row += 1) {
+      boxes.set([Infinity, Infinity, -Infinity, -Infinity], row * 4);
+    }
+    lakes.lake.forEach((row, ring) => {
+      const at = row * 4;
+      const from = ring * 4;
+      const extent = boxes as Float32Array;
+      extent[at] = Math.min(extent[at] as number, lakes.boxes[from] as number);
+      extent[at + 1] = Math.min(extent[at + 1] as number, lakes.boxes[from + 1] as number);
+      extent[at + 2] = Math.max(extent[at + 2] as number, lakes.boxes[from + 2] as number);
+      extent[at + 3] = Math.max(extent[at + 3] as number, lakes.boxes[from + 3] as number);
+    });
+    lakeExtents.set(lakes, boxes);
+  }
+  return boxes;
 }
 
 export function drawLabels(input: LabelInput): DrawnCity[] {
@@ -592,6 +622,56 @@ export function drawLabels(input: LabelInput): DrawnCity[] {
         }
         count += 1;
       }
+    }
+  }
+
+  /** A water name centred on its point, or a line or so above or below it. */
+  const waterName = (mapX: number, mapY: number, name: string, fontSize: number): boolean => {
+    const at = onCanvas(mapX, mapY);
+    if (at === null) return false;
+    const [x, y] = at;
+    const font = `italic 400 ${fontSize}px ${family}`;
+    const width = widthOf(ctx, font, name);
+    const shifts = [0, -1.2, 1.2].map((lines) => lines * (fontSize + 2));
+    const spot = placer.placeFirst(
+      shifts.map((shift) => centredOn(x, y + shift, width, fontSize + 2)),
+    );
+    if (spot < 0) return false;
+    text(name, font, palette.waterLabel, x, y + (shifts[spot] as number), "center");
+    return true;
+  };
+
+  // ── Lakes, the largest first ───────────────────────────────────────────
+  const lakes = layers.has("lakes") ? store.lakes : undefined;
+  if (showLabels && lakes !== undefined) {
+    const extents = lakeBoxes(lakes);
+    let named = 0;
+    for (let row = 0; row < lakes.names.length && named < MAX_LAKE_NAMES; row += 1) {
+      const name = lakes.names[row] as string;
+      if (name === "") continue;
+      const at = row * 4;
+      const span = Math.max(
+        (extents[at + 2] as number) - (extents[at] as number),
+        (extents[at + 3] as number) - (extents[at + 1] as number),
+      );
+      // Largest by area is not quite largest by span, so this cannot end the list.
+      if (span * scale < LAKE_NAME_SPAN) continue;
+      if (waterName(lakes.at[row * 2] as number, lakes.at[row * 2 + 1] as number, name, 11))
+        named += 1;
+    }
+  }
+
+  // ── Glaciers, the longest first ────────────────────────────────────────
+  const glaciers = layers.has("glaciers") ? store.glaciers : undefined;
+  if (showLabels && glaciers !== undefined) {
+    let named = 0;
+    for (let row = 0; row < glaciers.names.length && named < MAX_GLACIER_NAMES; row += 1) {
+      const length = glaciers.size[row] as number;
+      // Longest first: the first class not named at this scale ends the list.
+      if (scale < (LABEL_SCALES.glaciers[length] ?? Infinity)) break;
+      const name = glaciers.names[row] as string;
+      if (waterName(glaciers.at[row * 2] as number, glaciers.at[row * 2 + 1] as number, name, 10.5))
+        named += 1;
     }
   }
 

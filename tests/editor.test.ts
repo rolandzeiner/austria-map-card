@@ -95,6 +95,7 @@ describe("the editor", () => {
     const options = "select" in layers.selector ? layers.selector.select.options : [];
     expect(options.map((option) => option.label)).toEqual([
       "Gelände",
+      "Gletscher",
       "Seen",
       "Flüsse",
       "Gemeinden",

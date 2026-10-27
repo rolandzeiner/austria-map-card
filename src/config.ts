@@ -19,7 +19,7 @@ import {
 export const VIEWS: ReadonlyArray<MapView> = ["austria", ...PROVINCE_IDS];
 
 export const DEFAULTS = {
-  layers: ["terrain", "rivers", "provinces", "cities"] as ReadonlyArray<LayerId>,
+  layers: ["terrain", "lakes", "rivers", "provinces", "cities"] as ReadonlyArray<LayerId>,
   show_labels: true,
   show_layer_control: true,
   view: "austria" as MapView,

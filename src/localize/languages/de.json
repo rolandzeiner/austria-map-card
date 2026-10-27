@@ -29,6 +29,7 @@
   },
   "layers": {
     "terrain": "Gelände",
+    "lakes": "Seen",
     "rivers": "Flüsse",
     "provinces": "Bundesländer",
     "districts": "Bezirke",

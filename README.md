@@ -12,6 +12,7 @@ A map of Austria for your Home Assistant dashboard. Switch layers on and off, zo
 ## Features
 
 - **Six layers** *(0.1.0)*: terrain, rivers, provinces (Bundesländer), districts (Bezirke), municipalities (Gemeinden), and towns. Switch them from the layer button on the map.
+- **Lakes** *(0.3.0)*: 1,223 lakes, reservoirs and ponds, down to 0.03 km². Lakes on the border end at the border.
 - **Peaks** *(0.2.0)*: summits with their name and height. The whole country shows the highest of each range, and zooming in brings out the rest.
 - **Motorways** *(0.2.0)*: motorways and expressways, with route shields such as A1 and S6.
 - **Main roads** *(0.2.0)*: the B roads, with their route numbers once you zoom in.
@@ -23,7 +24,7 @@ A map of Austria for your Home Assistant dashboard. Switch layers on and off, zo
 - **Names on the map** *(0.1.0)*: provinces, districts, municipalities, towns ranked by population, and rivers lettered along their course.
 - **Select a place** *(0.1.0)*: a town, a river, or an area. The panel under the map shows its name, what it is, the district and province it belongs to, and its population.
 - **More about rivers, roads and peaks** *(0.2.0)*: a river or road shows its length and the provinces it runs through. A peak shows its height and the municipality, district and province it stands in.
-- **Loads only what you look at** *(0.1.0)*: the card itself is small. Map data arrives in ten separate files, each fetched the first time a layer or zoom level needs it.
+- **Loads only what you look at** *(0.1.0)*: the card itself is small. Map data arrives in separate files, each fetched the first time a layer or zoom level needs it.
 - **Follows your theme** *(0.1.0)*: light and dark, with its own terrain shading for each.
 - **Open one province** *(0.1.0)*: start on all of Austria or on a single province.
 - **Mark where you are** *(0.2.0)*: a pin shows your home, the device you're on, or a person or tracker as they move. One button takes you there.
@@ -41,11 +42,11 @@ A map of Austria for your Home Assistant dashboard. Switch layers on and off, zo
 3. Install **Austria Map Card**.
 4. Reload your browser (⌘⇧R or Ctrl⇧R).
 
-HACS downloads eleven files: the card and ten data files. Keep them together.
+HACS downloads twelve files: the card and eleven data files. Keep them together.
 
 ### Manual
 
-1. Download **all eleven** `.js` files from the [latest release](https://github.com/rolandzeiner/austria-map-card/releases).
+1. Download **all twelve** `.js` files from the [latest release](https://github.com/rolandzeiner/austria-map-card/releases).
 2. Copy them to `<config>/www/community/austria-map-card/`.
 3. Add a dashboard resource: `/local/community/austria-map-card/austria-map-card.js`, type **JavaScript module**.
 
@@ -57,7 +58,7 @@ The card finds its data files next to its own file. If one is missing, that laye
 type: custom:austria-map-card
 ```
 
-That shows all of Austria with terrain, rivers, province borders and towns.
+That shows all of Austria with terrain, lakes, rivers, province borders and towns.
 
 ## Configuration
 
@@ -67,7 +68,7 @@ Every option is optional. Use the visual editor or YAML.
 | --- | --- | --- | --- |
 | `title` | string | none | Heading above the map. |
 | `view` | `austria`, or `AT-1` to `AT-9` | `austria` | What the card opens on, and what **Reset view** returns to. See [Province codes](#province-codes). |
-| `layers` | list | `terrain`, `rivers`, `provinces`, `cities` | The layers that are on when the card opens. See [Layers](#layers). An empty list shows only the country's outline. |
+| `layers` | list | `terrain`, `lakes`, `rivers`, `provinces`, `cities` | The layers that are on when the card opens. See [Layers](#layers). An empty list shows only the country's outline. |
 | `show_labels` | boolean | `true` | Names on the map. |
 | `show_layer_control` | boolean | `true` | The layer button. Turn it off to lock the layers, for example on a wall display. |
 | `show_location` | boolean | `false` | A pin that marks where you are, and a button that goes to it. |
@@ -80,6 +81,7 @@ Layers you switch on the map stay that way until the page reloads. To change wha
 | Layer | Shows | Good to know |
 | --- | --- | --- |
 | `terrain` | Ground height, in bands from 400 m to 2500 m | 8 bands on the whole country, 11 once you zoom in. |
+| `lakes` | Lakes, reservoirs and ponds | The Neusiedler See and the Bodensee show only their Austrian part. |
 | `rivers` | Rivers and streams | Larger rivers first. Smaller streams appear as you zoom in. |
 | `provinces` | The nine province borders | |
 | `districts` | The 94 district borders | |
@@ -157,7 +159,7 @@ On the whole-country view there is nothing to drag, so a vertical swipe scrolls 
 
 ## How the map loads
 
-A dashboard resource loads on every dashboard, whether it shows a map or not. So the card's own file holds only code, and the map data sits in ten files beside it:
+A dashboard resource loads on every dashboard, whether it shows a map or not. So the card's own file holds only code, and the map data sits in eleven files beside it:
 
 | File | Holds | Loaded | Size (compressed) |
 | --- | --- | --- | --- |
@@ -171,6 +173,7 @@ A dashboard resource loads on every dashboard, whether it shows a map or not. So
 | `austria-map-data-peaks.js` | 8,014 summits | Peaks layer on | 195 KB (84 KB) |
 | `austria-map-data-motorways.js` | 33 motorway and expressway routes | Motorways layer on | 18 KB (13 KB) |
 | `austria-map-data-main-roads.js` | 270 main road routes | Main roads layer on | 78 KB (49 KB) |
+| `austria-map-data-lakes.js` | 1,223 lakes | Lakes layer on | 44 KB (27 KB) |
 | `austria-map-data-relief.js` | Ground height for the 3D view | The first time you tilt the map | 523 KB (159 KB) |
 
 Each file loads once per page. Everything comes from your own Home Assistant: the card makes no request to any other server.
@@ -186,9 +189,10 @@ All map data is official Austrian open data under [CC BY 4.0](https://creativeco
 | Rivers | BMLUK, [Flussordnungszahlen NGP 2021 (Gesamtgewässernetz)](https://www.data.gv.at/datasets/e73a9425-a833-4579-9e6e-3ca76a1ea943) | 2021 |
 | Towns and peaks | BEV, [Digitales Landschaftsmodell, Namen](https://data.bev.gv.at/download/DLM/DLM_20260323/) | 23.03.2026 |
 | Roads | BEV, [Digitales Landschaftsmodell, Verkehr](https://data.bev.gv.at/download/DLM/DLM_20260323/) | 23.03.2026 |
+| Lakes | BEV, [Digitales Landschaftsmodell, Bodenbedeckung](https://data.bev.gv.at/download/DLM/DLM_20260323/) | 23.03.2026 |
 | Population | Statistik Austria, [Bevölkerung zu Jahresbeginn 2026](https://data.statistik.gv.at/web/meta.jsp?dataset=OGD_bevstandjbab2002_BevStand_2026) | 01.01.2026 |
 
-The data was changed for this card: borders, terrain and rivers are simplified, municipalities are merged from cadastral units, towns and peaks are a selection of the BEV's place names, and roads are joined into routes and simplified.
+The data was changed for this card: borders, terrain and rivers are simplified, municipalities are merged from cadastral units, towns and peaks are a selection of the BEV's place names, roads are joined into routes and simplified, and lakes are a selection of the BEV's water surfaces, simplified.
 
 ## Theming
 

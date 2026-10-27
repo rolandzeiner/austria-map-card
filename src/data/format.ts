@@ -1,7 +1,7 @@
 /**
  * The format of the map's data chunks, and how to read them.
  *
- * The card's code is one file. The geometry is ten more, written by
+ * The card's code is one file. The geometry is eleven more, written by
  * `scripts/build-data.mjs` and imported one at a time when a layer or a zoom
  * level first needs them. Each is an ES module whose default export is one
  * of the `Chunk` shapes below.
@@ -30,6 +30,7 @@ export const CHUNK_IDS = [
   "peaks",
   "motorways",
   "main-roads",
+  "lakes",
 ] as const;
 export type ChunkId = (typeof CHUNK_IDS)[number];
 
@@ -410,6 +411,24 @@ export interface MainRoadsChunk extends ChunkHead {
   readonly roads: RoadSet;
 }
 
+/**
+ * Standing water: lakes and reservoirs, as rings to fill with the even-odd
+ * rule, so an island is a ring inside its lake. Cut at the national
+ * border: the Neusiedler See and the Bodensee end where Austria does.
+ */
+export interface LakeSet {
+  /** One per lake, largest first; the empty string is a lake the source does not name. */
+  readonly names: readonly string[];
+  readonly rings: PackedLines;
+  /** Packed, per ring: the lake it belongs to, its row in `names`. */
+  readonly lake: string;
+}
+
+export interface LakesChunk extends ChunkHead {
+  readonly id: "lakes";
+  readonly lakes: LakeSet;
+}
+
 export interface PeaksChunk extends ChunkHead {
   readonly id: "peaks";
   readonly peaks: PeakTable;
@@ -426,5 +445,6 @@ export interface ChunkMap {
   peaks: PeaksChunk;
   motorways: MotorwaysChunk;
   "main-roads": MainRoadsChunk;
+  lakes: LakesChunk;
 }
 export type Chunk = ChunkMap[ChunkId];

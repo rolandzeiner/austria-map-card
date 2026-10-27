@@ -71,7 +71,7 @@ describe("config validation", () => {
   it.each([
     [
       { layers: ["roads"] },
-      /"layers" must be a list of: terrain, rivers, municipalities, districts, provinces, main_roads, motorways, peaks, cities/,
+      /"layers" must be a list of: terrain, lakes, rivers, municipalities, districts, provinces, main_roads, motorways, peaks, cities/,
     ],
     [{ layers: "terrain" }, /"layers" must be a list of/],
     [{ view: "AT-10" }, /"view" must be one of: austria, AT-1/],

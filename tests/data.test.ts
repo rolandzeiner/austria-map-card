@@ -503,3 +503,31 @@ describe("packed columns", () => {
     expect(places.at).toHaveLength(places.count * 2);
   });
 });
+
+describe("lakes", () => {
+  const lakes = store.lakes!;
+
+  it("names the largest lakes first", () => {
+    expect(lakes.names.slice(0, 4)).toEqual(["Neusiedler See", "Bodensee", "Attersee", "Traunsee"]);
+  });
+
+  it("gives every ring a lake, and every lake a ring", () => {
+    expect(lakes.lake).toHaveLength(lakes.rings.count);
+    expect(new Set(lakes.lake).size).toBe(lakes.names.length);
+    for (const row of lakes.lake) expect(lakes.names[row]).toBeTypeOf("string");
+  });
+
+  it("puts the Attersee where it is", () => {
+    const row = lakes.names.indexOf("Attersee");
+    const [x, y] = project(47.87, 13.54);
+    const around = [...lakes.lake.keys()].filter((ring) => lakes.lake[ring] === row);
+    const inside = around.some(
+      (ring) =>
+        x >= lakes.boxes[ring * 4]! &&
+        x <= lakes.boxes[ring * 4 + 2]! &&
+        y >= lakes.boxes[ring * 4 + 1]! &&
+        y <= lakes.boxes[ring * 4 + 3]!,
+    );
+    expect(inside).toBe(true);
+  });
+});

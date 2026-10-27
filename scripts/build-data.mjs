@@ -7,7 +7,7 @@
 //   node scripts/build-data.mjs --refresh       rebuild every committed input from its download
 //   node scripts/build-data.mjs --refresh-borders | --refresh-terrain | --refresh-rivers
 //                               | --refresh-places | --refresh-peaks | --refresh-motorways | --refresh-main-roads
-//                               | --refresh-population
+//                               | --refresh-population | --refresh-lakes
 //                               add --download to fetch a file again that is already in .cache/
 //
 // Two stages. The downloads are large (a 59 MB river network, 58 MB of place
@@ -21,6 +21,7 @@
 //   Rivers      BMLUK, Flussordnungszahlen NGP 2021 (Gesamtgewässernetz)
 //   Places      BEV, Digitales Landschaftsmodell, Namen
 //   Roads       BEV, Digitales Landschaftsmodell, Verkehr
+//   Lakes       BEV, Digitales Landschaftsmodell, Bodenbedeckung
 //   Population  Statistik Austria, Bevölkerung zu Jahresbeginn
 //
 // Everything is drawn in the view-box units of src/map/projection.ts, from
@@ -48,7 +49,8 @@ import {
 import { MAP_HEIGHT, MAP_WIDTH, project } from "../src/map/projection.ts";
 import { gaussKruegerToGeographic } from "./lib/datum.ts";
 import { encodeInts, encodeLines, encodePoints } from "./lib/encode.ts";
-import { parseGeoPackageLines } from "./lib/geopackage.ts";
+import { ringArea } from "./lib/geometry.ts";
+import { parseGeoPackageLines, parseGeoPackagePolygons } from "./lib/geopackage.ts";
 import { labelStretches } from "./lib/label-lines.ts";
 import { PLACE_KINDS, classFloor, nameKey, rankPlaces } from "./lib/places.ts";
 import {
@@ -146,6 +148,20 @@ const ROADS = {
 const ROADS_URL = "https://data.bev.gv.at/download/DLM/DLM_20260323/DLM_1000_VERKEHR_20260323.gpkg";
 const ROADS_TABLE = "VER_1100_STRASSE_L";
 
+const LAKES = {
+  id: "bev-dlm-bodenbedeckung",
+  holder: "BEV",
+  name: "Digitales Landschaftsmodell, Bodenbedeckung",
+  licence: LICENCE,
+  stand: "23.03.2026",
+  url: "https://data.bev.gv.at/download/DLM/DLM_20260323/",
+};
+const LAKES_URL =
+  "https://data.bev.gv.at/download/DLM/DLM_20260323/DLM_5000_BODENBEDECKUNG_20260323.gpkg";
+const LAKES_TABLE = "BOD_5300_WASSER_F";
+/** Class "See, Teich": lakes, reservoirs and ponds. Rivers, basins and glaciers have their own. */
+const LAKE_CODE = 5311;
+
 const POPULATION = {
   id: "statistik-bev",
   holder: "Statistik Austria",
@@ -168,11 +184,13 @@ const PEAKS_FILE = input("bev_peaks.txt.gz");
 const MOTORWAYS_FILE = input("bev_motorways.txt.gz");
 const MAIN_ROADS_FILE = input("bev_main_roads.txt.gz");
 const POPULATION_FILE = input("statistik_population.txt.gz");
+const LAKES_FILE = input("bev_lakes.txt.gz");
 const BORDERS_CACHE = cache("borders/VGD_Oesterreich_gen_250.zip");
 const TERRAIN_CACHE = cache("terrain/DGM_Rasterweite_500m.zip");
 const RIVERS_CACHE = cache("rivers/FlussordnungszahlenNGP21.gpkg");
 const PLACES_CACHE = cache("places/DLM_7000_NAMEN_20260323.gpkg");
 const ROADS_CACHE = cache("roads/DLM_1000_VERKEHR_20260323.gpkg");
+const LAKES_CACHE = cache("lakes/DLM_5000_BODENBEDECKUNG_20260323.gpkg");
 const POPULATION_CACHE = cache("population/OGD_bevstandjbab2002_BevStand_2026.csv");
 const DIST = new URL("dist/", root);
 
@@ -370,6 +388,27 @@ const STREAM_LABELS = [
   { step: 0.5, smoothing: 1.5, maxTurn: 55, turnSpan: 2, minLength: 7, tolerance: 0.12 },
 ];
 const LABEL_Q = 0.1;
+
+// Lakes: the BEV's water surfaces of class "See, Teich", 58 727 polygons,
+// nearly all of them ponds. 1223 cover 0.03 km² or more, 715 0.05 km², 332
+// 0.1 km². Measured on 2026-10-27:
+//
+//   smallest lake  tolerance  grid   lakes chunk
+//   30 000 m²      0.03       0.02   62.6 KB (41.5)
+//   30 000 m²      0.06       0.05   44.1 KB (27.2)   this one
+//   50 000 m²      0.03       0.05   46.1 KB (26.9)
+//   50 000 m²      0.06       0.05   32.4 KB (20.3)
+//   100 000 m²     0.06       0.05   22.4 KB (14.3)
+//   100 000 m²     0.10       0.05   17.0 KB (11.2)
+//
+// A 0.03 km² pond is a third of a pixel across at the whole-country view
+// and a dozen at the deepest zoom, which is where it is worth having; the
+// tolerance is the fine borders', so a shore and a border on it agree.
+// Islands smaller than `minIsland` square units (17 000 m²) are left in the
+// water. The committed input keeps every lake of `LAKE_KEEP.minArea` and
+// up at half the drawn tolerance, so neither needs a new download.
+const LAKE_KEEP = { minArea: 30_000, tolerance: 0.03 };
+const LAKES_DRAWN = { minArea: 30_000, minIsland: 0.05, tolerance: 0.06, q: 0.05 };
 
 // Label points and places sit on the same grid as the fine borders.
 const POINT_Q = FINE.q;
@@ -1335,6 +1374,109 @@ function readPlaces() {
 }
 
 // ---------------------------------------------------------------------------
+// Refresh: lakes
+// ---------------------------------------------------------------------------
+
+/**
+ * The lakes of LAKE_KEEP.minArea and up, one polygon per line, from the
+ * BEV's land cover. The source is Austria's own survey, so a lake on the
+ * border (the Neusiedler See, the Bodensee) is there only up to it.
+ */
+async function refreshLakes() {
+  await download(LAKES_URL, LAKES_CACHE, "BEV");
+  const { DatabaseSync } = await import("node:sqlite");
+  const database = new DatabaseSync(fileURLToPath(LAKES_CACHE), { readOnly: true });
+  const [{ srs }] = database
+    .prepare(`select srs_id as srs from gpkg_geometry_columns where table_name = ?`)
+    .all(LAKES_TABLE);
+  if (srs !== 31255)
+    throw new Error(`lakes are in EPSG:${String(srs)}, not MGI / Austria GK Central (31255)`);
+  const rows = database
+    .prepare(
+      `select NAME as name, SHAPE_AREA as area, geom from "${LAKES_TABLE}" ` +
+        `where F_CODE = ? and SHAPE_AREA >= ? order by OBJECTID`,
+    )
+    .all(LAKE_CODE, LAKE_KEEP.minArea);
+  database.close();
+
+  const lines = header(
+    LAKES,
+    [
+      `Lakes, reservoirs and ponds of ${LAKE_KEEP.minArea} m² and up: name, area in m², then the rings of`,
+      `one polygon, the shore first and its islands after it, separated by "|", in the view-box units of`,
+      `src/map/projection.ts. Simplified to ${LAKE_KEEP.tolerance} units.`,
+    ],
+    "--refresh-lakes",
+  );
+  let polygons = 0;
+  for (const row of rows) {
+    for (const polygon of parseGeoPackagePolygons(row.geom)) {
+      const rings = polygon.map((ring) =>
+        simplifyArc(
+          ring.map(([e, n]) => project(...gaussKruegerToGeographic(e, n))),
+          LAKE_KEEP.tolerance,
+        ),
+      );
+      lines.push(
+        [
+          (row.name ?? "").trim(),
+          Math.round(row.area),
+          rings
+            .map((ring) => ring.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join(" "))
+            .join("|"),
+        ].join("\t"),
+      );
+      polygons += 1;
+    }
+  }
+  if (polygons < 500) throw new Error(`only ${polygons} lakes; expected a thousand or more`);
+  writeInput(LAKES_FILE, lines);
+  console.log(`  kept ${polygons} lakes of ${LAKE_KEEP.minArea} m² and up`);
+}
+
+function readLakes() {
+  return readInput(LAKES_FILE).map((line) => {
+    const [name, area, rings] = line.split("\t");
+    return {
+      name,
+      area: Number(area),
+      rings: rings
+        .split("|")
+        .map((ring) => ring.split(" ").map((pair) => pair.split(",").map(Number))),
+    };
+  });
+}
+
+/**
+ * The lakes of `minArea` m² and up, largest first, each simplified, with
+ * the islands that still cover `minIsland` square units.
+ */
+function packLakes(lakes, settings) {
+  const kept = lakes
+    .filter((lake) => lake.area >= settings.minArea)
+    .toSorted((p, q) => q.area - p.area || byCodeUnit(p.name, q.name));
+  const rings = [];
+  kept.forEach((lake, row) => {
+    lake.rings.forEach((ring, index) => {
+      const points = simplifyArc(ring, settings.tolerance);
+      if (index > 0 && ringArea(points) < settings.minIsland) return;
+      rings.push({ lake: row, points });
+    });
+  });
+  const sortedRings = sortArcs(rings, SORT_TILE);
+  return {
+    names: kept.map((lake) => lake.name),
+    // keepShort: the lake column runs parallel to the rings, so none may drop out.
+    rings: encodeLines(
+      sortedRings.map((ring) => ring.points),
+      settings.q,
+      { closed: true, keepShort: true },
+    ),
+    lake: encodeInts(sortedRings.map((ring) => ring.lake)),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Build
 // ---------------------------------------------------------------------------
 
@@ -1391,6 +1533,7 @@ function build(settings = {}) {
   const fine = settings.fine ?? FINE;
   const terrainDetail = settings.terrainDetail ?? TERRAIN_DETAIL;
   const riversDetail = settings.riversDetail ?? RIVERS_DETAIL;
+  const lakesDrawn = settings.lakes ?? LAKES_DRAWN;
 
   const mesh = readMesh();
   const { districts, provinces, districtOf, provinceOfDistrict, provinceOf } = levels(mesh.units);
@@ -1648,6 +1791,7 @@ function build(settings = {}) {
       ...head("main-roads", [ROADS]),
       roads: packRoads(readRoads("main-roads"), ROAD_KINDS["main-roads"].q, provincesOf),
     },
+    lakes: { ...head("lakes", [LAKES]), lakes: packLakes(readLakes(), lakesDrawn) },
   };
 
   const files = new Map();
@@ -1723,6 +1867,19 @@ function measure() {
       `  ${minOrder}  ${tolerance}  ${q}  ${size({ riversDetail: { minOrder, tolerance, q } }, "rivers-detail")}`,
     );
   }
+  console.log("Lakes: smallest lake (m²), tolerance, grid -> chunk");
+  for (const [minArea, tolerance, q] of [
+    [30_000, 0.03, 0.02],
+    [30_000, 0.06, 0.05],
+    [50_000, 0.03, 0.05],
+    [50_000, 0.06, 0.05],
+    [100_000, 0.06, 0.05],
+    [100_000, 0.1, 0.05],
+  ]) {
+    console.log(
+      `  ${minArea}  ${tolerance}  ${q}  ${size({ lakes: { ...LAKES_DRAWN, minArea, tolerance, q } }, "lakes")}`,
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1738,6 +1895,7 @@ if (everything || args.has("--refresh-places")) await refreshPlaces();
 if (everything || args.has("--refresh-peaks")) await refreshPeaks();
 if (everything || args.has("--refresh-motorways")) await refreshRoads("motorways");
 if (everything || args.has("--refresh-main-roads")) await refreshRoads("main-roads");
+if (everything || args.has("--refresh-lakes")) await refreshLakes();
 
 if (args.has("--measure")) {
   measure();

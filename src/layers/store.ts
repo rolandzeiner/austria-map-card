@@ -19,6 +19,7 @@ import {
   type Chunk,
   type ChunkId,
   type FactColumn,
+  type LakeSet,
   type Lines,
   type RoadSet,
   type PeakTable,
@@ -141,6 +142,22 @@ function readPeaks(table: PeakTable): Peaks {
       facts.find((fact) => fact.key === "height")?.values ?? new Int32Array(table.names.length),
     facts,
   };
+}
+
+/** Lakes and reservoirs: rings, and the lake each belongs to. */
+export interface Lakes {
+  /** One per lake. */
+  readonly names: readonly string[];
+  readonly rings: Lines;
+  /** Per ring: its lake's row in `names`. */
+  readonly lake: Int32Array;
+  /** Per ring: left, top, right, bottom. */
+  readonly boxes: Float32Array;
+}
+
+function readLakes(set: LakeSet): Lakes {
+  const rings = decodeLines(set.rings);
+  return { names: set.names, rings, lake: decodeInts(set.lake), boxes: lineBoxes(rings) };
 }
 
 /** Ground height in metres, one value per view-box unit; 0 is no data. */
@@ -295,6 +312,7 @@ export class MapStore {
   public peaks: Peaks | undefined;
   public motorways: Roads | undefined;
   public mainRoads: Roads | undefined;
+  public lakes: Lakes | undefined;
 
   private readonly loaded = new Map<ChunkId, readonly SourceInfo[]>();
   private municipal: ArcIndex | undefined;
@@ -404,6 +422,9 @@ export class MapStore {
         break;
       case "main-roads":
         this.mainRoads = readRoads(chunk.roads);
+        break;
+      case "lakes":
+        this.lakes = readLakes(chunk.lakes);
         break;
     }
     this.loaded.set(chunk.id, chunk.sources);

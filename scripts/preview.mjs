@@ -36,8 +36,16 @@ for (const id of CHUNK_IDS) {
   store.add(module.default);
 }
 
-const everything = ["terrain", "rivers", "municipalities", "districts", "provinces", "cities"];
-const standard = ["terrain", "rivers", "provinces", "cities"];
+const everything = [
+  "terrain",
+  "lakes",
+  "rivers",
+  "municipalities",
+  "districts",
+  "provinces",
+  "cities",
+];
+const standard = ["terrain", "lakes", "rivers", "provinces", "cities"];
 
 /** The row of a municipality or a province by its official code. */
 const municipality = (code) => store.detail.municipalities.ids.indexOf(code);
@@ -168,6 +176,33 @@ const scenes = [
     layers: [...standard, "main_roads", "motorways"],
     at: "62040",
     zoom: 7,
+  },
+  {
+    name: "lakes-neusiedl",
+    width: 760,
+    height: 403,
+    theme: LIGHT_THEME,
+    layers: standard,
+    at: "10201",
+    zoom: 8,
+  },
+  {
+    name: "lakes-bodensee",
+    width: 760,
+    height: 403,
+    theme: DARK_THEME,
+    layers: standard,
+    at: "80207",
+    zoom: 10,
+  },
+  {
+    name: "lakes-kaernten",
+    width: 760,
+    height: 403,
+    theme: LIGHT_THEME,
+    layers: standard,
+    at: "20101",
+    zoom: 6,
   },
   { name: "bare", width: 760, height: 403, theme: LIGHT_THEME, layers: [] },
 ];

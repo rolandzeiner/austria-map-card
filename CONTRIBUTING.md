@@ -23,24 +23,24 @@ Day to day:
 ```bash
 npm run dev          # watch build: rebuilds dist/austria-map-card.js on save
 npm run build        # one production build of the card (vp build)
-npm run build:data   # rebuilds the ten data chunks from scripts/data/
+npm run build:data   # rebuilds the eleven data chunks from scripts/data/
 npm run preview      # draws the map to PNG files in .cache/preview/
 npm test             # vp test run
 npm run check        # vp check: format, lint and type-check
 npx vp check --fix   # applies the formatter and the lint autofixes
 ```
 
-## Two builds, eleven files
+## Two builds, twelve files
 
 `dist/` holds everything a user installs, and it is committed:
 
 | File | Written by | From |
 | --- | --- | --- |
 | `austria-map-card.js` | `npm run build` (Vite+) | `src/` |
-| `austria-map-data-*.js` (ten) | `npm run build:data` | `scripts/data/*.gz` |
+| `austria-map-data-*.js` (eleven) | `npm run build:data` | `scripts/data/*.gz` |
 
 The card's file holds code only. A dashboard resource loads on every
-dashboard, so the geometry lives in the ten chunks and the card imports
+dashboard, so the geometry lives in the eleven chunks and the card imports
 each one the first time a layer or zoom level needs it.
 
 Change `src/` and you rebuild the card. Change the data script, the
@@ -135,6 +135,7 @@ node scripts/build-data.mjs --refresh-peaks        # BEV, the same 58 MB file as
 node scripts/build-data.mjs --refresh-motorways    # BEV, 1.3 GB
 node scripts/build-data.mjs --refresh-main-roads   # BEV, the same 1.3 GB file as the motorways
 node scripts/build-data.mjs --refresh-population   # Statistik Austria, 18 MB
+node scripts/build-data.mjs --refresh-lakes        # BEV, 77 MB
 node scripts/build-data.mjs --refresh              # all of them
 ```
 
@@ -192,7 +193,7 @@ It writes `coverage/coverage-final.json` (ignored by git).
 
 ## Releases
 
-A release carries eleven assets, not one: `.github/workflows/release.yml`
+A release carries twelve assets, not one: `.github/workflows/release.yml`
 attaches every `dist/*.js`. HACS downloads exactly the assets of a
 release, so one that carried only the card would install a map with no
 data. The workflow also refuses a tag that differs from `package.json`'s
@@ -216,7 +217,7 @@ Missing keys fall back to English. German uses "du", never "Sie".
 `vite.config.ts`. Five things in that config fail silently if you change
 them:
 
-- **`emptyOutDir` stays `false`.** `dist/` also holds the ten data
+- **`emptyOutDir` stays `false`.** `dist/` also holds the eleven data
   chunks, which this build does not write. Vite empties its output
   directory before each build by default and would delete them.
 - The banner must be a **legal** comment, `/*! ... */`, with

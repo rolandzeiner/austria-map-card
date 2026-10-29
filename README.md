@@ -1,4 +1,4 @@
-# Austria Map Card
+# <img src="https://raw.githubusercontent.com/rolandzeiner/austria-map-card/main/brand/icon.png" width="40" height="40" alt="" align="absmiddle"> Austria Map Card
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 [![Version](https://img.shields.io/github/v/release/rolandzeiner/austria-map-card?include_prereleases&label=version&color=blue)](https://github.com/rolandzeiner/austria-map-card/releases)

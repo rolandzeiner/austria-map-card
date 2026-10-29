@@ -293,10 +293,6 @@ export class ReliefGL {
     return this.lostContext || this.gl.isContextLost();
   }
 
-  public get hasRelief(): boolean {
-    return this.relief !== undefined;
-  }
-
   public setRelief(relief: Relief): void {
     if (this.relief === relief) return;
     const { gl } = this;

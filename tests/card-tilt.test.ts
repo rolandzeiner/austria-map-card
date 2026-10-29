@@ -42,7 +42,6 @@ function stubGL(): { draws: View3D[]; lines: string[][]; drapes: string[]; lost:
     lines: [] as string[][],
     drapes: [] as string[],
     lost: false,
-    hasRelief: true,
     resize: () => undefined,
     setRelief: () => undefined,
     setDrape: (_image: unknown, drape: string) => stub.drapes.push(drape),

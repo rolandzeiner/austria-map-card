@@ -72,7 +72,7 @@ and dark. Look at them before you commit a change to drawing code or data.
 The PNGs land in `.cache/preview/`, which git ignores. Add a scene to the
 list in `scripts/preview.mjs` when you need another view.
 
-`npm run preview -- --readme` also rewrites `screenshots/preview.webp`.
+`npm run preview -- --readme` also rewrites the README images, `screenshots/preview.webp` and `screenshots/preview-dark.webp`.
 
 ## Where things are
 

@@ -458,6 +458,22 @@ export const cardStyles = css`
     color: inherit;
   }
 
+  /* A fixed-height cell (ha-card.fixed-height, set by the card's
+     _fixedHeight). The stage already gives way down to its button floor;
+     the info panel below grows with a selected place, and without these it
+     pushed the credit, the licence line, out of the cell. The credit keeps
+     its height, the info panel gives way down to one control's height and
+     scrolls past it. The 4 px at its foot is the room the focus ring (2 px
+     at a 2 px offset) of its last buttons needs inside a scroller. */
+  ha-card.fixed-height .info {
+    min-block-size: var(--amc-control);
+    overflow-y: auto;
+    padding-block-end: var(--ha-space-1, 4px);
+  }
+  ha-card.fixed-height .credit {
+    flex-shrink: 0;
+  }
+
   /* A card too narrow for the row of buttons to fit in the empty corner
      over Bavaria: the map starts under the row, and the stage grows by as
      much, so the whole-country view keeps its size and nothing of Austria

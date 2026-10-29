@@ -158,7 +158,10 @@ export class AustriaMapCard extends LitElement {
   }
 
   public getGridOptions(): Record<string, number> {
-    return { columns: 12, rows: 7, min_columns: 6, min_rows: 5 };
+    // min_rows measured with the card at a fixed height: at six columns the
+    // toolbar wraps, and the map's button floor, one line of info and the
+    // credit (the licence line) need seven rows. Six fit from eight columns.
+    return { columns: 12, rows: 7, min_columns: 6, min_rows: 7 };
   }
 
   public static getStubConfig(): Record<string, unknown> {
@@ -789,6 +792,15 @@ export class AustriaMapCard extends LitElement {
     return localize(key, resolveLang(this.hass), vars);
   }
 
+  // A sections cell with a set number of rows: the user dragged the card or
+  // switched auto height off (stored grid_options), or getGridOptions()'s own
+  // rows apply. The test HA's gauge, picture-entity and area cards make.
+  private get _fixedHeight(): boolean {
+    const stored = (this._config.grid_options as { rows?: unknown } | undefined)?.rows;
+    const rows = stored ?? this.getGridOptions().rows;
+    return this.layout === "grid" && typeof rows === "number";
+  }
+
   protected override render(): TemplateResult {
     // Read so the template is rebuilt when the loader or the view changes.
     void this._revision;
@@ -798,7 +810,7 @@ export class AustriaMapCard extends LitElement {
     const size = this._renderer?.size;
     const zoom = this._camera && size ? zoomOf(this._camera, size) : 1;
     return html`
-      <ha-card>
+      <ha-card class=${this._fixedHeight ? "fixed-height" : ""}>
         <span class="probe" aria-hidden="true"></span>
         ${config.title ? html`<h2 class="title">${config.title}</h2>` : nothing}
         <div class="stage">

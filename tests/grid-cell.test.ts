@@ -43,6 +43,14 @@ describe("the grid cell", () => {
     expect(rule("ha-card")).toMatch(/overflow:\s*hidden/);
   });
 
+  it("keeps the credit in a fixed-height cell and scrolls the info panel instead", () => {
+    expect(rule("ha-card.fixed-height .credit")).toMatch(/flex-shrink:\s*0/);
+    const info = rule("ha-card.fixed-height .info");
+    expect(info).toMatch(/min-block-size:\s*var\(--amc-control\)/);
+    expect(info).toMatch(/overflow-y:\s*auto/);
+    expect(info).toMatch(/padding-block-end:/);
+  });
+
   it("never fills ungated, so the picker preview keeps its own height", () => {
     expect(rule(":host")).not.toMatch(/block-size|height:\s*100%/);
     expect(rule("ha-card")).not.toMatch(/block-size|height:\s*100%/);

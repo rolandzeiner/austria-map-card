@@ -62,9 +62,22 @@ describe("the card contract", () => {
     expect(element.getPropertyOptions("layout").reflect).toBe(true);
   });
 
+  it("marks a cell with a set number of rows, which the styles fit the credit into", async () => {
+    const at = async (layout: string | undefined, rows?: unknown) => {
+      const card = await mount(rows === undefined ? {} : { grid_options: { rows } });
+      (card as unknown as { layout?: string | undefined }).layout = layout;
+      await card.updateComplete;
+      return $(card, "ha-card")?.classList.contains("fixed-height");
+    };
+    expect(await at("grid")).toBe(true); // getGridOptions() asks for 7 rows
+    expect(await at("grid", 9)).toBe(true);
+    expect(await at("grid", "auto")).toBe(false);
+    expect(await at(undefined, 9)).toBe(false);
+  });
+
   it("asks for a full-width cell and says how tall it is", async () => {
     const card = await mount();
-    expect(card.getGridOptions()).toEqual({ columns: 12, rows: 7, min_columns: 6, min_rows: 5 });
+    expect(card.getGridOptions()).toEqual({ columns: 12, rows: 7, min_columns: 6, min_rows: 7 });
     expect(card.getCardSize()).toBe(8);
   });
 

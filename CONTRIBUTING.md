@@ -41,7 +41,24 @@ npx vp check --fix   # applies the formatter and the lint autofixes
 
 The card's file holds code only. A dashboard resource loads on every
 dashboard, so the geometry lives in the twelve chunks and the card imports
-each one the first time a layer or zoom level needs it.
+each one the first time a layer or zoom level needs it:
+
+| Chunk | Holds | Loaded |
+| --- | --- | --- |
+| `base` | Country and province borders, terrain overview, larger rivers | With the first map |
+| `places` | Towns and villages | Towns layer on |
+| `borders` | Fine borders down to districts, names and population of all districts and municipalities | Zoomed in, or districts or municipalities on |
+| `gemeinden` | Municipality borders | Municipalities on and zoomed in |
+| `terrain-detail` | Terrain in 11 bands | Terrain on and zoomed in |
+| `rivers-detail` | Rivers and streams down to stream order 3 | Rivers on and zoomed in |
+| `peaks` | Summits | Peaks layer on |
+| `motorways` | Motorway and expressway routes | Motorways layer on |
+| `main-roads` | Main road routes | Main roads layer on |
+| `lakes` | Lakes and their names | Lakes layer on |
+| `glaciers` | Glaciers and their names | Glaciers layer on |
+| `relief` | Ground height for the 3D view | The first time the map tilts |
+
+`npm run build:data` prints each chunk's size as written and gzipped.
 
 Change `src/` and you rebuild the card. Change the data script, the
 projection, the chunk format or an input, and you rebuild the data. CI
@@ -58,8 +75,9 @@ git diff --exit-code -- dist/        # the committed dist/ matches that build
 for f in dist/*.js; do node -c "$f"; done
 ```
 
-Commit `dist/` with your change. HACS serves the committed files, so a
-`src/` edit without a rebuild ships code that no longer matches its source.
+Commit `dist/` with your change. A release attaches the committed files,
+so a `src/` edit without a rebuild ships code that no longer matches its
+source.
 
 CI runs the same steps plus `npm audit --omit=dev --audit-level=high`,
 HACS validation and CodeQL.
@@ -72,7 +90,9 @@ and dark. Look at them before you commit a change to drawing code or data.
 The PNGs land in `.cache/preview/`, which git ignores. Add a scene to the
 list in `scripts/preview.mjs` when you need another view.
 
-`npm run preview -- --readme` also rewrites the README images, `screenshots/preview.webp` and `screenshots/preview-dark.webp`.
+`npm run preview -- --readme` also rewrites the README images:
+`screenshots/preview.webp` and its dark-theme twin
+`screenshots/preview-dark.webp`, both transparent outside the border.
 
 ## Where things are
 
@@ -195,8 +215,8 @@ It writes `coverage/coverage-final.json` (ignored by git).
 ## Releases
 
 A release carries thirteen assets, not one: `.github/workflows/release.yml`
-attaches every `dist/*.js`. HACS downloads exactly the assets of a
-release, so one that carried only the card would install a map with no
+attaches every `dist/*.js`. The Marketplace (HACS) downloads exactly the
+assets of a release, so one that carried only the card would install a map with no
 data. The workflow also refuses a tag that differs from `package.json`'s
 version; keep that and `CARD_VERSION` in `src/const.ts` equal
 (`tests/i18n.test.ts` checks).

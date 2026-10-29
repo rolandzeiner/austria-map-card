@@ -29,6 +29,8 @@
   },
   "layers": {
     "terrain": "Gelände",
+    "glaciers": "Gletscher",
+    "lakes": "Seen",
     "rivers": "Flüsse",
     "provinces": "Bundesländer",
     "districts": "Bezirke",

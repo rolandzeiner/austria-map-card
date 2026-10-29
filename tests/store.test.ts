@@ -37,6 +37,7 @@ describe("the store", () => {
     expect(sorted(sources.map((source) => source.id))).toEqual(
       sorted([
         "bev-dgm",
+        "bev-dlm-bodenbedeckung",
         "bev-dlm-namen",
         "bev-dlm-verkehr",
         "bev-vgd",

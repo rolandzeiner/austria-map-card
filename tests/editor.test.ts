@@ -66,7 +66,7 @@ describe("the editor", () => {
     const { form } = await mount({ type: TYPE });
     expect(form.data).toMatchObject({
       view: "austria",
-      layers: ["terrain", "rivers", "provinces", "cities"],
+      layers: ["terrain", "lakes", "rivers", "provinces", "cities"],
       show_labels: true,
       show_layer_control: true,
     });
@@ -95,6 +95,8 @@ describe("the editor", () => {
     const options = "select" in layers.selector ? layers.selector.select.options : [];
     expect(options.map((option) => option.label)).toEqual([
       "Gelände",
+      "Gletscher",
+      "Seen",
       "Flüsse",
       "Gemeinden",
       "Bezirke",

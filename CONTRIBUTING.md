@@ -23,25 +23,42 @@ Day to day:
 ```bash
 npm run dev          # watch build: rebuilds dist/austria-map-card.js on save
 npm run build        # one production build of the card (vp build)
-npm run build:data   # rebuilds the ten data chunks from scripts/data/
+npm run build:data   # rebuilds the twelve data chunks from scripts/data/
 npm run preview      # draws the map to PNG files in .cache/preview/
 npm test             # vp test run
 npm run check        # vp check: format, lint and type-check
 npx vp check --fix   # applies the formatter and the lint autofixes
 ```
 
-## Two builds, eleven files
+## Two builds, thirteen files
 
 `dist/` holds everything a user installs, and it is committed:
 
 | File | Written by | From |
 | --- | --- | --- |
 | `austria-map-card.js` | `npm run build` (Vite+) | `src/` |
-| `austria-map-data-*.js` (ten) | `npm run build:data` | `scripts/data/*.gz` |
+| `austria-map-data-*.js` (twelve) | `npm run build:data` | `scripts/data/*.gz` |
 
 The card's file holds code only. A dashboard resource loads on every
-dashboard, so the geometry lives in the ten chunks and the card imports
-each one the first time a layer or zoom level needs it.
+dashboard, so the geometry lives in the twelve chunks and the card imports
+each one the first time a layer or zoom level needs it:
+
+| Chunk | Holds | Loaded |
+| --- | --- | --- |
+| `base` | Country and province borders, terrain overview, larger rivers | With the first map |
+| `places` | Towns and villages | Towns layer on |
+| `borders` | Fine borders down to districts, names and population of all districts and municipalities | Zoomed in, or districts or municipalities on |
+| `gemeinden` | Municipality borders | Municipalities on and zoomed in |
+| `terrain-detail` | Terrain in 11 bands | Terrain on and zoomed in |
+| `rivers-detail` | Rivers and streams down to stream order 3 | Rivers on and zoomed in |
+| `peaks` | Summits | Peaks layer on |
+| `motorways` | Motorway and expressway routes | Motorways layer on |
+| `main-roads` | Main road routes | Main roads layer on |
+| `lakes` | Lakes and their names | Lakes layer on |
+| `glaciers` | Glaciers and their names | Glaciers layer on |
+| `relief` | Ground height for the 3D view | The first time the map tilts |
+
+`npm run build:data` prints each chunk's size as written and gzipped.
 
 Change `src/` and you rebuild the card. Change the data script, the
 projection, the chunk format or an input, and you rebuild the data. CI
@@ -58,8 +75,9 @@ git diff --exit-code -- dist/        # the committed dist/ matches that build
 for f in dist/*.js; do node -c "$f"; done
 ```
 
-Commit `dist/` with your change. HACS serves the committed files, so a
-`src/` edit without a rebuild ships code that no longer matches its source.
+Commit `dist/` with your change. A release attaches the committed files,
+so a `src/` edit without a rebuild ships code that no longer matches its
+source.
 
 CI runs the same steps plus `npm audit --omit=dev --audit-level=high`,
 HACS validation and CodeQL.
@@ -72,7 +90,9 @@ and dark. Look at them before you commit a change to drawing code or data.
 The PNGs land in `.cache/preview/`, which git ignores. Add a scene to the
 list in `scripts/preview.mjs` when you need another view.
 
-`npm run preview -- --readme` also rewrites `screenshots/preview.webp`.
+`npm run preview -- --readme` also rewrites the README images:
+`screenshots/preview.webp` and its dark-theme twin
+`screenshots/preview-dark.webp`, both transparent outside the border.
 
 ## Where things are
 
@@ -135,6 +155,8 @@ node scripts/build-data.mjs --refresh-peaks        # BEV, the same 58 MB file as
 node scripts/build-data.mjs --refresh-motorways    # BEV, 1.3 GB
 node scripts/build-data.mjs --refresh-main-roads   # BEV, the same 1.3 GB file as the motorways
 node scripts/build-data.mjs --refresh-population   # Statistik Austria, 18 MB
+node scripts/build-data.mjs --refresh-lakes        # BEV, 77 MB
+node scripts/build-data.mjs --refresh-glaciers     # BEV, the same 77 MB file, and the names file
 node scripts/build-data.mjs --refresh              # all of them
 ```
 
@@ -192,9 +214,9 @@ It writes `coverage/coverage-final.json` (ignored by git).
 
 ## Releases
 
-A release carries eleven assets, not one: `.github/workflows/release.yml`
-attaches every `dist/*.js`. HACS downloads exactly the assets of a
-release, so one that carried only the card would install a map with no
+A release carries thirteen assets, not one: `.github/workflows/release.yml`
+attaches every `dist/*.js`. The Marketplace (HACS) downloads exactly the
+assets of a release, so one that carried only the card would install a map with no
 data. The workflow also refuses a tag that differs from `package.json`'s
 version; keep that and `CARD_VERSION` in `src/const.ts` equal
 (`tests/i18n.test.ts` checks).
@@ -216,7 +238,7 @@ Missing keys fall back to English. German uses "du", never "Sie".
 `vite.config.ts`. Five things in that config fail silently if you change
 them:
 
-- **`emptyOutDir` stays `false`.** `dist/` also holds the ten data
+- **`emptyOutDir` stays `false`.** `dist/` also holds the twelve data
   chunks, which this build does not write. Vite empties its output
   directory before each build by default and would delete them.
 - The banner must be a **legal** comment, `/*! ... */`, with

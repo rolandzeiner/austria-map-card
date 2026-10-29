@@ -7,7 +7,7 @@
 //   node scripts/build-data.mjs --refresh       rebuild every committed input from its download
 //   node scripts/build-data.mjs --refresh-borders | --refresh-terrain | --refresh-rivers
 //                               | --refresh-places | --refresh-peaks | --refresh-motorways | --refresh-main-roads
-//                               | --refresh-population
+//                               | --refresh-population | --refresh-lakes | --refresh-glaciers
 //                               add --download to fetch a file again that is already in .cache/
 //
 // Two stages. The downloads are large (a 59 MB river network, 58 MB of place
@@ -21,6 +21,7 @@
 //   Rivers      BMLUK, Flussordnungszahlen NGP 2021 (Gesamtgewässernetz)
 //   Places      BEV, Digitales Landschaftsmodell, Namen
 //   Roads       BEV, Digitales Landschaftsmodell, Verkehr
+//   Lakes and glaciers  BEV, Digitales Landschaftsmodell, Bodenbedeckung (names: Namen)
 //   Population  Statistik Austria, Bevölkerung zu Jahresbeginn
 //
 // Everything is drawn in the view-box units of src/map/projection.ts, from
@@ -48,7 +49,12 @@ import {
 import { MAP_HEIGHT, MAP_WIDTH, project } from "../src/map/projection.ts";
 import { gaussKruegerToGeographic } from "./lib/datum.ts";
 import { encodeInts, encodeLines, encodePoints } from "./lib/encode.ts";
-import { parseGeoPackageLines } from "./lib/geopackage.ts";
+import { ringArea } from "./lib/geometry.ts";
+import {
+  parseGeoPackageLines,
+  parseGeoPackagePolygons,
+  wellKnownBinary,
+} from "./lib/geopackage.ts";
 import { labelStretches } from "./lib/label-lines.ts";
 import { PLACE_KINDS, classFloor, nameKey, rankPlaces } from "./lib/places.ts";
 import {
@@ -146,6 +152,26 @@ const ROADS = {
 const ROADS_URL = "https://data.bev.gv.at/download/DLM/DLM_20260323/DLM_1000_VERKEHR_20260323.gpkg";
 const ROADS_TABLE = "VER_1100_STRASSE_L";
 
+const LAND_COVER = {
+  id: "bev-dlm-bodenbedeckung",
+  holder: "BEV",
+  name: "Digitales Landschaftsmodell, Bodenbedeckung",
+  licence: LICENCE,
+  stand: "23.03.2026",
+  url: "https://data.bev.gv.at/download/DLM/DLM_20260323/",
+};
+const LAND_COVER_URL =
+  "https://data.bev.gv.at/download/DLM/DLM_20260323/DLM_5000_BODENBEDECKUNG_20260323.gpkg";
+/** Water surfaces, glaciers among them: each class has its own code. */
+const WATER_TABLE = "BOD_5300_WASSER_F";
+/** "See, Teich": lakes, reservoirs and ponds. */
+const LAKE_CODE = 5311;
+/** "Gletscher". The outlines carry no names; those come from the names file. */
+const GLACIER_CODE = 5331;
+const GLACIER_NAMES_TABLE = "NAM_7400_GLETSCHER_P";
+/** The names file's glacier classes, longest first: over 6 km, 2 to 6 km, under 2 km. */
+const GLACIER_CLASSES = [7401, 7402, 7403];
+
 const POPULATION = {
   id: "statistik-bev",
   holder: "Statistik Austria",
@@ -168,11 +194,14 @@ const PEAKS_FILE = input("bev_peaks.txt.gz");
 const MOTORWAYS_FILE = input("bev_motorways.txt.gz");
 const MAIN_ROADS_FILE = input("bev_main_roads.txt.gz");
 const POPULATION_FILE = input("statistik_population.txt.gz");
+const LAKES_FILE = input("bev_lakes.txt.gz");
+const GLACIERS_FILE = input("bev_glaciers.txt.gz");
 const BORDERS_CACHE = cache("borders/VGD_Oesterreich_gen_250.zip");
 const TERRAIN_CACHE = cache("terrain/DGM_Rasterweite_500m.zip");
 const RIVERS_CACHE = cache("rivers/FlussordnungszahlenNGP21.gpkg");
 const PLACES_CACHE = cache("places/DLM_7000_NAMEN_20260323.gpkg");
 const ROADS_CACHE = cache("roads/DLM_1000_VERKEHR_20260323.gpkg");
+const LAND_COVER_CACHE = cache("land-cover/DLM_5000_BODENBEDECKUNG_20260323.gpkg");
 const POPULATION_CACHE = cache("population/OGD_bevstandjbab2002_BevStand_2026.csv");
 const DIST = new URL("dist/", root);
 
@@ -370,6 +399,46 @@ const STREAM_LABELS = [
   { step: 0.5, smoothing: 1.5, maxTurn: 55, turnSpan: 2, minLength: 7, tolerance: 0.12 },
 ];
 const LABEL_Q = 0.1;
+
+// Lakes: the BEV's water surfaces of class "See, Teich", 58 727 polygons,
+// nearly all of them ponds. 1223 cover 0.03 km² or more, 715 0.05 km², 332
+// 0.1 km². Measured on 2026-10-27:
+//
+//   smallest lake  tolerance  grid   lakes chunk
+//   30 000 m²      0.03       0.02   68.0 KB (45.6)
+//   30 000 m²      0.06       0.05   49.5 KB (31.3)   this one
+//   50 000 m²      0.03       0.05   49.5 KB (29.6)
+//   50 000 m²      0.06       0.05   35.7 KB (23.0)
+//   100 000 m²     0.06       0.05   24.2 KB (15.9)
+//   100 000 m²     0.10       0.05   18.8 KB (12.7)
+//
+// About 5 KB of it is the label points: one per lake, 543 of them named.
+//
+// A 0.03 km² pond is a third of a pixel across at the whole-country view
+// and a dozen at the deepest zoom, which is where it is worth having; the
+// tolerance is the fine borders', so a shore and a border on it agree.
+// Islands smaller than `minIsland` square units (17 000 m²) are left in the
+// water. The committed input keeps every lake of `LAKE_KEEP.minArea` and
+// up at half the drawn tolerance, so neither needs a new download.
+const LAKE_KEEP = { minArea: 30_000, tolerance: 0.03 };
+const LAKES_DRAWN = { minArea: 30_000, minIsland: 0.05, tolerance: 0.06, q: 0.05 };
+
+// Glaciers: 1304 outlines of class "Gletscher", 306 km² in all; 590 cover
+// 0.03 km² or more. An outline is a whole ice field, often several named
+// glaciers that meet, so the names are the names file's points (408 of
+// them), each kept where it lies on a drawn glacier or within `reach`
+// units of one: 369 are. The other 39 name ice that has melted or is too
+// small to draw. Measured on 2026-10-27:
+//
+//   smallest glacier  tolerance  grid   glaciers chunk
+//   30 000 m²         0.03       0.02   59.7 KB (38.4)
+//   30 000 m²         0.06       0.05   39.3 KB (23.5)   this one
+//   100 000 m²        0.06       0.05   32.0 KB (19.5)
+//   100 000 m²        0.10       0.05   23.8 KB (14.9)
+//
+// The same cut and tolerance as the lakes, for the same reasons.
+const GLACIER_KEEP = { minArea: 30_000, tolerance: 0.03 };
+const GLACIERS_DRAWN = { minArea: 30_000, minIsland: 0.05, tolerance: 0.06, q: 0.05, reach: 0.5 };
 
 // Label points and places sit on the same grid as the fine borders.
 const POINT_Q = FINE.q;
@@ -1101,26 +1170,37 @@ function meshIndex(mesh) {
 }
 
 /**
- * Pick the settlements worth a dot out of the BEV's 58 000 names: every
- * Stadt and Markt, every Dorf of 2000 residents or more, and the place each
- * municipality is named after, whatever its class.
+ * The rows `query` returns from `table` of the BEV's names file (fetched if
+ * not cached), after checking the table is in MGI / Austria GK Central
+ * (31255), the system gpkgPoint converts from. `what` names the table in
+ * that error.
  */
-async function refreshPlaces() {
+async function queryPlaceNames(table, what, query, ...params) {
   await download(PLACES_URL, PLACES_CACHE, "BEV");
   const { DatabaseSync } = await import("node:sqlite");
   const database = new DatabaseSync(fileURLToPath(PLACES_CACHE), { readOnly: true });
   const [{ srs }] = database
     .prepare(`select srs_id as srs from gpkg_geometry_columns where table_name = ?`)
-    .all(PLACES_TABLE);
+    .all(table);
   if (srs !== 31255)
-    throw new Error(`place names are in EPSG:${String(srs)}, not MGI / Austria GK Central (31255)`);
-  const rows = database
-    .prepare(
-      `select NAME as name, F_CODE as code, EINWOHNER_KLASSE as size, geom from "${PLACES_TABLE}" ` +
-        `where F_CODE in (${Object.keys(PLACE_KINDS).join(",")}) order by OBJECTID`,
-    )
-    .all();
+    throw new Error(`${what} are in EPSG:${String(srs)}, not MGI / Austria GK Central (31255)`);
+  const rows = database.prepare(query).all(...params);
   database.close();
+  return rows;
+}
+
+/**
+ * Pick the settlements worth a dot out of the BEV's 58 000 names: every
+ * Stadt and Markt, every Dorf of 2000 residents or more, and the place each
+ * municipality is named after, whatever its class.
+ */
+async function refreshPlaces() {
+  const rows = await queryPlaceNames(
+    PLACES_TABLE,
+    "place names",
+    `select NAME as name, F_CODE as code, EINWOHNER_KLASSE as size, geom from "${PLACES_TABLE}" ` +
+      `where F_CODE in (${Object.keys(PLACE_KINDS).join(",")}) order by OBJECTID`,
+  );
 
   const mesh = readMesh();
   const index = meshIndex(mesh);
@@ -1158,10 +1238,9 @@ async function refreshPlaces() {
   );
 }
 
-/** A GeoPackage point in MGI / Austria GK Central as latitude and longitude: the header, then byte order, type, x, y. */
+/** A GeoPackage point in MGI / Austria GK Central as latitude and longitude: byte order, type, x, y. */
 function gpkgPoint(blob) {
-  const envelope = [0, 32, 48, 48, 64][(blob[3] >> 1) & 7];
-  const view = new DataView(blob.buffer, blob.byteOffset + 8 + envelope);
+  const view = wellKnownBinary(blob);
   const little = view.getUint8(0) === 1;
   return gaussKruegerToGeographic(view.getFloat64(5, little), view.getFloat64(13, little));
 }
@@ -1172,21 +1251,13 @@ function gpkgPoint(blob) {
  * peaks on the border (Weißkugel, Similaun) stay in.
  */
 async function refreshPeaks() {
-  await download(PLACES_URL, PLACES_CACHE, "BEV");
-  const { DatabaseSync } = await import("node:sqlite");
-  const database = new DatabaseSync(fileURLToPath(PLACES_CACHE), { readOnly: true });
-  const [{ srs }] = database
-    .prepare(`select srs_id as srs from gpkg_geometry_columns where table_name = ?`)
-    .all(PEAKS_TABLE);
-  if (srs !== 31255)
-    throw new Error(`landforms are in EPSG:${String(srs)}, not MGI / Austria GK Central (31255)`);
-  const rows = database
-    .prepare(
-      `select NAME as name, HOEHE_BODEN as height, BEDEUTUNG as weight, geom from "${PEAKS_TABLE}" ` +
-        `where F_CODE = ? and HOEHE_BODEN > 0 and NAME is not null order by OBJECTID`,
-    )
-    .all(PEAK_CODE);
-  database.close();
+  const rows = await queryPlaceNames(
+    PEAKS_TABLE,
+    "landforms",
+    `select NAME as name, HOEHE_BODEN as height, BEDEUTUNG as weight, geom from "${PEAKS_TABLE}" ` +
+      `where F_CODE = ? and HOEHE_BODEN > 0 and NAME is not null order by OBJECTID`,
+    PEAK_CODE,
+  );
 
   const grid = readGrid();
   const kept = [];
@@ -1335,6 +1406,231 @@ function readPlaces() {
 }
 
 // ---------------------------------------------------------------------------
+// Refresh: lakes
+// ---------------------------------------------------------------------------
+
+/**
+ * The water surfaces of one class and `keep.minArea` m² and up, from the
+ * BEV's land cover, one polygon per entry: its name, area in m² and rings
+ * (the outline first, its islands after it), simplified to `keep.tolerance`.
+ * The source is Austria's own survey, so a lake on the border (the
+ * Neusiedler See, the Bodensee) is there only up to it.
+ */
+async function readWaterSurfaces(code, keep) {
+  await download(LAND_COVER_URL, LAND_COVER_CACHE, "BEV");
+  const { DatabaseSync } = await import("node:sqlite");
+  const database = new DatabaseSync(fileURLToPath(LAND_COVER_CACHE), { readOnly: true });
+  const [{ srs }] = database
+    .prepare(`select srs_id as srs from gpkg_geometry_columns where table_name = ?`)
+    .all(WATER_TABLE);
+  if (srs !== 31255)
+    throw new Error(`land cover is in EPSG:${String(srs)}, not MGI / Austria GK Central (31255)`);
+  const rows = database
+    .prepare(
+      `select NAME as name, SHAPE_AREA as area, geom from "${WATER_TABLE}" ` +
+        `where F_CODE = ? and SHAPE_AREA >= ? order by OBJECTID`,
+    )
+    .all(code, keep.minArea);
+  database.close();
+  return rows.flatMap((row) =>
+    parseGeoPackagePolygons(row.geom).map((polygon) => ({
+      name: (row.name ?? "").trim(),
+      area: Math.round(row.area),
+      rings: polygon.map((ring) =>
+        simplifyArc(
+          ring.map(([e, n]) => project(...gaussKruegerToGeographic(e, n))),
+          keep.tolerance,
+        ),
+      ),
+    })),
+  );
+}
+
+/** One polygon as a line of a committed input: name, area, then its rings separated by "|". */
+const surfaceLine = (surface) =>
+  [
+    surface.name,
+    surface.area,
+    surface.rings
+      .map((ring) => ring.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join(" "))
+      .join("|"),
+  ].join("\t");
+
+const readSurface = ([name, area, rings]) => ({
+  name,
+  area: Number(area),
+  rings: rings.split("|").map((ring) => ring.split(" ").map((pair) => pair.split(",").map(Number))),
+});
+
+/** The lakes of LAKE_KEEP.minArea and up. */
+async function refreshLakes() {
+  const lakes = await readWaterSurfaces(LAKE_CODE, LAKE_KEEP);
+  if (lakes.length < 500)
+    throw new Error(`only ${lakes.length} lakes; expected a thousand or more`);
+  writeInput(LAKES_FILE, [
+    ...header(
+      LAND_COVER,
+      [
+        `Lakes, reservoirs and ponds of ${LAKE_KEEP.minArea} m² and up: name, area in m², then the rings of`,
+        `one polygon, the shore first and its islands after it, separated by "|", in the view-box units of`,
+        `src/map/projection.ts. Simplified to ${LAKE_KEEP.tolerance} units.`,
+      ],
+      "--refresh-lakes",
+    ),
+    ...lakes.map(surfaceLine),
+  ]);
+  console.log(`  kept ${lakes.length} lakes of ${LAKE_KEEP.minArea} m² and up`);
+}
+
+/** The glaciers of GLACIER_KEEP.minArea and up, and every named glacier of the names file. */
+async function refreshGlaciers() {
+  const glaciers = await readWaterSurfaces(GLACIER_CODE, GLACIER_KEEP);
+  if (glaciers.length < 300)
+    throw new Error(`only ${glaciers.length} glaciers; expected several hundred`);
+  const rows = await queryPlaceNames(
+    GLACIER_NAMES_TABLE,
+    "glacier names",
+    `select NAME as name, F_CODE as code, geom from "${GLACIER_NAMES_TABLE}" ` +
+      `where NAME is not null and trim(NAME) <> '' order by OBJECTID`,
+  );
+  const names = rows
+    .filter((row) => GLACIER_CLASSES.includes(row.code))
+    .map((row) => {
+      const [x, y] = project(...gpkgPoint(row.geom));
+      return { name: row.name.trim(), size: GLACIER_CLASSES.indexOf(row.code), x, y };
+    });
+  if (names.length < 300) throw new Error(`only ${names.length} glacier names`);
+  writeInput(GLACIERS_FILE, [
+    ...header(
+      LAND_COVER,
+      [
+        `Glaciers of ${GLACIER_KEEP.minArea} m² and up, as "ice": name (none in the source), area in m², then`,
+        `the rings of one polygon separated by "|", simplified to ${GLACIER_KEEP.tolerance} units. And the`,
+        `named glaciers of BEV, Digitales Landschaftsmodell, Namen (same release), as "name": its class`,
+        `(0 over 6 km long, 1 from 2 to 6 km, 2 under 2 km), name, x, y. All in the view-box units of`,
+        `src/map/projection.ts.`,
+      ],
+      "--refresh-glaciers",
+    ),
+    ...glaciers.map((glacier) => `ice\t${surfaceLine(glacier)}`),
+    ...names.map((entry) =>
+      ["name", entry.size, entry.name, entry.x.toFixed(2), entry.y.toFixed(2)].join("\t"),
+    ),
+  ]);
+  console.log(`  kept ${glaciers.length} glaciers and ${names.length} glacier names`);
+}
+
+function readGlaciers() {
+  const outlines = [];
+  const names = [];
+  for (const line of readInput(GLACIERS_FILE)) {
+    const [kind, ...fields] = line.split("\t");
+    if (kind === "ice") outlines.push(readSurface(fields));
+    else {
+      const [size, name, x, y] = fields;
+      names.push({ size: Number(size), name, x: Number(x), y: Number(y) });
+    }
+  }
+  return { outlines, names };
+}
+
+function readLakes() {
+  return readInput(LAKES_FILE).map((line) => readSurface(line.split("\t")));
+}
+
+/**
+ * Polygons of `minArea` m² and up, largest first, each simplified, with
+ * the islands that still cover `minIsland` square units: the rings, sorted
+ * to pack well, and per ring the row of its polygon.
+ */
+function packSurfaces(surfaces, settings) {
+  const kept = surfaces
+    .filter((surface) => surface.area >= settings.minArea)
+    .toSorted((p, q) => q.area - p.area || byCodeUnit(p.name, q.name));
+  const rings = [];
+  kept.forEach((surface, row) => {
+    surface.rings.forEach((ring, index) => {
+      const points = simplifyArc(ring, settings.tolerance);
+      if (index > 0 && ringArea(points) < settings.minIsland) return;
+      rings.push({ row, points });
+    });
+  });
+  const sortedRings = sortArcs(rings, SORT_TILE);
+  return {
+    kept,
+    // keepShort: the row column runs parallel to the rings, so none may drop out.
+    rings: encodeLines(
+      sortedRings.map((ring) => ring.points),
+      settings.q,
+      { closed: true, keepShort: true },
+    ),
+    row: encodeInts(sortedRings.map((ring) => ring.row)),
+  };
+}
+
+/** The rings of each row, as the card will read them back: flat and on the grid. */
+function ringsByRow(packed, count) {
+  const lines = decodeLines(packed.rings);
+  const rows = decodeInts(packed.row);
+  const out = Array.from({ length: count }, () => []);
+  for (let ring = 0; ring < lines.count; ring += 1) {
+    out[rows[ring]].push(lines.xy.slice(lines.start[ring] * 2, lines.start[ring + 1] * 2));
+  }
+  return out;
+}
+
+/** Lakes, and where each named one gets its name: the point farthest from its shore. */
+function packLakes(lakes, settings) {
+  const { kept, rings, row } = packSurfaces(lakes, settings);
+  const byRow = ringsByRow({ rings, row }, kept.length);
+  return {
+    names: kept.map((lake) => lake.name),
+    at: encodePoints(
+      kept.map((lake, index) => {
+        if (lake.name === "") return [0, 0];
+        const [x, y] = labelPoint(byRow[index], LABEL_PRECISION);
+        return [onGrid(x), onGrid(y)];
+      }),
+      POINT_Q,
+    ),
+    rings,
+    lake: row,
+  };
+}
+
+/**
+ * Glaciers, and the names that lie on them. A name further than `reach`
+ * from every drawn glacier belongs to ice that is gone or too small to
+ * draw, and would name bare rock.
+ */
+function packGlaciers({ outlines, names }, settings) {
+  const { kept, rings, row } = packSurfaces(outlines, settings);
+  const all = ringsByRow({ rings, row }, kept.length).flat();
+  const asPoints = all.map((ring) => {
+    const points = [];
+    for (let index = 0; index < ring.length; index += 2)
+      points.push([ring[index], ring[index + 1]]);
+    points.push(points[0]);
+    return points;
+  });
+  const inside = insideTest(asPoints);
+  const near = nearTest(asPoints, settings.reach);
+  const named = names
+    .filter((entry) => inside(entry.x, entry.y) || near(entry.x, entry.y))
+    .toSorted((p, q) => p.size - q.size || byCodeUnit(p.name, q.name) || p.x - q.x);
+  return {
+    rings,
+    field: row,
+    names: named.map((entry) => entry.name),
+    at: encodePoints(
+      named.map((entry) => [onGrid(entry.x), onGrid(entry.y)]),
+      POINT_Q,
+    ),
+    size: encodeInts(named.map((entry) => entry.size)),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Build
 // ---------------------------------------------------------------------------
 
@@ -1391,6 +1687,8 @@ function build(settings = {}) {
   const fine = settings.fine ?? FINE;
   const terrainDetail = settings.terrainDetail ?? TERRAIN_DETAIL;
   const riversDetail = settings.riversDetail ?? RIVERS_DETAIL;
+  const lakesDrawn = settings.lakes ?? LAKES_DRAWN;
+  const glaciersDrawn = settings.glaciers ?? GLACIERS_DRAWN;
 
   const mesh = readMesh();
   const { districts, provinces, districtOf, provinceOfDistrict, provinceOf } = levels(mesh.units);
@@ -1648,6 +1946,11 @@ function build(settings = {}) {
       ...head("main-roads", [ROADS]),
       roads: packRoads(readRoads("main-roads"), ROAD_KINDS["main-roads"].q, provincesOf),
     },
+    lakes: { ...head("lakes", [LAND_COVER]), lakes: packLakes(readLakes(), lakesDrawn) },
+    glaciers: {
+      ...head("glaciers", [LAND_COVER, PLACES]),
+      glaciers: packGlaciers(readGlaciers(), glaciersDrawn),
+    },
   };
 
   const files = new Map();
@@ -1723,6 +2026,30 @@ function measure() {
       `  ${minOrder}  ${tolerance}  ${q}  ${size({ riversDetail: { minOrder, tolerance, q } }, "rivers-detail")}`,
     );
   }
+  console.log("Lakes: smallest lake (m²), tolerance, grid -> chunk");
+  for (const [minArea, tolerance, q] of [
+    [30_000, 0.03, 0.02],
+    [30_000, 0.06, 0.05],
+    [50_000, 0.03, 0.05],
+    [50_000, 0.06, 0.05],
+    [100_000, 0.06, 0.05],
+    [100_000, 0.1, 0.05],
+  ]) {
+    console.log(
+      `  ${minArea}  ${tolerance}  ${q}  ${size({ lakes: { ...LAKES_DRAWN, minArea, tolerance, q } }, "lakes")}`,
+    );
+  }
+  console.log("Glaciers: smallest glacier (m²), tolerance, grid -> chunk");
+  for (const [minArea, tolerance, q] of [
+    [30_000, 0.03, 0.02],
+    [30_000, 0.06, 0.05],
+    [100_000, 0.06, 0.05],
+    [100_000, 0.1, 0.05],
+  ]) {
+    console.log(
+      `  ${minArea}  ${tolerance}  ${q}  ${size({ glaciers: { ...GLACIERS_DRAWN, minArea, tolerance, q } }, "glaciers")}`,
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1738,6 +2065,8 @@ if (everything || args.has("--refresh-places")) await refreshPlaces();
 if (everything || args.has("--refresh-peaks")) await refreshPeaks();
 if (everything || args.has("--refresh-motorways")) await refreshRoads("motorways");
 if (everything || args.has("--refresh-main-roads")) await refreshRoads("main-roads");
+if (everything || args.has("--refresh-lakes")) await refreshLakes();
+if (everything || args.has("--refresh-glaciers")) await refreshGlaciers();
 
 if (args.has("--measure")) {
   measure();

@@ -52,7 +52,7 @@ describe("the card contract", () => {
     expect(element.getStubConfig()).toEqual({});
     expect(element.getConfigElement().tagName.toLowerCase()).toBe("austria-map-card-editor");
     const card = await mount();
-    expect([...card._layers]).toEqual(["terrain", "rivers", "provinces", "cities"]);
+    expect([...card._layers]).toEqual(["terrain", "lakes", "rivers", "provinces", "cities"]);
   });
 
   it("asks for a full-width cell and says how tall it is", async () => {
@@ -75,9 +75,9 @@ describe("the card contract", () => {
 });
 
 describe("loading", () => {
-  it("loads the base chunk and the places for the default map, and nothing else", async () => {
+  it("loads the base chunk, the places and the lakes for the default map, and nothing else", async () => {
     await mount();
-    expect(new Set(requestedIds())).toEqual(new Set(["base", "places"]));
+    expect(new Set(requestedIds())).toEqual(new Set(["base", "places", "lakes"]));
     expect(
       requested.every((url) => url.startsWith("https://ha.example/hacsfiles/austria-map-card/")),
     ).toBe(true);
@@ -116,7 +116,7 @@ describe("loading", () => {
     await zoomIn(card, 5);
     const ids = requestedIds();
     expect(new Set(ids)).toEqual(
-      new Set(["base", "places", "borders", "terrain-detail", "rivers-detail"]),
+      new Set(["base", "places", "lakes", "borders", "terrain-detail", "rivers-detail"]),
     );
     expect(ids).toHaveLength(new Set(ids).size);
   });
@@ -175,6 +175,8 @@ describe("the layer list", () => {
     const rows = all(card, ".layer");
     expect(rows.map((row) => row.querySelector("span span")?.textContent)).toEqual([
       "Gelände",
+      "Gletscher",
+      "Seen",
       "Flüsse",
       "Gemeinden",
       "Bezirke",
@@ -185,6 +187,8 @@ describe("the layer list", () => {
       "Städte und Orte",
     ]);
     expect(rows.map((row) => row.getAttribute("aria-checked"))).toEqual([
+      "true",
+      "false",
       "true",
       "true",
       "false",
@@ -208,8 +212,9 @@ describe("the layer list", () => {
     await settle(card);
     expect(card._layers.has("terrain")).toBe(false);
     expect(terrain.getAttribute("aria-checked")).toBe("false");
-    // Redrawn without the terrain: the land, and no bands.
-    expect(fake.named("fill").filter((call) => call.args[1] === "evenodd")).toHaveLength(1);
+    // Redrawn without the terrain: the land and the lakes, and no bands.
+    const fills = fake.named("fill").filter((call) => call.args[1] === "evenodd");
+    expect(new Set(fills.map((call) => call.fillStyle)).size).toBe(2);
     terrain.click();
     await settle(card);
     expect(card._layers.has("terrain")).toBe(true);

@@ -503,3 +503,86 @@ describe("packed columns", () => {
     expect(places.at).toHaveLength(places.count * 2);
   });
 });
+
+describe("lakes", () => {
+  const lakes = store.lakes!;
+
+  it("names the largest lakes first", () => {
+    expect(lakes.names.slice(0, 4)).toEqual(["Neusiedler See", "Bodensee", "Attersee", "Traunsee"]);
+  });
+
+  it("gives every ring a lake, and every lake a ring", () => {
+    expect(lakes.lake).toHaveLength(lakes.rings.count);
+    expect(new Set(lakes.lake).size).toBe(lakes.names.length);
+    for (const row of lakes.lake) expect(lakes.names[row]).toBeTypeOf("string");
+  });
+
+  it("puts the Attersee where it is", () => {
+    const row = lakes.names.indexOf("Attersee");
+    const [x, y] = project(47.87, 13.54);
+    const around = [...lakes.lake.keys()].filter((ring) => lakes.lake[ring] === row);
+    const inside = around.some(
+      (ring) =>
+        x >= lakes.boxes[ring * 4]! &&
+        x <= lakes.boxes[ring * 4 + 2]! &&
+        y >= lakes.boxes[ring * 4 + 1]! &&
+        y <= lakes.boxes[ring * 4 + 3]!,
+    );
+    expect(inside).toBe(true);
+  });
+});
+
+describe("glaciers", () => {
+  const glaciers = store.glaciers!;
+
+  it("gives every ring an ice field", () => {
+    expect(glaciers.field).toHaveLength(glaciers.rings.count);
+    expect(glaciers.rings.count).toBeGreaterThan(500);
+  });
+
+  it("lists the names longest first, the four over 6 km at the top", () => {
+    expect(glaciers.size).toHaveLength(glaciers.names.length);
+    expect(sorted(glaciers.names.slice(0, 4))).toEqual(
+      sorted(["Gepatschferner", "Gurgler Ferner", "Hintereisferner", "Pasterze"]),
+    );
+    for (let row = 1; row < glaciers.size.length; row += 1) {
+      expect(glaciers.size[row]!).toBeGreaterThanOrEqual(glaciers.size[row - 1]!);
+    }
+  });
+
+  it("puts every name on or beside a glacier", () => {
+    for (let row = 0; row < glaciers.names.length; row += 1) {
+      const x = glaciers.at[row * 2]!;
+      const y = glaciers.at[row * 2 + 1]!;
+      let near = false;
+      for (let ring = 0; ring < glaciers.rings.count && !near; ring += 1) {
+        const at = ring * 4;
+        near =
+          x >= glaciers.boxes[at]! - 0.5 &&
+          x <= glaciers.boxes[at + 2]! + 0.5 &&
+          y >= glaciers.boxes[at + 1]! - 0.5 &&
+          y <= glaciers.boxes[at + 3]! + 0.5;
+      }
+      expect(near, glaciers.names[row]).toBe(true);
+    }
+  });
+});
+
+describe("lake names", () => {
+  it("puts a named lake's name inside its box", () => {
+    const lakes = store.lakes!;
+    const row = lakes.names.indexOf("Wörther See");
+    const x = lakes.at[row * 2]!;
+    const y = lakes.at[row * 2 + 1]!;
+    const rings = [...lakes.lake.keys()].filter((ring) => lakes.lake[ring] === row);
+    expect(
+      rings.some(
+        (ring) =>
+          x >= lakes.boxes[ring * 4]! &&
+          x <= lakes.boxes[ring * 4 + 2]! &&
+          y >= lakes.boxes[ring * 4 + 1]! &&
+          y <= lakes.boxes[ring * 4 + 3]!,
+      ),
+    ).toBe(true);
+  });
+});

@@ -1,6 +1,6 @@
 {
   "name": "austria-map-card",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Standalone Lovelace custom card — a zoomable layer map of Austria, drawn from official open data.",
   "type": "module",

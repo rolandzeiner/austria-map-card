@@ -29,6 +29,8 @@
   },
   "layers": {
     "terrain": "Terrain",
+    "glaciers": "Glaciers",
+    "lakes": "Lakes",
     "rivers": "Rivers",
     "provinces": "Provinces",
     "districts": "Districts",

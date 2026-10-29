@@ -4,6 +4,7 @@ import { decodeLines, lineBoxes } from "../src/data/format.ts";
 import {
   ShapeCache,
   TiledLines,
+  groupBoxes,
   traceLines,
   traceRings,
   traceSmoothRings,
@@ -138,5 +139,14 @@ describe("tiles", () => {
     const all: number[] = [];
     unclassed.visit([0, 0, 1000, 530], 0, (_, list) => all.push(...list));
     expect(sorted(all, (a, b) => a - b)).toEqual([0, 1, 2, 3]);
+  });
+});
+
+describe("groupBoxes", () => {
+  it("gives every line the box of its whole group", () => {
+    const boxes = Float32Array.from([0, 0, 1, 1, 5, 5, 6, 6, 2, 2, 3, 3]);
+    expect([...groupBoxes(Int32Array.from([0, 1, 0]), boxes)]).toEqual([
+      0, 0, 3, 3, 5, 5, 6, 6, 0, 0, 3, 3,
+    ]);
   });
 });

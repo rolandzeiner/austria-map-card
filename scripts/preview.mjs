@@ -2,7 +2,7 @@
 // Draws the map to image files with the card's own renderer.
 //
 //   node scripts/preview.mjs            every scene below, as PNG, into .cache/preview/
-//   node scripts/preview.mjs --readme   also writes screenshots/preview.webp for the README
+//   node scripts/preview.mjs --readme   also writes the README images, screenshots/preview*.webp
 //
 // There is no browser in this: the renderer only needs a 2D context and a
 // Path2D, and @napi-rs/canvas (a dev dependency) has both. So the look of a
@@ -28,7 +28,7 @@ import { MapRenderer } from "../src/map/renderer.ts";
 
 const root = new URL("../", import.meta.url);
 const OUT = new URL(".cache/preview/", root);
-const README_IMAGE = new URL("screenshots/preview.webp", root);
+const SCREENSHOTS = new URL("screenshots/", root);
 
 const store = new MapStore();
 for (const id of CHUNK_IDS) {
@@ -36,8 +36,16 @@ for (const id of CHUNK_IDS) {
   store.add(module.default);
 }
 
-const everything = ["terrain", "rivers", "municipalities", "districts", "provinces", "cities"];
-const standard = ["terrain", "rivers", "provinces", "cities"];
+const everything = [
+  "terrain",
+  "lakes",
+  "rivers",
+  "municipalities",
+  "districts",
+  "provinces",
+  "cities",
+];
+const standard = ["terrain", "lakes", "rivers", "provinces", "cities"];
 
 /** The row of a municipality or a province by its official code. */
 const municipality = (code) => store.detail.municipalities.ids.indexOf(code);
@@ -169,6 +177,59 @@ const scenes = [
     at: "62040",
     zoom: 7,
   },
+  {
+    name: "lakes-neusiedl",
+    width: 760,
+    height: 403,
+    theme: LIGHT_THEME,
+    layers: standard,
+    at: "10201",
+    zoom: 8,
+  },
+  {
+    name: "lakes-bodensee",
+    width: 760,
+    height: 403,
+    theme: DARK_THEME,
+    layers: standard,
+    at: "80207",
+    zoom: 10,
+  },
+  {
+    name: "glaciers-oetztal",
+    width: 760,
+    height: 403,
+    theme: LIGHT_THEME,
+    layers: [...standard, "glaciers"],
+    at: "70220",
+    zoom: 6,
+  },
+  {
+    name: "glaciers-dark",
+    width: 760,
+    height: 403,
+    theme: DARK_THEME,
+    layers: [...standard, "glaciers", "peaks"],
+    fit: "AT-7",
+  },
+  {
+    name: "glaciers-pasterze",
+    width: 760,
+    height: 403,
+    theme: LIGHT_THEME,
+    layers: [...standard, "glaciers"],
+    at: "20610",
+    zoom: 14,
+  },
+  {
+    name: "lakes-kaernten",
+    width: 760,
+    height: 403,
+    theme: LIGHT_THEME,
+    layers: standard,
+    at: "20101",
+    zoom: 6,
+  },
   { name: "bare", width: 760, height: 403, theme: LIGHT_THEME, layers: [] },
 ];
 
@@ -202,6 +263,7 @@ function render(scene, pixelRatio) {
       scene.select === undefined ? null : { kind: "province", row: province(scene.select) },
     here: scene.here === undefined ? null : project(...scene.here),
   });
+  if (scene.transparent) return canvas;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.globalCompositeOperation = "destination-over";
   ctx.fillStyle = `rgb(${scene.theme.background.join(",")})`;
@@ -223,11 +285,22 @@ for (const scene of scenes) {
 }
 
 if (process.argv.includes("--readme")) {
-  const canvas = render(
-    { ...scenes.find((scene) => scene.name === "overview"), width: 900, height: 477 },
-    2,
-  );
-  mkdirSync(new URL("./", README_IMAGE), { recursive: true });
-  writeFileSync(README_IMAGE, canvas.toBuffer("image/webp", 88));
-  console.log(fileURLToPath(README_IMAGE).replace(fileURLToPath(root), ""));
+  // Every layer that reads at country scale, on a transparent canvas so only
+  // Austria shows: one image per theme, which the README swaps with the
+  // reader's colour scheme.
+  const readme = {
+    width: 900,
+    height: 477,
+    transparent: true,
+    layers: [...standard, "glaciers", "motorways", "peaks"],
+  };
+  mkdirSync(SCREENSHOTS, { recursive: true });
+  for (const [file, theme] of [
+    ["preview.webp", LIGHT_THEME],
+    ["preview-dark.webp", DARK_THEME],
+  ]) {
+    const image = new URL(file, SCREENSHOTS);
+    writeFileSync(image, render({ ...readme, theme }, 2).toBuffer("image/webp", 88));
+    console.log(fileURLToPath(image).replace(fileURLToPath(root), ""));
+  }
 }

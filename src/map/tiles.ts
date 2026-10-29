@@ -88,6 +88,28 @@ export function traceRings(path: Path2D, rings: ReadonlyArray<Float32Array>): vo
   }
 }
 
+/**
+ * Per line: the box around every line of its group. Filed by these, all
+ * rings of one polygon land in the same tile and are filled as one path,
+ * so the even-odd rule keeps an island an island.
+ */
+export function groupBoxes(group: Int32Array, boxes: Float32Array): Float32Array {
+  const byGroup = new Map<number, [number, number, number, number]>();
+  group.forEach((row, line) => {
+    const at = line * 4;
+    const known = byGroup.get(row);
+    byGroup.set(row, [
+      Math.min(known?.[0] ?? Infinity, boxes[at] as number),
+      Math.min(known?.[1] ?? Infinity, boxes[at + 1] as number),
+      Math.max(known?.[2] ?? -Infinity, boxes[at + 2] as number),
+      Math.max(known?.[3] ?? -Infinity, boxes[at + 3] as number),
+    ]);
+  });
+  const out = new Float32Array(boxes.length);
+  group.forEach((row, line) => out.set(byGroup.get(row) as number[], line * 4));
+  return out;
+}
+
 interface Tile {
   /** The box around everything filed here, which can reach past the tile. */
   box: [number, number, number, number];

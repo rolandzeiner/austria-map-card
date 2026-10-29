@@ -50,7 +50,11 @@ import { MAP_HEIGHT, MAP_WIDTH, project } from "../src/map/projection.ts";
 import { gaussKruegerToGeographic } from "./lib/datum.ts";
 import { encodeInts, encodeLines, encodePoints } from "./lib/encode.ts";
 import { ringArea } from "./lib/geometry.ts";
-import { parseGeoPackageLines, parseGeoPackagePolygons } from "./lib/geopackage.ts";
+import {
+  parseGeoPackageLines,
+  parseGeoPackagePolygons,
+  wellKnownBinary,
+} from "./lib/geopackage.ts";
 import { labelStretches } from "./lib/label-lines.ts";
 import { PLACE_KINDS, classFloor, nameKey, rankPlaces } from "./lib/places.ts";
 import {
@@ -1166,8 +1170,10 @@ function meshIndex(mesh) {
 }
 
 /**
- * The rows a query returns from one table of the BEV's place names, once the
- * table is confirmed to be in MGI / Austria GK Central (31255) like the rest.
+ * The rows `query` returns from `table` of the BEV's names file (fetched if
+ * not cached), after checking the table is in MGI / Austria GK Central
+ * (31255), the system gpkgPoint converts from. `what` names the table in
+ * that error.
  */
 async function queryPlaceNames(table, what, query, ...params) {
   await download(PLACES_URL, PLACES_CACHE, "BEV");
@@ -1232,10 +1238,9 @@ async function refreshPlaces() {
   );
 }
 
-/** A GeoPackage point in MGI / Austria GK Central as latitude and longitude: the header, then byte order, type, x, y. */
+/** A GeoPackage point in MGI / Austria GK Central as latitude and longitude: byte order, type, x, y. */
 function gpkgPoint(blob) {
-  const envelope = [0, 32, 48, 48, 64][(blob[3] >> 1) & 7];
-  const view = new DataView(blob.buffer, blob.byteOffset + 8 + envelope);
+  const view = wellKnownBinary(blob);
   const little = view.getUint8(0) === 1;
   return gaussKruegerToGeographic(view.getFloat64(5, little), view.getFloat64(13, little));
 }

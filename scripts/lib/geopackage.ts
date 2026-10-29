@@ -1,7 +1,7 @@
 /**
- * Line geometry out of a GeoPackage: the BEV's and BMLUK's downloads both
- * store it this way. Reading the file itself needs SQLite and stays in
- * `build-data.mjs`; this reads one geometry blob.
+ * Line and polygon geometry out of a GeoPackage: the BEV's and BMLUK's
+ * downloads both store it this way. Reading the file itself needs SQLite
+ * and stays in `build-data.mjs`; this reads one geometry blob.
  */
 
 /**
@@ -9,7 +9,7 @@
  * header ("GP", version, flags, SRS id) and an optional envelope whose size
  * the flags give.
  */
-function wellKnownBinary(blob: Uint8Array): DataView {
+export function wellKnownBinary(blob: Uint8Array): DataView {
   if (blob[0] !== 0x47 || blob[1] !== 0x50) throw new Error("not a GeoPackage geometry");
   const envelopeBytes = [0, 32, 48, 48, 64][((blob[3] as number) >> 1) & 7];
   if (envelopeBytes === undefined) throw new Error("unknown GeoPackage envelope");
@@ -22,7 +22,7 @@ function dimensionsOf(type: number): number {
   return 2 + (family === 1 || family === 3 ? 1 : 0) + (family >= 2 ? 1 : 0);
 }
 
-/** `count` points from `at` on, x and y of each; Z and M are skipped. */
+/** `count` points from byte `at` on, x and y of each (Z and M skipped), and the offset just past them. */
 function readPoints(
   view: DataView,
   at: number,
@@ -41,11 +41,7 @@ function readPoints(
 
 /**
  * The lines of a MultiLineString (or a plain LineString) stored as a
- * GeoPackage geometry blob.
- *
- * The blob is a small header ("GP", version, flags, SRS id and an optional
- * envelope whose size the flags give) followed by standard well-known
- * binary. Z and M values, where present, are skipped.
+ * GeoPackage geometry blob. Z and M values, where present, are skipped.
  */
 export function parseGeoPackageLines(blob: Uint8Array): Array<Array<[number, number]>> {
   const view = wellKnownBinary(blob);

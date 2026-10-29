@@ -7,7 +7,10 @@
 
 A map of Austria for your Home Assistant dashboard. Switch layers on and off, zoom from the whole country down to a single municipality, and select a place to see what it is. Drawn from official Austrian open data. No integration, no account, and no request ever leaves your Home Assistant.
 
-<img src="https://raw.githubusercontent.com/rolandzeiner/austria-map-card/main/screenshots/preview.webp" alt="Map of Austria with terrain, rivers, province borders and the largest towns" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/rolandzeiner/austria-map-card/main/screenshots/preview-dark.webp" />
+  <img src="https://raw.githubusercontent.com/rolandzeiner/austria-map-card/main/screenshots/preview.webp" alt="Map of Austria with terrain, glaciers, lakes, rivers, province borders, motorways with route shields, named peaks and the largest towns" />
+</picture>
 
 ## Features
 

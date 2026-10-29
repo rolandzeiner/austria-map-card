@@ -16,15 +16,6 @@ export const cardStyles = css`
        active theme and the card inherits it. */
     display: block;
 
-    /* Fill the grid cell the dashboard hands us. A sections view gives the
-       cell WRAPPER a fixed pixel height whenever rows is numeric -- which a
-       user causes just by dragging the row handle -- and styles nothing
-       inside it. With display: block above, this element is ha-card's
-       containing block, so ha-card's block-size: 100% resolves against this
-       line; without it that percentage computes to auto and the card paints
-       over the card below. The pair is guarded by tests/grid-cell.test.ts. */
-    block-size: 100%;
-
     container-type: inline-size;
     container-name: austria-map-card;
 
@@ -42,10 +33,30 @@ export const cardStyles = css`
     /* overflow: hidden keeps a card taller than its cell clipped inside its
        own bounds instead of painting over its neighbour. */
     overflow: hidden;
-    block-size: 100%;
     display: flex;
     flex-direction: column;
     color: var(--amc-text);
+  }
+
+  /* Fill the grid cell the dashboard hands us. A sections view gives the
+     cell WRAPPER a fixed pixel height whenever rows is numeric -- which a
+     user causes just by dragging the row handle -- and styles nothing
+     inside it. :host is display: block, so it is ha-card's containing
+     block: without the host's line, ha-card's 100% computes to auto and the
+     card paints over the card below.
+     Gated on the layout HA sets on the card ("grid" in a sections view and
+     its edit dialog, "panel" in a panel view), as Mushroom and HA's tile
+     card gate it. The add-card picker sets none and centres each preview
+     in a tile as tall as the tallest preview in its row; an ungated 100%
+     resolved against that tile and stretched the card. The pair is guarded
+     by tests/grid-cell.test.ts. */
+  :host([layout="grid"]),
+  :host([layout="panel"]) {
+    block-size: 100%;
+  }
+  :host([layout="grid"]) ha-card,
+  :host([layout="panel"]) ha-card {
+    block-size: 100%;
   }
 
   /* Resolves the tokens above for the canvas; never seen. */

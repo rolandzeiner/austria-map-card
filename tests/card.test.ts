@@ -55,6 +55,13 @@ describe("the card contract", () => {
     expect([...card._layers]).toEqual(["terrain", "lakes", "rivers", "provinces", "cities"]);
   });
 
+  it("reflects the layout HA sets, which the grid-cell selectors read", () => {
+    const element = customElements.get("austria-map-card") as unknown as {
+      getPropertyOptions(name: string): { reflect?: boolean };
+    };
+    expect(element.getPropertyOptions("layout").reflect).toBe(true);
+  });
+
   it("asks for a full-width cell and says how tall it is", async () => {
     const card = await mount();
     expect(card.getGridOptions()).toEqual({ columns: 12, rows: 7, min_columns: 6, min_rows: 5 });

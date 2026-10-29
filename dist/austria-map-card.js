@@ -209,15 +209,6 @@ void main() {
        active theme and the card inherits it. */
     display: block;
 
-    /* Fill the grid cell the dashboard hands us. A sections view gives the
-       cell WRAPPER a fixed pixel height whenever rows is numeric -- which a
-       user causes just by dragging the row handle -- and styles nothing
-       inside it. With display: block above, this element is ha-card's
-       containing block, so ha-card's block-size: 100% resolves against this
-       line; without it that percentage computes to auto and the card paints
-       over the card below. The pair is guarded by tests/grid-cell.test.ts. */
-    block-size: 100%;
-
     container-type: inline-size;
     container-name: austria-map-card;
 
@@ -235,10 +226,30 @@ void main() {
     /* overflow: hidden keeps a card taller than its cell clipped inside its
        own bounds instead of painting over its neighbour. */
     overflow: hidden;
-    block-size: 100%;
     display: flex;
     flex-direction: column;
     color: var(--amc-text);
+  }
+
+  /* Fill the grid cell the dashboard hands us. A sections view gives the
+     cell WRAPPER a fixed pixel height whenever rows is numeric -- which a
+     user causes just by dragging the row handle -- and styles nothing
+     inside it. :host is display: block, so it is ha-card's containing
+     block: without the host's line, ha-card's 100% computes to auto and the
+     card paints over the card below.
+     Gated on the layout HA sets on the card ("grid" in a sections view and
+     its edit dialog, "panel" in a panel view), as Mushroom and HA's tile
+     card gate it. The add-card picker sets none and centres each preview
+     in a tile as tall as the tallest preview in its row; an ungated 100%
+     resolved against that tile and stretched the card. The pair is guarded
+     by tests/grid-cell.test.ts. */
+  :host([layout="grid"]),
+  :host([layout="panel"]) {
+    block-size: 100%;
+  }
+  :host([layout="grid"]) ha-card,
+  :host([layout="panel"]) ha-card {
+    block-size: 100%;
   }
 
   /* Resolves the tokens above for the canvas; never seen. */
@@ -877,4 +888,4 @@ void main() {
         ${this._t(`card.credit`,{holders:t})} ·
         <a href=${Na} target="_blank" rel="noopener noreferrer">${n}</a>
       </p>
-    `}};F([Re({attribute:!1})],$.prototype,`hass`,void 0),F([N()],$.prototype,`_config`,void 0),F([N()],$.prototype,`_layers`,void 0),F([N()],$.prototype,`_selection`,void 0),F([N()],$.prototype,`_layersOpen`,void 0),F([N()],$.prototype,`_toast`,void 0),F([N()],$.prototype,`_nothingHere`,void 0),F([N()],$.prototype,`_revision`,void 0),F([N()],$.prototype,`_orientation`,void 0),F([N()],$.prototype,`_canTilt`,void 0),F([N()],$.prototype,`_device`,void 0),F([Be(`canvas.map`)],$.prototype,`_canvas`,void 0),F([Be(`canvas.relief`)],$.prototype,`_reliefCanvas`,void 0),F([Be(`.stage`)],$.prototype,`_stage`,void 0),F([Be(`.probe`)],$.prototype,`_probe`,void 0),F([Be(`.layers-button`)],$.prototype,`_layersButton`,void 0),$=F([Fe(st)],$);var Ba=window;Ba.customCards??=[],Ba.customCards.some(e=>e.type===`austria-map-card`)||Ba.customCards.push({type:st,name:ct,description:`A zoomable map of Austria with terrain, rivers, borders and towns.`,preview:!0,documentationURL:lt});export{$ as AustriaMapCard};
+    `}};F([Re({attribute:!1})],$.prototype,`hass`,void 0),F([Re({reflect:!0})],$.prototype,`layout`,void 0),F([N()],$.prototype,`_config`,void 0),F([N()],$.prototype,`_layers`,void 0),F([N()],$.prototype,`_selection`,void 0),F([N()],$.prototype,`_layersOpen`,void 0),F([N()],$.prototype,`_toast`,void 0),F([N()],$.prototype,`_nothingHere`,void 0),F([N()],$.prototype,`_revision`,void 0),F([N()],$.prototype,`_orientation`,void 0),F([N()],$.prototype,`_canTilt`,void 0),F([N()],$.prototype,`_device`,void 0),F([Be(`canvas.map`)],$.prototype,`_canvas`,void 0),F([Be(`canvas.relief`)],$.prototype,`_reliefCanvas`,void 0),F([Be(`.stage`)],$.prototype,`_stage`,void 0),F([Be(`.probe`)],$.prototype,`_probe`,void 0),F([Be(`.layers-button`)],$.prototype,`_layersButton`,void 0),$=F([Fe(st)],$);var Ba=window;Ba.customCards??=[],Ba.customCards.some(e=>e.type===`austria-map-card`)||Ba.customCards.push({type:st,name:ct,description:`A zoomable map of Austria with terrain, rivers, borders and towns.`,preview:!0,documentationURL:lt});export{$ as AustriaMapCard};

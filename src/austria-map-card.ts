@@ -87,6 +87,9 @@ export class AustriaMapCard extends LitElement {
   static override styles = cardStyles;
 
   @property({ attribute: false }) public hass?: HomeAssistant;
+  /** Set by HA: "grid" in a sections view, "panel" in a panel view, unset
+   *  in the add-card picker. Reflected so the styles fill only a cell. */
+  @property({ reflect: true }) public layout?: string;
 
   @state() private _config: NormalisedConfig = normaliseConfig({ type: `custom:${CARD_TAG}` });
   /** The layers that are on. Starts from the config; changes last for the session. */

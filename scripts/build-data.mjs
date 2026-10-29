@@ -1166,26 +1166,35 @@ function meshIndex(mesh) {
 }
 
 /**
- * Pick the settlements worth a dot out of the BEV's 58 000 names: every
- * Stadt and Markt, every Dorf of 2000 residents or more, and the place each
- * municipality is named after, whatever its class.
+ * The rows a query returns from one table of the BEV's place names, once the
+ * table is confirmed to be in MGI / Austria GK Central (31255) like the rest.
  */
-async function refreshPlaces() {
+async function queryPlaceNames(table, what, query, ...params) {
   await download(PLACES_URL, PLACES_CACHE, "BEV");
   const { DatabaseSync } = await import("node:sqlite");
   const database = new DatabaseSync(fileURLToPath(PLACES_CACHE), { readOnly: true });
   const [{ srs }] = database
     .prepare(`select srs_id as srs from gpkg_geometry_columns where table_name = ?`)
-    .all(PLACES_TABLE);
+    .all(table);
   if (srs !== 31255)
-    throw new Error(`place names are in EPSG:${String(srs)}, not MGI / Austria GK Central (31255)`);
-  const rows = database
-    .prepare(
-      `select NAME as name, F_CODE as code, EINWOHNER_KLASSE as size, geom from "${PLACES_TABLE}" ` +
-        `where F_CODE in (${Object.keys(PLACE_KINDS).join(",")}) order by OBJECTID`,
-    )
-    .all();
+    throw new Error(`${what} are in EPSG:${String(srs)}, not MGI / Austria GK Central (31255)`);
+  const rows = database.prepare(query).all(...params);
   database.close();
+  return rows;
+}
+
+/**
+ * Pick the settlements worth a dot out of the BEV's 58 000 names: every
+ * Stadt and Markt, every Dorf of 2000 residents or more, and the place each
+ * municipality is named after, whatever its class.
+ */
+async function refreshPlaces() {
+  const rows = await queryPlaceNames(
+    PLACES_TABLE,
+    "place names",
+    `select NAME as name, F_CODE as code, EINWOHNER_KLASSE as size, geom from "${PLACES_TABLE}" ` +
+      `where F_CODE in (${Object.keys(PLACE_KINDS).join(",")}) order by OBJECTID`,
+  );
 
   const mesh = readMesh();
   const index = meshIndex(mesh);
@@ -1237,21 +1246,13 @@ function gpkgPoint(blob) {
  * peaks on the border (Weißkugel, Similaun) stay in.
  */
 async function refreshPeaks() {
-  await download(PLACES_URL, PLACES_CACHE, "BEV");
-  const { DatabaseSync } = await import("node:sqlite");
-  const database = new DatabaseSync(fileURLToPath(PLACES_CACHE), { readOnly: true });
-  const [{ srs }] = database
-    .prepare(`select srs_id as srs from gpkg_geometry_columns where table_name = ?`)
-    .all(PEAKS_TABLE);
-  if (srs !== 31255)
-    throw new Error(`landforms are in EPSG:${String(srs)}, not MGI / Austria GK Central (31255)`);
-  const rows = database
-    .prepare(
-      `select NAME as name, HOEHE_BODEN as height, BEDEUTUNG as weight, geom from "${PEAKS_TABLE}" ` +
-        `where F_CODE = ? and HOEHE_BODEN > 0 and NAME is not null order by OBJECTID`,
-    )
-    .all(PEAK_CODE);
-  database.close();
+  const rows = await queryPlaceNames(
+    PEAKS_TABLE,
+    "landforms",
+    `select NAME as name, HOEHE_BODEN as height, BEDEUTUNG as weight, geom from "${PEAKS_TABLE}" ` +
+      `where F_CODE = ? and HOEHE_BODEN > 0 and NAME is not null order by OBJECTID`,
+    PEAK_CODE,
+  );
 
   const grid = readGrid();
   const kept = [];
@@ -1481,23 +1482,12 @@ async function refreshGlaciers() {
   const glaciers = await readWaterSurfaces(GLACIER_CODE, GLACIER_KEEP);
   if (glaciers.length < 300)
     throw new Error(`only ${glaciers.length} glaciers; expected several hundred`);
-  await download(PLACES_URL, PLACES_CACHE, "BEV");
-  const { DatabaseSync } = await import("node:sqlite");
-  const database = new DatabaseSync(fileURLToPath(PLACES_CACHE), { readOnly: true });
-  const [{ srs }] = database
-    .prepare(`select srs_id as srs from gpkg_geometry_columns where table_name = ?`)
-    .all(GLACIER_NAMES_TABLE);
-  if (srs !== 31255)
-    throw new Error(
-      `glacier names are in EPSG:${String(srs)}, not MGI / Austria GK Central (31255)`,
-    );
-  const rows = database
-    .prepare(
-      `select NAME as name, F_CODE as code, geom from "${GLACIER_NAMES_TABLE}" ` +
-        `where NAME is not null and trim(NAME) <> '' order by OBJECTID`,
-    )
-    .all();
-  database.close();
+  const rows = await queryPlaceNames(
+    GLACIER_NAMES_TABLE,
+    "glacier names",
+    `select NAME as name, F_CODE as code, geom from "${GLACIER_NAMES_TABLE}" ` +
+      `where NAME is not null and trim(NAME) <> '' order by OBJECTID`,
+  );
   const names = rows
     .filter((row) => GLACIER_CLASSES.includes(row.code))
     .map((row) => {

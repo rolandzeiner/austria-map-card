@@ -18,7 +18,7 @@
     "lit": "^3.3.3"
   },
   "devDependencies": {
-    "@napi-rs/canvas": "1.0.10",
+    "@napi-rs/canvas": "1.0.13",
     "happy-dom": "21.0.4",
     "vite-plus": "1.4.0"
   },

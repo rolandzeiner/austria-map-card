@@ -301,7 +301,11 @@ describe("tapping the map", () => {
     expect(text(card, ".info-trail")).toBe("Steiermark Graz(Stadt) Graz");
     expect($(card, ".info-trail")?.getAttribute("aria-label")).toBe("Liegt in");
     expect(text(card, ".facts")).toMatch(
-      /^Einwohner der Gemeinde [\d.]+ Statistik Austria, Stand 01\.01\.2026 Seehöhe \d+ m BEV, Stand [\d.]+ Postleitzahl 8010–\d{4} RTR, Stand [\d.]+ Vorwahl 0316 RTR, Stand [\d.]+ Kfz-Kennzeichen G RIS, Stand [\d.]+$/,
+      /^Einwohner der Gemeinde [\d.]+ Seehöhe \d+ m Postleitzahl 8010–\d{4} Vorwahl 0316 Kfz-Kennzeichen G$/,
+    );
+    // Each holder and date once, in the order of the facts.
+    expect(text(card, ".info-stand")).toMatch(
+      /^Stand: Statistik Austria 01\.01\.2026, BEV [\d.]+, RTR [\d.]+(, RTR [\d.]+)?, RIS [\d.]+$/,
     );
     expect($(card, ".info-live")?.getAttribute("aria-live")).toBe("polite");
     expect($(card, ".info-trail")?.closest(".info-live")).toBeNull();
@@ -344,9 +348,8 @@ describe("tapping the map", () => {
     const row = PROVINCE_IDS.indexOf("AT-9");
     await tap(card, ...toScreen(card._camera!, size, table.at[row * 2]!, table.at[row * 2 + 1]!));
     expect(text(card, ".info-name")).toBe("Wien Province");
-    expect(text(card, ".facts")).toMatch(
-      /Population 2,\d{3},\d{3} Statistik Austria, as of 01\.01\.2026/,
-    );
+    expect(text(card, ".facts")).toMatch(/^Population 2,\d{3},\d{3}$/);
+    expect(text(card, ".info-stand")).toBe("Data as of: Statistik Austria 01.01.2026");
   });
 
   it("gives a river's length in Austria in kilometres, with tenths below 100, and the provinces it runs through", async () => {
@@ -356,9 +359,8 @@ describe("tapping the map", () => {
     // Provinces a river crosses are a list, not a chain, and the river is not appended.
     expect(text(card, ".info-trail")).toBe("Tirol Vorarlberg");
     expect($(card, ".info-trail")?.classList.contains("list")).toBe(true);
-    expect(text(card, ".facts")).toMatch(
-      /^Länge in Österreich 90,5 km BMLUK, Stand 2021 Flussordnungszahl 6 BMLUK, Stand 2021$/,
-    );
+    expect(text(card, ".facts")).toBe("Länge in Österreich 90,5 km Flussordnungszahl 6");
+    expect(text(card, ".info-stand")).toBe("Stand: BMLUK 2021");
     card._selection = { kind: "river", name: "Donau", order: 9 };
     await settle(card);
     expect(text(card, ".facts")).toMatch(/^Länge in Österreich 350 km /);
@@ -450,7 +452,7 @@ describe("the keyboard", () => {
     const card = await mount({ layers: ["provinces"] });
     await key(card, "Enter");
     expect(card._selection?.kind).toBe("province");
-    expect(text(card, ".info-text")).toMatch(/Bundesland/);
+    expect(text(card, ".info-live")).toMatch(/Bundesland/);
   });
 
   it("says so when there is nothing at the centre", async () => {

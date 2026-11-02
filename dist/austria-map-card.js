@@ -64,7 +64,7 @@ var Be={ATTRIBUTE:1,CHILD:2,PROPERTY:3,BOOLEAN_ATTRIBUTE:4,EVENT:5,ELEMENT:6},Ve
 * Copyright 2018 Google LLC
 * SPDX-License-Identifier: BSD-3-Clause
 */
-if(super(e),e.type!==Be.ATTRIBUTE||e.name!==`class`||e.strings?.length>2)throw Error("`classMap()` can only be used in the `class` attribute and must be the only part in the attribute.")}render(e){return` `+Object.keys(e).filter(t=>e[t]).join(` `)+` `}update(e,[t]){if(this.st===void 0){this.st=/* @__PURE__ */ new Set,e.strings!==void 0&&(this.nt=new Set(e.strings.join(` `).split(/\s/).filter(e=>e!==``)));for(let e in t)t[e]&&!this.nt?.has(e)&&this.st.add(e);return this.render(t)}let n=e.element.classList;for(let e of this.st)e in t||(n.remove(e),this.st.delete(e));for(let e in t){let r=!!t[e];r===this.st.has(e)||this.nt?.has(e)||(r?(n.add(e),this.st.add(e)):(n.remove(e),this.st.delete(e)))}return j}}),We=[`terrain`,`glaciers`,`lakes`,`rivers`,`municipalities`,`districts`,`provinces`,`main_roads`,`motorways`,`peaks`,`cities`],Ge=[`AT-1`,`AT-2`,`AT-3`,`AT-4`,`AT-5`,`AT-6`,`AT-7`,`AT-8`,`AT-9`],Ke=[`austria`,...Ge],F={layers:[`terrain`,`lakes`,`rivers`,`provinces`,`cities`],show_labels:!0,show_layer_control:!0,view:`austria`,show_location:!1,location:`home`},qe=[`home`,`device`],Je=/^[a-z_]+\.[a-z0-9_]+$/,Ye=e=>e==null||e===``,Xe=e=>We.filter(t=>e.includes(t));function Ze(e){if(Ye(e))return[...F.layers];let t=We;if(!Array.isArray(e)||e.some(e=>typeof e!=`string`||!t.includes(e)))throw Error(`"layers" must be a list of: ${We.join(`, `)}.`);return Xe(e)}function Qe(e,t){let n=e[t];if(Ye(n))return F[t];if(typeof n!=`boolean`)throw Error(`"${t}" must be true or false.`);return n}function $e(e){if(Ye(e))return F.view;if(typeof e==`string`&&Ke.includes(e))return e;throw Error(`"view" must be one of: ${Ke.join(`, `)}.`)}function et(e){if(Ye(e))return F.location;if(typeof e==`string`&&(qe.includes(e)||Je.test(e)))return e;throw Error(`"location" must be home, device or an entity id such as person.anna.`)}function tt(e){if(e==null)return``;if(typeof e!=`string`)throw Error(`"title" must be text.`);return e.trim()}function nt(e){if(!e||typeof e!=`object`||Array.isArray(e))throw Error(`The card configuration must be a mapping of options.`);let t=e,n={title:tt(t.title),layers:Ze(t.layers),show_labels:Qe(t,`show_labels`),show_layer_control:Qe(t,`show_layer_control`),view:$e(t.view),show_location:Qe(t,`show_location`),location:et(t.location)},r={};for(let e of Object.keys(t))r[e]=e in n?n[e]:t[e];for(let[e,t]of Object.entries(n))e in r||(r[e]=t);return r}var rt=(e,t)=>Array.isArray(e)&&Xe(e).join()===Xe(t).join()&&e.length===t.length;function it(e){let t={};for(let[n,r]of Object.entries(e))if(!Ye(r)){if(n===`layers`){if(rt(r,F.layers))continue;t[n]=Array.isArray(r)?Xe(r):r}else n in F&&F[n]===r||(t[n]=r)}let{type:n,...r}=t;return n===void 0?r:{type:n,...r}}var at=`0.4.0`,ot=`austria-map-card`,st=`Austria Map Card`,ct=`https://github.com/rolandzeiner/austria-map-card`,lt=[...qe,`entity`];function ut(e,t,n={shown:!1,entity:!1}){return[{name:`title`,selector:{text:{}}},{name:`view`,selector:{select:{mode:`dropdown`,options:Ke.map(t=>({value:t,label:e(`view_${t}`)}))}}},{name:`layers`,selector:{select:{mode:`list`,multiple:!0,options:We.map(e=>({value:e,label:t(e)}))}}},{name:`show_labels`,selector:{boolean:{}}},{name:`show_layer_control`,selector:{boolean:{}}},{name:`show_location`,selector:{boolean:{}}},...n.shown?[{name:`location`,selector:{select:{mode:`dropdown`,options:lt.map(t=>({value:t,label:e(`location_mode_${t}`)}))}}}]:[],...n.shown&&n.entity?[{name:`location_entity`,selector:{entity:{filter:[{domain:`person`},{domain:`device_tracker`}]}}}]:[]]}var dt=/* @__PURE__ */ t({card:()=>ft,controls:()=>pt,default:()=>yt,editor:()=>vt,facts:()=>_t,kinds:()=>gt,layer_notes:()=>ht,layers:()=>mt}),ft={map_label:`Map of Austria`,map_help:`Arrow keys move the map. Plus and minus zoom. 0 resets the view. Enter reads out what is at the centre.`,loading:`Loading map…`,zoom_hint:`Hold Ctrl or ⌘ and scroll to zoom.`,info_label:`Selected place`,info_idle:`Select a spot on the map to see what is there.`,nothing_here:`Nothing to show here. Move the map or switch on a layer.`,load_failed:`The map data did not load. Check your connection.`,retry:`Try again`,outdated:`The card was updated. Reload the page to show the map.`,reload:`Reload page`,credit:`Data: {holders}`,map_help_tilt:`Shift and the arrow keys tilt and turn the map.`,loading_relief:`Loading terrain…`,trail_label:`Lies in`},pt={group:`Map controls`,layers:`Layers`,zoom_in:`Zoom in`,zoom_out:`Zoom out`,reset:`Reset view`,zoom_here:`Zoom here`,clear:`Clear selection`,my_location:`Show your location`,tilt:`3D view`,north:`Face north`},mt={terrain:`Terrain`,glaciers:`Glaciers`,lakes:`Lakes`,rivers:`Rivers`,provinces:`Provinces`,districts:`Districts`,municipalities:`Municipalities`,cities:`Towns and cities`,peaks:`Peaks`,motorways:`Motorways`,main_roads:`Main roads`},ht={zoom:`Appears when you zoom in`,loading:`Loading…`,failed:`Did not load`},gt={province:`Province`,district:`District`,municipality:`Municipality`,town_0:`City`,town_1:`Market town`,town_2:`Village`,river:`River`,stream:`Stream`,peak:`Peak`,motorway:`Motorway`,expressway:`Expressway`,main_road:`Main road`},_t={population:`Population`,municipality_population:`Population of the municipality`,stream_order:`Stream order`,length:`Length`,length_in_austria:`Length in Austria`,source:`{holder}, as of {stand}`,height:`Height`,elevation:`Elevation`,postcode:`Postal code`,area_code:`Area code`,plate:`Number plate`},vt={title:`Title`,view:`Opening view`,view_austria:`All of Austria`,"view_AT-1":`Burgenland`,"view_AT-2":`Carinthia`,"view_AT-3":`Lower Austria`,"view_AT-4":`Upper Austria`,"view_AT-5":`Salzburg`,"view_AT-6":`Styria`,"view_AT-7":`Tyrol`,"view_AT-8":`Vorarlberg`,"view_AT-9":`Vienna`,layers:`Layers shown at start`,layers_helper:`You can still switch layers on the map. That choice lasts until the page reloads.`,show_labels:`Show names on the map`,show_layer_control:`Show the layer button`,show_layer_control_helper:`Turn this off to lock the layers, for example on a wall display.`,show_location:`Mark your location`,show_location_helper:`Puts a pin on the map. The position stays in your browser.`,location:`Pin shows`,location_mode_home:`Your home, from the Home Assistant settings`,location_mode_device:`This device`,location_mode_entity:`A person or tracker`,location_helper:`“This device” needs HTTPS and your permission. Without them, the pin marks your home.`,location_entity:`Person or tracker`},yt={card:ft,controls:pt,layers:mt,layer_notes:ht,kinds:gt,facts:_t,editor:vt},bt=/* @__PURE__ */ t({card:()=>xt,controls:()=>St,default:()=>Ot,editor:()=>Dt,facts:()=>Et,kinds:()=>Tt,layer_notes:()=>wt,layers:()=>Ct}),xt={map_label:`Karte von Österreich`,map_help:`Pfeiltasten verschieben die Karte. Plus und Minus zoomen. 0 setzt die Ansicht zurück. Die Eingabetaste liest vor, was in der Mitte liegt.`,loading:`Karte lädt …`,zoom_hint:`Halte Strg oder ⌘ gedrückt und scrolle, um zu zoomen.`,info_label:`Ausgewählter Ort`,info_idle:`Wähle eine Stelle auf der Karte, um zu sehen, was dort ist.`,nothing_here:`Hier gibt es nichts anzuzeigen. Verschiebe die Karte oder schalte eine Ebene ein.`,load_failed:`Die Kartendaten wurden nicht geladen. Prüfe deine Verbindung.`,retry:`Erneut versuchen`,outdated:`Die Karte wurde aktualisiert. Lade die Seite neu, um sie anzuzeigen.`,reload:`Seite neu laden`,credit:`Daten: {holders}`,map_help_tilt:`Umschalt und die Pfeiltasten neigen und drehen die Karte.`,loading_relief:`Gelände wird geladen…`,trail_label:`Liegt in`},St={group:`Kartensteuerung`,layers:`Ebenen`,zoom_in:`Hineinzoomen`,zoom_out:`Herauszoomen`,reset:`Ansicht zurücksetzen`,zoom_here:`Hierher zoomen`,clear:`Auswahl aufheben`,my_location:`Deinen Standort zeigen`,tilt:`3D-Ansicht`,north:`Nach Norden ausrichten`},Ct={terrain:`Gelände`,glaciers:`Gletscher`,lakes:`Seen`,rivers:`Flüsse`,provinces:`Bundesländer`,districts:`Bezirke`,municipalities:`Gemeinden`,cities:`Städte und Orte`,peaks:`Gipfel`,motorways:`Autobahnen`,main_roads:`Bundesstraßen`},wt={zoom:`Erscheint, wenn du hineinzoomst`,loading:`Lädt …`,failed:`Nicht geladen`},Tt={province:`Bundesland`,district:`Bezirk`,municipality:`Gemeinde`,town_0:`Stadt`,town_1:`Markt`,town_2:`Dorf`,river:`Fluss`,stream:`Bach`,peak:`Gipfel`,motorway:`Autobahn`,expressway:`Schnellstraße`,main_road:`Bundesstraße`},Et={population:`Einwohner`,municipality_population:`Einwohner der Gemeinde`,stream_order:`Flussordnungszahl`,length:`Länge`,length_in_austria:`Länge in Österreich`,source:`{holder}, Stand {stand}`,height:`Höhe`,elevation:`Seehöhe`,postcode:`Postleitzahl`,area_code:`Vorwahl`,plate:`Kfz-Kennzeichen`},Dt={title:`Titel`,view:`Ansicht beim Öffnen`,view_austria:`Ganz Österreich`,"view_AT-1":`Burgenland`,"view_AT-2":`Kärnten`,"view_AT-3":`Niederösterreich`,"view_AT-4":`Oberösterreich`,"view_AT-5":`Salzburg`,"view_AT-6":`Steiermark`,"view_AT-7":`Tirol`,"view_AT-8":`Vorarlberg`,"view_AT-9":`Wien`,layers:`Ebenen beim Öffnen`,layers_helper:`Auf der Karte kannst du Ebenen weiterhin ein- und ausschalten. Diese Auswahl gilt, bis die Seite neu lädt.`,show_labels:`Namen auf der Karte anzeigen`,show_layer_control:`Ebenen-Schaltfläche anzeigen`,show_layer_control_helper:`Schalte das aus, um die Ebenen zu sperren, zum Beispiel auf einem Wanddisplay.`,show_location:`Deinen Standort markieren`,show_location_helper:`Setzt eine Stecknadel auf die Karte. Die Position bleibt in deinem Browser.`,location:`Stecknadel zeigt`,location_mode_home:`Dein Zuhause, aus den Home-Assistant-Einstellungen`,location_mode_device:`Dieses Gerät`,location_mode_entity:`Eine Person oder einen Tracker`,location_helper:`„Dieses Gerät“ braucht HTTPS und deine Erlaubnis. Ohne beides markiert die Stecknadel dein Zuhause.`,location_entity:`Person oder Tracker`},Ot={card:xt,controls:St,layers:Ct,layer_notes:wt,kinds:Tt,facts:Et,editor:Dt},kt=Object.fromEntries([{code:`en`,nativeName:`English`,dict:dt},{code:`de`,nativeName:`Deutsch`,dict:bt}].map(e=>[e.code,e.dict]));function At(e,t){let n=e.split(`.`).reduce((e,t)=>{if(e&&typeof e==`object`&&t in e)return e[t]},t);return typeof n==`string`?n:void 0}function jt(e,t,n){let r=kt[(t??`en`).toLowerCase().split(/[-_]/)[0]??`en`]??kt.en??{},i=kt.en??{},a=At(e,r);if(a===void 0&&(a=At(e,i)),a===void 0&&(a=e),n)for(let[e,t]of Object.entries(n)){let n=String(t);a=a.replace(RegExp(`\\{${e}\\}`,`g`),()=>n)}return a}function Mt(e){return e?.locale?.language??e?.language??(typeof navigator<`u`?navigator.language:`en`)}function I(e,t,n,r){var i=arguments.length,a=i<3?t:r===null?r=Object.getOwnPropertyDescriptor(t,n):r,o;if(typeof Reflect==`object`&&typeof Reflect.decorate==`function`)a=Reflect.decorate(e,t,n,r);else for(var s=e.length-1;s>=0;s--)(o=e[s])&&(a=(i<3?o(a):i>3?o(t,n,a):o(t,n))||a);return i>3&&a&&Object.defineProperty(t,n,a),a}var Nt=e=>typeof e==`string`&&!qe.includes(e),Pt=class extends Me{constructor(...e){super(...e),this._config={type:`custom:${ot}`},this._entityMode=!1,this._t=e=>jt(`editor.${e}`,Mt(this.hass)),this._layerName=e=>jt(`layers.${e}`,Mt(this.hass)),this._label=({name:e})=>this._t(e),this._helper=({name:e})=>{let t=this._t(`${e}_helper`);return t===`editor.${e}_helper`?void 0:t},this._onChange=e=>{e.stopPropagation();let{location:t,location_entity:n,...r}=e.detail.value,i=t;t===`entity`?(this._entityMode=!0,i=typeof n==`string`&&n!==``?n:void 0):t!==void 0&&(this._entityMode=!1);let a=it({...this._config,...r,location:i});this._config=a,this.dispatchEvent(new CustomEvent(`config-changed`,{detail:{config:a},bubbles:!0,composed:!0}))}}static{this.styles=c`
+if(super(e),e.type!==Be.ATTRIBUTE||e.name!==`class`||e.strings?.length>2)throw Error("`classMap()` can only be used in the `class` attribute and must be the only part in the attribute.")}render(e){return` `+Object.keys(e).filter(t=>e[t]).join(` `)+` `}update(e,[t]){if(this.st===void 0){this.st=/* @__PURE__ */ new Set,e.strings!==void 0&&(this.nt=new Set(e.strings.join(` `).split(/\s/).filter(e=>e!==``)));for(let e in t)t[e]&&!this.nt?.has(e)&&this.st.add(e);return this.render(t)}let n=e.element.classList;for(let e of this.st)e in t||(n.remove(e),this.st.delete(e));for(let e in t){let r=!!t[e];r===this.st.has(e)||this.nt?.has(e)||(r?(n.add(e),this.st.add(e)):(n.remove(e),this.st.delete(e)))}return j}}),We=[`terrain`,`glaciers`,`lakes`,`rivers`,`municipalities`,`districts`,`provinces`,`main_roads`,`motorways`,`peaks`,`cities`],Ge=[`AT-1`,`AT-2`,`AT-3`,`AT-4`,`AT-5`,`AT-6`,`AT-7`,`AT-8`,`AT-9`],Ke=[`austria`,...Ge],F={layers:[`terrain`,`lakes`,`rivers`,`provinces`,`cities`],show_labels:!0,show_layer_control:!0,view:`austria`,show_location:!1,location:`home`},qe=[`home`,`device`],Je=/^[a-z_]+\.[a-z0-9_]+$/,Ye=e=>e==null||e===``,Xe=e=>We.filter(t=>e.includes(t));function Ze(e){if(Ye(e))return[...F.layers];let t=We;if(!Array.isArray(e)||e.some(e=>typeof e!=`string`||!t.includes(e)))throw Error(`"layers" must be a list of: ${We.join(`, `)}.`);return Xe(e)}function Qe(e,t){let n=e[t];if(Ye(n))return F[t];if(typeof n!=`boolean`)throw Error(`"${t}" must be true or false.`);return n}function $e(e){if(Ye(e))return F.view;if(typeof e==`string`&&Ke.includes(e))return e;throw Error(`"view" must be one of: ${Ke.join(`, `)}.`)}function et(e){if(Ye(e))return F.location;if(typeof e==`string`&&(qe.includes(e)||Je.test(e)))return e;throw Error(`"location" must be home, device or an entity id such as person.anna.`)}function tt(e){if(e==null)return``;if(typeof e!=`string`)throw Error(`"title" must be text.`);return e.trim()}function nt(e){if(!e||typeof e!=`object`||Array.isArray(e))throw Error(`The card configuration must be a mapping of options.`);let t=e,n={title:tt(t.title),layers:Ze(t.layers),show_labels:Qe(t,`show_labels`),show_layer_control:Qe(t,`show_layer_control`),view:$e(t.view),show_location:Qe(t,`show_location`),location:et(t.location)},r={};for(let e of Object.keys(t))r[e]=e in n?n[e]:t[e];for(let[e,t]of Object.entries(n))e in r||(r[e]=t);return r}var rt=(e,t)=>Array.isArray(e)&&Xe(e).join()===Xe(t).join()&&e.length===t.length;function it(e){let t={};for(let[n,r]of Object.entries(e))if(!Ye(r)){if(n===`layers`){if(rt(r,F.layers))continue;t[n]=Array.isArray(r)?Xe(r):r}else n in F&&F[n]===r||(t[n]=r)}let{type:n,...r}=t;return n===void 0?r:{type:n,...r}}var at=`0.4.0`,ot=`austria-map-card`,st=`Austria Map Card`,ct=`https://github.com/rolandzeiner/austria-map-card`,lt=[...qe,`entity`];function ut(e,t,n={shown:!1,entity:!1}){return[{name:`title`,selector:{text:{}}},{name:`view`,selector:{select:{mode:`dropdown`,options:Ke.map(t=>({value:t,label:e(`view_${t}`)}))}}},{name:`layers`,selector:{select:{mode:`list`,multiple:!0,options:We.map(e=>({value:e,label:t(e)}))}}},{name:`show_labels`,selector:{boolean:{}}},{name:`show_layer_control`,selector:{boolean:{}}},{name:`show_location`,selector:{boolean:{}}},...n.shown?[{name:`location`,selector:{select:{mode:`dropdown`,options:lt.map(t=>({value:t,label:e(`location_mode_${t}`)}))}}}]:[],...n.shown&&n.entity?[{name:`location_entity`,selector:{entity:{filter:[{domain:`person`},{domain:`device_tracker`}]}}}]:[]]}var dt=/* @__PURE__ */ t({card:()=>ft,controls:()=>pt,default:()=>yt,editor:()=>vt,facts:()=>_t,kinds:()=>gt,layer_notes:()=>ht,layers:()=>mt}),ft={map_label:`Map of Austria`,map_help:`Arrow keys move the map. Plus and minus zoom. 0 resets the view. Enter reads out what is at the centre.`,loading:`Loading map…`,zoom_hint:`Hold Ctrl or ⌘ and scroll to zoom.`,info_label:`Selected place`,info_idle:`Select a spot on the map to see what is there.`,nothing_here:`Nothing to show here. Move the map or switch on a layer.`,load_failed:`The map data did not load. Check your connection.`,retry:`Try again`,outdated:`The card was updated. Reload the page to show the map.`,reload:`Reload page`,credit:`Data: {holders}`,map_help_tilt:`Shift and the arrow keys tilt and turn the map.`,loading_relief:`Loading terrain…`,trail_label:`Lies in`,stand:`Data as of: {dates}`},pt={group:`Map controls`,layers:`Layers`,zoom_in:`Zoom in`,zoom_out:`Zoom out`,reset:`Reset view`,zoom_here:`Zoom here`,clear:`Clear selection`,my_location:`Show your location`,tilt:`3D view`,north:`Face north`},mt={terrain:`Terrain`,glaciers:`Glaciers`,lakes:`Lakes`,rivers:`Rivers`,provinces:`Provinces`,districts:`Districts`,municipalities:`Municipalities`,cities:`Towns and cities`,peaks:`Peaks`,motorways:`Motorways`,main_roads:`Main roads`},ht={zoom:`Appears when you zoom in`,loading:`Loading…`,failed:`Did not load`},gt={province:`Province`,district:`District`,municipality:`Municipality`,town_0:`City`,town_1:`Market town`,town_2:`Village`,river:`River`,stream:`Stream`,peak:`Peak`,motorway:`Motorway`,expressway:`Expressway`,main_road:`Main road`},_t={population:`Population`,municipality_population:`Population of the municipality`,stream_order:`Stream order`,length:`Length`,length_in_austria:`Length in Austria`,height:`Height`,elevation:`Elevation`,postcode:`Postal code`,area_code:`Area code`,plate:`Number plate`},vt={title:`Title`,view:`Opening view`,view_austria:`All of Austria`,"view_AT-1":`Burgenland`,"view_AT-2":`Carinthia`,"view_AT-3":`Lower Austria`,"view_AT-4":`Upper Austria`,"view_AT-5":`Salzburg`,"view_AT-6":`Styria`,"view_AT-7":`Tyrol`,"view_AT-8":`Vorarlberg`,"view_AT-9":`Vienna`,layers:`Layers shown at start`,layers_helper:`You can still switch layers on the map. That choice lasts until the page reloads.`,show_labels:`Show names on the map`,show_layer_control:`Show the layer button`,show_layer_control_helper:`Turn this off to lock the layers, for example on a wall display.`,show_location:`Mark your location`,show_location_helper:`Puts a pin on the map. The position stays in your browser.`,location:`Pin shows`,location_mode_home:`Your home, from the Home Assistant settings`,location_mode_device:`This device`,location_mode_entity:`A person or tracker`,location_helper:`“This device” needs HTTPS and your permission. Without them, the pin marks your home.`,location_entity:`Person or tracker`},yt={card:ft,controls:pt,layers:mt,layer_notes:ht,kinds:gt,facts:_t,editor:vt},bt=/* @__PURE__ */ t({card:()=>xt,controls:()=>St,default:()=>Ot,editor:()=>Dt,facts:()=>Et,kinds:()=>Tt,layer_notes:()=>wt,layers:()=>Ct}),xt={map_label:`Karte von Österreich`,map_help:`Pfeiltasten verschieben die Karte. Plus und Minus zoomen. 0 setzt die Ansicht zurück. Die Eingabetaste liest vor, was in der Mitte liegt.`,loading:`Karte lädt …`,zoom_hint:`Halte Strg oder ⌘ gedrückt und scrolle, um zu zoomen.`,info_label:`Ausgewählter Ort`,info_idle:`Wähle eine Stelle auf der Karte, um zu sehen, was dort ist.`,nothing_here:`Hier gibt es nichts anzuzeigen. Verschiebe die Karte oder schalte eine Ebene ein.`,load_failed:`Die Kartendaten wurden nicht geladen. Prüfe deine Verbindung.`,retry:`Erneut versuchen`,outdated:`Die Karte wurde aktualisiert. Lade die Seite neu, um sie anzuzeigen.`,reload:`Seite neu laden`,credit:`Daten: {holders}`,map_help_tilt:`Umschalt und die Pfeiltasten neigen und drehen die Karte.`,loading_relief:`Gelände wird geladen…`,trail_label:`Liegt in`,stand:`Stand: {dates}`},St={group:`Kartensteuerung`,layers:`Ebenen`,zoom_in:`Hineinzoomen`,zoom_out:`Herauszoomen`,reset:`Ansicht zurücksetzen`,zoom_here:`Hierher zoomen`,clear:`Auswahl aufheben`,my_location:`Deinen Standort zeigen`,tilt:`3D-Ansicht`,north:`Nach Norden ausrichten`},Ct={terrain:`Gelände`,glaciers:`Gletscher`,lakes:`Seen`,rivers:`Flüsse`,provinces:`Bundesländer`,districts:`Bezirke`,municipalities:`Gemeinden`,cities:`Städte und Orte`,peaks:`Gipfel`,motorways:`Autobahnen`,main_roads:`Bundesstraßen`},wt={zoom:`Erscheint, wenn du hineinzoomst`,loading:`Lädt …`,failed:`Nicht geladen`},Tt={province:`Bundesland`,district:`Bezirk`,municipality:`Gemeinde`,town_0:`Stadt`,town_1:`Markt`,town_2:`Dorf`,river:`Fluss`,stream:`Bach`,peak:`Gipfel`,motorway:`Autobahn`,expressway:`Schnellstraße`,main_road:`Bundesstraße`},Et={population:`Einwohner`,municipality_population:`Einwohner der Gemeinde`,stream_order:`Flussordnungszahl`,length:`Länge`,length_in_austria:`Länge in Österreich`,height:`Höhe`,elevation:`Seehöhe`,postcode:`Postleitzahl`,area_code:`Vorwahl`,plate:`Kfz-Kennzeichen`},Dt={title:`Titel`,view:`Ansicht beim Öffnen`,view_austria:`Ganz Österreich`,"view_AT-1":`Burgenland`,"view_AT-2":`Kärnten`,"view_AT-3":`Niederösterreich`,"view_AT-4":`Oberösterreich`,"view_AT-5":`Salzburg`,"view_AT-6":`Steiermark`,"view_AT-7":`Tirol`,"view_AT-8":`Vorarlberg`,"view_AT-9":`Wien`,layers:`Ebenen beim Öffnen`,layers_helper:`Auf der Karte kannst du Ebenen weiterhin ein- und ausschalten. Diese Auswahl gilt, bis die Seite neu lädt.`,show_labels:`Namen auf der Karte anzeigen`,show_layer_control:`Ebenen-Schaltfläche anzeigen`,show_layer_control_helper:`Schalte das aus, um die Ebenen zu sperren, zum Beispiel auf einem Wanddisplay.`,show_location:`Deinen Standort markieren`,show_location_helper:`Setzt eine Stecknadel auf die Karte. Die Position bleibt in deinem Browser.`,location:`Stecknadel zeigt`,location_mode_home:`Dein Zuhause, aus den Home-Assistant-Einstellungen`,location_mode_device:`Dieses Gerät`,location_mode_entity:`Eine Person oder einen Tracker`,location_helper:`„Dieses Gerät“ braucht HTTPS und deine Erlaubnis. Ohne beides markiert die Stecknadel dein Zuhause.`,location_entity:`Person oder Tracker`},Ot={card:xt,controls:St,layers:Ct,layer_notes:wt,kinds:Tt,facts:Et,editor:Dt},kt=Object.fromEntries([{code:`en`,nativeName:`English`,dict:dt},{code:`de`,nativeName:`Deutsch`,dict:bt}].map(e=>[e.code,e.dict]));function At(e,t){let n=e.split(`.`).reduce((e,t)=>{if(e&&typeof e==`object`&&t in e)return e[t]},t);return typeof n==`string`?n:void 0}function jt(e,t,n){let r=kt[(t??`en`).toLowerCase().split(/[-_]/)[0]??`en`]??kt.en??{},i=kt.en??{},a=At(e,r);if(a===void 0&&(a=At(e,i)),a===void 0&&(a=e),n)for(let[e,t]of Object.entries(n)){let n=String(t);a=a.replace(RegExp(`\\{${e}\\}`,`g`),()=>n)}return a}function Mt(e){return e?.locale?.language??e?.language??(typeof navigator<`u`?navigator.language:`en`)}function I(e,t,n,r){var i=arguments.length,a=i<3?t:r===null?r=Object.getOwnPropertyDescriptor(t,n):r,o;if(typeof Reflect==`object`&&typeof Reflect.decorate==`function`)a=Reflect.decorate(e,t,n,r);else for(var s=e.length-1;s>=0;s--)(o=e[s])&&(a=(i<3?o(a):i>3?o(t,n,a):o(t,n))||a);return i>3&&a&&Object.defineProperty(t,n,a),a}var Nt=e=>typeof e==`string`&&!qe.includes(e),Pt=class extends Me{constructor(...e){super(...e),this._config={type:`custom:${ot}`},this._entityMode=!1,this._t=e=>jt(`editor.${e}`,Mt(this.hass)),this._layerName=e=>jt(`layers.${e}`,Mt(this.hass)),this._label=({name:e})=>this._t(e),this._helper=({name:e})=>{let t=this._t(`${e}_helper`);return t===`editor.${e}_helper`?void 0:t},this._onChange=e=>{e.stopPropagation();let{location:t,location_entity:n,...r}=e.detail.value,i=t;t===`entity`?(this._entityMode=!0,i=typeof n==`string`&&n!==``?n:void 0):t!==void 0&&(this._entityMode=!1);let a=it({...this._config,...r,location:i});this._config=a,this.dispatchEvent(new CustomEvent(`config-changed`,{detail:{config:a},bubbles:!0,composed:!0}))}}static{this.styles=c`
     :host {
       display: block;
     }
@@ -579,38 +579,46 @@ void main() {
   }
 
   /* ── What was tapped ─────────────────────────────────────────────── */
+  /* A gazetteer entry. The trail is the address line, the name the
+     headline with the actions beside it, the facts one running line of
+     label and value, and the dates of the data one sentence under them.
+     Two columns: the text, and the actions on the name's row. */
   .info {
-    display: flex;
-    align-items: flex-start;
-    gap: var(--ha-space-2, 8px);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    column-gap: var(--ha-space-3, 12px);
+    align-items: start;
     padding: var(--ha-space-2, 8px) var(--amc-pad-x) 0;
     min-block-size: var(--amc-control);
-  }
-  .info-text {
-    flex: 1;
-    min-inline-size: 0;
     line-height: 1.4;
   }
-  .info-name {
-    margin: 0;
-    font-size: var(--ha-font-size-l, 1.143rem);
-    font-weight: var(--ha-font-weight-medium, 500);
-    line-height: 1.3;
-    overflow-wrap: anywhere;
+  .info-trail {
+    grid-column: 1;
+    grid-row: 1;
   }
-  .info-kind {
-    font-size: var(--ha-font-size-m, 1rem);
-    font-weight: var(--ha-font-weight-normal, 400);
-    color: var(--amc-muted);
+  .info-live {
+    grid-column: 1;
+    grid-row: 2;
+    min-inline-size: 0;
   }
-  .info-name:focus-visible {
-    outline: 2px solid var(--amc-accent);
-    outline-offset: 2px;
-    border-radius: 6px;
+  .info-actions {
+    grid-column: 2;
+    grid-row: 2;
+    display: flex;
+    gap: var(--ha-space-1, 4px);
   }
-  /* The trail: "Steiermark › Graz(Stadt) › Graz", every step but the last a
-     button that looks like a link. The separators are drawn, not text, so
-     they are neither copied nor read out. */
+  /* Beside the name the action needs no frame of its own. */
+  .info-actions .text {
+    padding: 0 var(--ha-space-2, 8px);
+    border-color: transparent;
+  }
+
+  /* The trail: "Steiermark › Graz(Stadt) › Graz". Every step but the last
+     is a button set like a link: text colour with a hairline underline,
+     the accent on hover and focus; the last, the selection itself, is
+     muted. The separators are drawn, so they are neither copied nor read
+     out. */
   .info-trail ol {
     display: flex;
     flex-wrap: wrap;
@@ -618,43 +626,81 @@ void main() {
     margin: 0;
     padding: 0;
     list-style: none;
-    color: var(--amc-muted);
     font-size: var(--ha-font-size-s, 0.857rem);
+    color: var(--amc-muted);
   }
   .info-trail li + li::before {
     content: "›" / "";
     margin: 0 var(--ha-space-1, 4px);
   }
   .info-trail.list li + li::before {
-    content: "·" / "";
+    content: "," / "";
+    margin: 0 var(--ha-space-1, 4px) 0 0;
   }
   .link {
     margin: 0;
     padding: 0;
     border: 0;
     background: none;
-    color: var(--amc-accent);
+    color: var(--amc-text);
     font: inherit;
     text-decoration: underline;
-    text-underline-offset: 2px;
+    text-decoration-thickness: 1px;
+    text-decoration-color: var(--amc-muted);
+    text-underline-offset: 3px;
     cursor: pointer;
   }
-  .info-idle {
+  .link:hover,
+  .link:focus-visible {
+    color: var(--amc-accent);
+    text-decoration-color: currentColor;
+  }
+
+  /* The name sits on the actions' row, so it takes a control's height and
+     centres its line in it; the kind follows it on the same baseline. */
+  .info-name {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    align-content: center;
+    column-gap: var(--ha-space-2, 8px);
+    min-block-size: var(--amc-control);
     margin: 0;
+    font-size: var(--ha-font-size-xl, 1.286rem);
+    font-weight: var(--ha-font-weight-medium, 500);
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+  }
+  .info-name:focus-visible {
+    outline: 2px solid var(--amc-accent);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+  .info-kind {
+    font-size: var(--ha-font-size-m, 1rem);
+    font-weight: var(--ha-font-weight-normal, 400);
     color: var(--amc-muted);
   }
   .info-idle {
-    align-self: center;
+    display: flex;
+    align-items: center;
+    min-block-size: var(--amc-control);
+    margin: 0;
+    color: var(--amc-muted);
   }
+
+  /* "Einwohner 6.624   Seehöhe 321 m   Postleitzahl 3150": label, then
+     value, pair by pair along the line, wrapping as the card narrows. */
   .facts {
-    margin: var(--ha-space-1, 4px) 0 0;
     display: flex;
     flex-wrap: wrap;
-    gap: var(--ha-space-1, 4px) var(--ha-space-4, 16px);
+    column-gap: var(--ha-space-4, 16px);
+    margin: var(--ha-space-1, 4px) 0 0;
   }
   .facts div {
     display: flex;
-    flex-direction: column;
+    align-items: baseline;
+    gap: var(--ha-space-1, 4px);
   }
   .facts dt {
     font-size: var(--ha-font-size-s, 0.857rem);
@@ -662,17 +708,13 @@ void main() {
   }
   .facts dd {
     margin: 0;
+    font-weight: var(--ha-font-weight-medium, 500);
     font-variant-numeric: tabular-nums;
   }
-  .fact-source {
-    display: block;
+  .info-stand {
+    margin: var(--ha-space-1, 4px) 0 0;
     font-size: var(--ha-font-size-s, 0.857rem);
     color: var(--amc-muted);
-  }
-  .info-actions {
-    flex: none;
-    display: flex;
-    gap: var(--ha-space-1, 4px);
   }
 
   .credit {
@@ -730,10 +772,12 @@ void main() {
 
   @container austria-map-card (inline-size < 360px) {
     .info {
-      flex-direction: column;
+      grid-template-columns: minmax(0, 1fr);
     }
     .info-actions {
-      align-self: flex-end;
+      grid-column: 1;
+      grid-row: 3;
+      justify-self: end;
     }
   }
 
@@ -898,16 +942,11 @@ void main() {
         ${e.facts.map(e=>A`
             <div>
               <dt>${this._t(e.label)}</dt>
-              <dd>
-                ${this._factValue(e)}
-                ${e.source?A`<span class="fact-source"
-                      >${this._t(`facts.source`,{holder:e.source.holder,stand:e.source.stand})}</span
-                    >`:M}
-              </dd>
+              <dd>${this._factValue(e)}</dd>
             </div>
           `)}
       </dl>
-    `}_renderTrail(e){let t=this._selection?.kind!==`river`&&this._selection?.kind!==`road`,n=/* @__PURE__ */ new Set([e.name]),r=e.parents.filter(e=>!n.has(e.name)&&(n.add(e.name),!0));if(r.length===0)return M;let i=t?[...r].reverse():r;return A`
+    `}_renderStand(e){let t=[...new Set(e.facts.flatMap(e=>e.source?[`${e.source.holder} ${e.source.stand}`]:[]))];return t.length===0?M:A`<p class="info-stand">${this._t(`card.stand`,{dates:t.join(`, `)})}</p>`}_renderTrail(e){let t=this._selection?.kind!==`river`&&this._selection?.kind!==`road`,n=/* @__PURE__ */ new Set([e.name]),r=e.parents.filter(e=>!n.has(e.name)&&(n.add(e.name),!0));if(r.length===0)return M;let i=t?[...r].reverse():r;return A`
       <nav class="info-trail ${t?`chain`:`list`}" aria-label=${this._t(`card.trail_label`)}>
         <ol lang="de">
           ${i.map(e=>A`
@@ -920,17 +959,15 @@ void main() {
       </nav>
     `}async _selectStep(e){this._select(e),await this.updateComplete,this.renderRoot.querySelector(`.info-name`)?.focus()}_renderInfo(){let e=this._selection===null?null:On(this._loader.store,this._selection);return A`
       <section class="info" aria-label=${this._t(`card.info_label`)}>
-        <div class="info-text">
-          ${e===null?M:this._renderTrail(e)}
-          <div class="info-live" aria-live="polite" aria-atomic="true">
-            ${e===null?A`<p class="info-idle">${this._t(this._nothingHere?`card.nothing_here`:`card.info_idle`)}</p>`:A`
-                  <p class="info-name" tabindex="-1">
-                    <span lang="de">${e.name}</span>
-                    <span class="info-kind">${this._t(e.kind)}</span>
-                  </p>
-                  ${this._renderFacts(e)}
-                `}
-          </div>
+        ${e===null?M:this._renderTrail(e)}
+        <div class="info-live" aria-live="polite" aria-atomic="true">
+          ${e===null?A`<p class="info-idle">${this._t(this._nothingHere?`card.nothing_here`:`card.info_idle`)}</p>`:A`
+                <p class="info-name" tabindex="-1">
+                  <span lang="de">${e.name}</span>
+                  <span class="info-kind">${this._t(e.kind)}</span>
+                </p>
+                ${this._renderFacts(e)} ${this._renderStand(e)}
+              `}
         </div>
         ${e===null?M:A`
               <div class="info-actions">

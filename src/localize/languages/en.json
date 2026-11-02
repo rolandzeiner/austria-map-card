@@ -14,7 +14,8 @@
     "credit": "Data: {holders}",
     "map_help_tilt": "Shift and the arrow keys tilt and turn the map.",
     "loading_relief": "Loading terrain…",
-    "trail_label": "Lies in"
+    "trail_label": "Lies in",
+    "stand": "Data as of: {dates}"
   },
   "controls": {
     "group": "Map controls",
@@ -66,7 +67,6 @@
     "stream_order": "Stream order",
     "length": "Length",
     "length_in_austria": "Length in Austria",
-    "source": "{holder}, as of {stand}",
     "height": "Height",
     "elevation": "Elevation",
     "postcode": "Postal code",

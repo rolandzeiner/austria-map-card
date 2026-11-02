@@ -1035,6 +1035,8 @@ export class AustriaMapCard extends LitElement {
     }
   }
 
+  /** The facts as one running line of label and value, like a gazetteer
+   *  entry: "Einwohner 6.624  Seehöhe 321 m  Postleitzahl 3150". */
   private _renderFacts(info: FeatureInfo): TemplateResult | typeof nothing {
     if (info.facts.length === 0) return nothing;
     return html`
@@ -1043,21 +1045,27 @@ export class AustriaMapCard extends LitElement {
           (fact) => html`
             <div>
               <dt>${this._t(fact.label)}</dt>
-              <dd>
-                ${this._factValue(fact)}
-                ${
-                  fact.source
-                    ? html`<span class="fact-source"
-                      >${this._t("facts.source", { holder: fact.source.holder, stand: fact.source.stand })}</span
-                    >`
-                    : nothing
-                }
-              </dd>
+              <dd>${this._factValue(fact)}</dd>
             </div>
           `,
         )}
       </dl>
     `;
+  }
+
+  /** When the facts' data is from: each holder and date once, in the
+   *  order the facts name them. Who the holders are and their licence is
+   *  the credit line's job. */
+  private _renderStand(info: FeatureInfo): TemplateResult | typeof nothing {
+    const dates = [
+      ...new Set(
+        info.facts.flatMap((fact) =>
+          fact.source ? [`${fact.source.holder} ${fact.source.stand}`] : [],
+        ),
+      ),
+    ];
+    if (dates.length === 0) return nothing;
+    return html`<p class="info-stand">${this._t("card.stand", { dates: dates.join(", ") })}</p>`;
   }
 
   /** Where the selection lies, the largest unit first, each a step that
@@ -1108,21 +1116,19 @@ export class AustriaMapCard extends LitElement {
       this._selection === null ? null : describeFeature(this._loader.store, this._selection);
     return html`
       <section class="info" aria-label=${this._t("card.info_label")}>
-        <div class="info-text">
-          ${info === null ? nothing : this._renderTrail(info)}
-          <div class="info-live" aria-live="polite" aria-atomic="true">
-            ${
-              info === null
-                ? html`<p class="info-idle">${this._t(this._nothingHere ? "card.nothing_here" : "card.info_idle")}</p>`
-                : html`
-                  <p class="info-name" tabindex="-1">
-                    <span lang="de">${info.name}</span>
-                    <span class="info-kind">${this._t(info.kind)}</span>
-                  </p>
-                  ${this._renderFacts(info)}
-                `
-            }
-          </div>
+        ${info === null ? nothing : this._renderTrail(info)}
+        <div class="info-live" aria-live="polite" aria-atomic="true">
+          ${
+            info === null
+              ? html`<p class="info-idle">${this._t(this._nothingHere ? "card.nothing_here" : "card.info_idle")}</p>`
+              : html`
+                <p class="info-name" tabindex="-1">
+                  <span lang="de">${info.name}</span>
+                  <span class="info-kind">${this._t(info.kind)}</span>
+                </p>
+                ${this._renderFacts(info)} ${this._renderStand(info)}
+              `
+          }
         </div>
         ${
           info === null

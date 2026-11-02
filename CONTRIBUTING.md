@@ -163,7 +163,7 @@ Population is one column of a table. Another fact (area, a date) is another colu
 
 ### Changing the chunk format
 
-Bump `DATA_FORMAT` in `src/data/format.ts` whenever a chunk's shape or packing changes. A browser can hold a new card and an old chunk at once; the loader refuses a chunk in another format and asks for a reload instead of drawing it.
+Bump `DATA_FORMAT` in `src/data/format.ts` whenever a chunk's shape or packing changes. A browser can hold a new card and an old chunk at once; the loader refuses a chunk in another format and asks for a reload instead of drawing it. Bump `CARD_VERSION` with it: the chunks are fetched under `?v=<card version>`, so a browser that already holds the old chunks under the same version keeps serving them to the new card, and the reload notice never goes away.
 
 ## Two builds, thirteen files
 

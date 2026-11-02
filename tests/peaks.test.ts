@@ -76,6 +76,6 @@ describe("a tapped summit", () => {
     expect(info.name).toBe("Großglockner");
     expect(info.kind).toBe("kinds.peak");
     expect(info.facts[0]).toMatchObject({ label: "facts.height", value: 3798, format: "metres" });
-    expect(info.parents.at(-1)).toMatch(/Kärnten|Tirol/);
+    expect(info.parents.at(-1)?.name).toMatch(/Kärnten|Tirol/);
   });
 });

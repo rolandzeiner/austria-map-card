@@ -18,7 +18,7 @@ A map of Austria for your Home Assistant dashboard, drawn from official Austrian
 
 - **Eleven layers**: terrain, glaciers, lakes, rivers, provinces, districts, municipalities, towns, peaks, motorways and main roads, switched from a button on the map.
 - **Zoom from 1× to 40×**: finer borders, smaller streams and more names appear as you zoom in.
-- **Select a place**: a town, river, road, peak or area, and the panel under the map says what it is and where it lies, with its population, height above sea level, postal code, area code and number plate code.
+- **Select a place**: a town, river, road, peak or area, and the panel under the map says what it is and where it lies, with its population, height above sea level, postal code, area code and number plate code. The trail above the name runs from the province down to the place, and each step selects that unit.
 - **3D view, experimental**: tilt and turn the map to see the mountains in relief. A compass turns you back to north.
 - **Mark where you are**: a pin for your home, the device you're on, or a person or tracker as they move.
 - **Open on one province**: start on all of Austria or on a single province.

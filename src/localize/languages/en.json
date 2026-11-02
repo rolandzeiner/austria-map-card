@@ -13,7 +13,8 @@
     "reload": "Reload page",
     "credit": "Data: {holders}",
     "map_help_tilt": "Shift and the arrow keys tilt and turn the map.",
-    "loading_relief": "Loading terrain…"
+    "loading_relief": "Loading terrain…",
+    "trail_label": "Lies in"
   },
   "controls": {
     "group": "Map controls",

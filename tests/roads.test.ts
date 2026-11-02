@@ -115,7 +115,12 @@ describe("a tapped motorway", () => {
 
   it("say how long a route is, its two carriageways counted once, and which provinces it runs through", () => {
     const info = describeFeature(store, { kind: "road", ref: "A1" })!;
-    expect(info.parents).toEqual(["Niederösterreich", "Oberösterreich", "Salzburg", "Wien"]);
+    expect(info.parents.map((parent) => parent.name)).toEqual([
+      "Niederösterreich",
+      "Oberösterreich",
+      "Salzburg",
+      "Wien",
+    ]);
     expect(info.facts).toEqual([
       expect.objectContaining({
         label: "facts.length",

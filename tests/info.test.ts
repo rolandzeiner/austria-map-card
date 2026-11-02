@@ -36,7 +36,7 @@ describe("areas", () => {
     expect(about({ kind: "district", row: 0 })).toMatchObject({
       name: "Eisenstadt(Stadt)",
       kind: "kinds.district",
-      parents: ["Burgenland"],
+      parents: [{ name: "Burgenland", feature: { kind: "province", row: 0 } }],
       facts: [
         { label: "facts.population", format: "integer" },
         { label: "facts.plate", text: "E", format: "text" },
@@ -48,7 +48,10 @@ describe("areas", () => {
     expect(about({ kind: "municipality", row: 0 })).toMatchObject({
       name: "Eisenstadt",
       kind: "kinds.municipality",
-      parents: ["Eisenstadt(Stadt)", "Burgenland"],
+      parents: [
+        { name: "Eisenstadt(Stadt)", feature: { kind: "district", row: 0 } },
+        { name: "Burgenland", feature: { kind: "province", row: 0 } },
+      ],
       facts: [
         { label: "facts.population", format: "integer" },
         { label: "facts.elevation", format: "metres" },
@@ -71,7 +74,11 @@ describe("towns", () => {
     expect(about(town("Graz"))).toMatchObject({
       name: "Graz",
       kind: "kinds.town_0",
-      parents: ["Graz", "Graz(Stadt)", "Steiermark"],
+      parents: [
+        { name: "Graz", feature: { kind: "municipality" } },
+        { name: "Graz(Stadt)", feature: { kind: "district" } },
+        { name: "Steiermark", feature: { kind: "province" } },
+      ],
       facts: [
         { label: "facts.municipality_population", value: 306971, format: "integer" },
         { label: "facts.elevation", value: 363, format: "metres" },
@@ -83,7 +90,11 @@ describe("towns", () => {
     });
     expect(about(town("Hallstatt"))).toMatchObject({
       kind: "kinds.town_1",
-      parents: ["Hallstatt", "Gmunden", "Oberösterreich"],
+      parents: [
+        { name: "Hallstatt", feature: { kind: "municipality" } },
+        { name: "Gmunden", feature: { kind: "district" } },
+        { name: "Oberösterreich", feature: { kind: "province" } },
+      ],
     });
   });
 
@@ -101,7 +112,11 @@ describe("summits", () => {
     expect(about({ kind: "peak", row: 0 })).toMatchObject({
       name: "Großglockner",
       kind: "kinds.peak",
-      parents: ["Heiligenblut am Großglockner", "Spittal an der Drau", "Kärnten"],
+      parents: [
+        { name: "Heiligenblut am Großglockner", feature: { kind: "municipality" } },
+        { name: "Spittal an der Drau", feature: { kind: "district" } },
+        { name: "Kärnten", feature: { kind: "province" } },
+      ],
       facts: [{ label: "facts.height", value: 3798, format: "metres" }],
     });
   });
@@ -109,7 +124,9 @@ describe("summits", () => {
   it("falls back to the province from the overview without the borders", () => {
     // The summit is on the Carinthian-Tyrolean border; the coarse outline
     // puts it on the Tyrolean side.
-    expect(about({ kind: "peak", row: 0 }, overview)?.parents).toEqual(["Tirol"]);
+    expect(about({ kind: "peak", row: 0 }, overview)?.parents).toMatchObject([
+      { name: "Tirol", feature: { kind: "province" } },
+    ]);
   });
 
   it("describes no summit without the peaks chunk", () => {
@@ -122,7 +139,12 @@ describe("roads", () => {
     expect(about({ kind: "road", ref: "A1" })).toMatchObject({
       name: "A1 · West Autobahn",
       kind: "kinds.motorway",
-      parents: ["Niederösterreich", "Oberösterreich", "Salzburg", "Wien"],
+      parents: [
+        { name: "Niederösterreich", feature: { kind: "province" } },
+        { name: "Oberösterreich" },
+        { name: "Salzburg" },
+        { name: "Wien" },
+      ],
       facts: [{ label: "facts.length", value: 2925, format: "kilometres" }],
     });
     expect(about({ kind: "road", ref: "B1" })).toMatchObject({
@@ -141,7 +163,7 @@ describe("rivers", () => {
     expect(about({ kind: "river", name: "Mur", order: 7 })).toMatchObject({
       name: "Mur",
       kind: "kinds.river",
-      parents: ["Salzburg", "Steiermark"],
+      parents: [{ name: "Salzburg", feature: { kind: "province" } }, { name: "Steiermark" }],
       facts: [
         { label: "facts.length_in_austria", value: 3616, format: "kilometres" },
         { label: "facts.stream_order", value: 7, format: "integer" },

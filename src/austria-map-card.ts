@@ -1060,6 +1060,46 @@ export class AustriaMapCard extends LitElement {
     `;
   }
 
+  /** Where the selection lies, the largest unit first, each a step that
+   *  selects that unit in turn, and the selection itself last. A parent
+   *  that shares the selection's name is not repeated (the town of Graz in
+   *  the municipality of Graz). A river or a road crosses provinces rather
+   *  than lying in one, so it gets the provinces as a list and no chain.
+   *  Outside the live region: the trail is a way to move, not the news. */
+  private _renderTrail(info: FeatureInfo): TemplateResult | typeof nothing {
+    const chain = this._selection?.kind !== "river" && this._selection?.kind !== "road";
+    const seen = new Set<string>([info.name]);
+    const steps = info.parents.filter((parent) => {
+      if (seen.has(parent.name)) return false;
+      seen.add(parent.name);
+      return true;
+    });
+    if (steps.length === 0) return nothing;
+    const ordered = chain ? [...steps].reverse() : steps;
+    return html`
+      <nav class="info-trail ${chain ? "chain" : "list"}" aria-label=${this._t("card.trail_label")}>
+        <ol lang="de">
+          ${ordered.map(
+            (step) => html`
+              <li>
+                <button type="button" class="link" @click=${() => this._selectStep(step.feature)}>${step.name}</button>
+              </li>
+            `,
+          )}
+          ${chain ? html`<li aria-current="location">${info.name}</li>` : nothing}
+        </ol>
+      </nav>
+    `;
+  }
+
+  /** Select a unit from the trail. The step that was pressed is gone with
+   *  the new selection, so focus moves to the name it now describes. */
+  private async _selectStep(feature: Feature): Promise<void> {
+    this._select(feature);
+    await this.updateComplete;
+    this.renderRoot.querySelector<HTMLElement>(".info-name")?.focus();
+  }
+
   /** What was tapped, under the map: no tooltip that a finger would cover.
    *  The text is a live region, so Enter on the map reads it out; the
    *  buttons sit beside it and are not read along. */
@@ -1068,23 +1108,21 @@ export class AustriaMapCard extends LitElement {
       this._selection === null ? null : describeFeature(this._loader.store, this._selection);
     return html`
       <section class="info" aria-label=${this._t("card.info_label")}>
-        <div class="info-text" aria-live="polite" aria-atomic="true">
-          ${
-            info === null
-              ? html`<p class="info-idle">${this._t(this._nothingHere ? "card.nothing_here" : "card.info_idle")}</p>`
-              : html`
-                <p class="info-name">
-                  <span lang="de">${info.name}</span>
-                  <span class="info-kind">${this._t(info.kind)}</span>
-                </p>
-                ${
-                  info.parents.length > 0
-                    ? html`<p class="info-parents" lang="de">${[...new Set(info.parents)].filter((name) => name !== info.name).join(" · ")}</p>`
-                    : nothing
-                }
-                ${this._renderFacts(info)}
-              `
-          }
+        <div class="info-text">
+          ${info === null ? nothing : this._renderTrail(info)}
+          <div class="info-live" aria-live="polite" aria-atomic="true">
+            ${
+              info === null
+                ? html`<p class="info-idle">${this._t(this._nothingHere ? "card.nothing_here" : "card.info_idle")}</p>`
+                : html`
+                  <p class="info-name" tabindex="-1">
+                    <span lang="de">${info.name}</span>
+                    <span class="info-kind">${this._t(info.kind)}</span>
+                  </p>
+                  ${this._renderFacts(info)}
+                `
+            }
+          </div>
         </div>
         ${
           info === null

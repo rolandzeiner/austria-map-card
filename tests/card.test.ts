@@ -296,11 +296,36 @@ describe("tapping the map", () => {
     expect(text(card, ".info-name")).toBe("Graz Stadt");
     // The tap asked for the borders chunk, which holds the parents.
     expect(pageLoader().state("borders")).toBe("ready");
-    expect(text(card, ".info-parents")).toBe("Graz(Stadt) · Steiermark");
+    // The trail runs from the province down to the town; the municipality
+    // of Graz shares the town's name and is not repeated.
+    expect(text(card, ".info-trail")).toBe("Steiermark Graz(Stadt) Graz");
+    expect($(card, ".info-trail")?.getAttribute("aria-label")).toBe("Liegt in");
     expect(text(card, ".facts")).toMatch(
       /^Einwohner der Gemeinde [\d.]+ Statistik Austria, Stand 01\.01\.2026 Seehöhe \d+ m BEV, Stand [\d.]+ Postleitzahl 8010–\d{4} RTR, Stand [\d.]+ Vorwahl 0316 RTR, Stand [\d.]+ Kfz-Kennzeichen G RIS, Stand [\d.]+$/,
     );
-    expect($(card, ".info-text")?.getAttribute("aria-live")).toBe("polite");
+    expect($(card, ".info-live")?.getAttribute("aria-live")).toBe("polite");
+    expect($(card, ".info-trail")?.closest(".info-live")).toBeNull();
+  });
+
+  it("selects a unit from the trail, describes it and moves focus to its name", async () => {
+    const card = await mount();
+    await tap(card, ...placeAt(card, "Graz"));
+    const steps = all(card, ".info-trail button");
+    expect(steps.map((step) => step.textContent?.trim())).toEqual(["Steiermark", "Graz(Stadt)"]);
+    steps[1]!.click();
+    await settle(card);
+    expect(card._selection).toEqual({
+      kind: "district",
+      row: pageLoader().store.detail!.districts.names.indexOf("Graz(Stadt)"),
+    });
+    expect(text(card, ".info-name")).toBe("Graz(Stadt) Bezirk");
+    expect(text(card, ".info-trail")).toBe("Steiermark Graz(Stadt)");
+    expect(card.shadowRoot?.activeElement).toBe($(card, ".info-name"));
+    all(card, ".info-trail button")[0]!.click();
+    await settle(card);
+    expect(card._selection).toEqual({ kind: "province", row: PROVINCE_IDS.indexOf("AT-6") });
+    expect(text(card, ".info-name")).toBe("Steiermark Bundesland");
+    expect($(card, ".info-trail")).toBeNull();
   });
 
   it("describes a province where there is no town", async () => {
@@ -309,7 +334,7 @@ describe("tapping the map", () => {
     const row = PROVINCE_IDS.indexOf("AT-7");
     await tap(card, ...toScreen(card._camera!, size, table.at[row * 2]!, table.at[row * 2 + 1]!));
     expect(text(card, ".info-name")).toBe("Tirol Bundesland");
-    expect($(card, ".info-parents")).toBeNull();
+    expect($(card, ".info-trail")).toBeNull();
     expect(text(card, ".facts")).toContain("Einwohner");
   });
 
@@ -328,7 +353,9 @@ describe("tapping the map", () => {
     const card = await mount();
     card._selection = { kind: "river", name: "Lech", order: 6 };
     await settle(card);
-    expect(text(card, ".info-parents")).toBe("Tirol · Vorarlberg");
+    // Provinces a river crosses are a list, not a chain, and the river is not appended.
+    expect(text(card, ".info-trail")).toBe("Tirol Vorarlberg");
+    expect($(card, ".info-trail")?.classList.contains("list")).toBe(true);
     expect(text(card, ".facts")).toMatch(
       /^Länge in Österreich 90,5 km BMLUK, Stand 2021 Flussordnungszahl 6 BMLUK, Stand 2021$/,
     );

@@ -410,7 +410,42 @@ export const cardStyles = css`
     font-weight: var(--ha-font-weight-normal, 400);
     color: var(--amc-muted);
   }
-  .info-parents,
+  .info-name:focus-visible {
+    outline: 2px solid var(--amc-accent);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+  /* The trail: "Steiermark › Graz(Stadt) › Graz", every step but the last a
+     button that looks like a link. The separators are drawn, not text, so
+     they are neither copied nor read out. */
+  .info-trail ol {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    color: var(--amc-muted);
+    font-size: var(--ha-font-size-s, 0.857rem);
+  }
+  .info-trail li + li::before {
+    content: "›" / "";
+    margin: 0 var(--ha-space-1, 4px);
+  }
+  .info-trail.list li + li::before {
+    content: "·" / "";
+  }
+  .link {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--amc-accent);
+    font: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+  }
   .info-idle {
     margin: 0;
     color: var(--amc-muted);

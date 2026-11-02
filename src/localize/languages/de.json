@@ -13,7 +13,8 @@
     "reload": "Seite neu laden",
     "credit": "Daten: {holders}",
     "map_help_tilt": "Umschalt und die Pfeiltasten neigen und drehen die Karte.",
-    "loading_relief": "Gelände wird geladen…"
+    "loading_relief": "Gelände wird geladen…",
+    "trail_label": "Liegt in"
   },
   "controls": {
     "group": "Kartensteuerung",

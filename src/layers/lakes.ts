@@ -1,27 +1,11 @@
-import type { Lines } from "../data/format.ts";
-import { TiledLines, groupBoxes, traceLines } from "../map/tiles.ts";
+import { fillRings } from "./filled.ts";
 import type { DrawContext, LayerDef } from "./registry.ts";
-
-const tiled = new WeakMap<Lines, TiledLines>();
 
 /** Lakes, filled in the water colour; an island is a ring inside its lake. */
 function draw(dc: DrawContext): void {
-  const { ctx, store, palette, shapes, box } = dc;
-  const lakes = store.lakes;
+  const lakes = dc.store.lakes;
   if (lakes === undefined) return;
-  let tiles = tiled.get(lakes.rings);
-  if (tiles === undefined) {
-    tiles = new TiledLines(lakes.rings, groupBoxes(lakes.lake, lakes.boxes), null);
-    tiled.set(lakes.rings, tiles);
-  }
-  const rings = lakes.rings;
-  ctx.fillStyle = palette.water;
-  tiles.visit(box, 0, (tile, which) => {
-    ctx.fill(
-      shapes.get(`lakes:${tile}`, (path) => traceLines(path, rings, which)),
-      "evenodd",
-    );
-  });
+  fillRings(dc, "lakes", lakes.rings, lakes.lake, lakes.boxes, dc.palette.water);
 }
 
 export const lakesLayer: LayerDef = {

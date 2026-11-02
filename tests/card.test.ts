@@ -55,9 +55,29 @@ describe("the card contract", () => {
     expect([...card._layers]).toEqual(["terrain", "lakes", "rivers", "provinces", "cities"]);
   });
 
+  it("reflects the layout HA sets, which the grid-cell selectors read", () => {
+    const element = customElements.get("austria-map-card") as unknown as {
+      getPropertyOptions(name: string): { reflect?: boolean };
+    };
+    expect(element.getPropertyOptions("layout").reflect).toBe(true);
+  });
+
+  it("marks a cell with a set number of rows, which the styles fit the credit into", async () => {
+    const at = async (layout: string | undefined, rows?: unknown) => {
+      const card = await mount(rows === undefined ? {} : { grid_options: { rows } });
+      (card as unknown as { layout?: string | undefined }).layout = layout;
+      await card.updateComplete;
+      return $(card, "ha-card")?.classList.contains("fixed-height");
+    };
+    expect(await at("grid")).toBe(true); // getGridOptions() asks for 7 rows
+    expect(await at("grid", 9)).toBe(true);
+    expect(await at("grid", "auto")).toBe(false);
+    expect(await at(undefined, 9)).toBe(false);
+  });
+
   it("asks for a full-width cell and says how tall it is", async () => {
     const card = await mount();
-    expect(card.getGridOptions()).toEqual({ columns: 12, rows: 7, min_columns: 6, min_rows: 5 });
+    expect(card.getGridOptions()).toEqual({ columns: 12, rows: 7, min_columns: 6, min_rows: 7 });
     expect(card.getCardSize()).toBe(8);
   });
 
@@ -89,7 +109,9 @@ describe("loading", () => {
     expect(fake.named("fill").length).toBeGreaterThan(8);
     expect(fake.texts()).toContain("Wien");
     expect($(card, ".loading")).toBeNull();
-    expect(text(card, ".credit")).toBe("Daten: BEV, BMLUK, Statistik Austria · CC BY 4.0");
+    expect(text(card, ".credit")).toBe(
+      "Daten: BEV, BMLUK, Statistik Austria, RTR, RIS · CC BY 4.0",
+    );
     expect($(card, ".credit a")?.getAttribute("href")).toBe(
       "https://creativecommons.org/licenses/by/4.0/",
     );
@@ -274,11 +296,40 @@ describe("tapping the map", () => {
     expect(text(card, ".info-name")).toBe("Graz Stadt");
     // The tap asked for the borders chunk, which holds the parents.
     expect(pageLoader().state("borders")).toBe("ready");
-    expect(text(card, ".info-parents")).toBe("Graz(Stadt) · Steiermark");
+    // The trail runs from the province down to the town; the municipality
+    // of Graz shares the town's name and is not repeated.
+    expect(text(card, ".info-trail")).toBe("Steiermark Graz(Stadt) Graz");
+    expect($(card, ".info-trail")?.getAttribute("aria-label")).toBe("Liegt in");
     expect(text(card, ".facts")).toMatch(
-      /^Einwohner der Gemeinde [\d.]+ Statistik Austria, Stand 01\.01\.2026$/,
+      /^Einwohner der Gemeinde [\d.]+ Seehöhe \d+ m Postleitzahl 8010–\d{4} Vorwahl 0316 Kfz-Kennzeichen G$/,
     );
-    expect($(card, ".info-text")?.getAttribute("aria-live")).toBe("polite");
+    // Each holder and date once, in the order of the facts.
+    expect(text(card, ".info-stand")).toMatch(
+      /^Stand: Statistik Austria 01\.01\.2026, BEV [\d.]+, RTR [\d.]+(, RTR [\d.]+)?, RIS [\d.]+$/,
+    );
+    expect($(card, ".info-live")?.getAttribute("aria-live")).toBe("polite");
+    expect($(card, ".info-trail")?.closest(".info-live")).toBeNull();
+  });
+
+  it("selects a unit from the trail, describes it and moves focus to its name", async () => {
+    const card = await mount();
+    await tap(card, ...placeAt(card, "Graz"));
+    const steps = all(card, ".info-trail button");
+    expect(steps.map((step) => step.textContent?.trim())).toEqual(["Steiermark", "Graz(Stadt)"]);
+    steps[1]!.click();
+    await settle(card);
+    expect(card._selection).toEqual({
+      kind: "district",
+      row: pageLoader().store.detail!.districts.names.indexOf("Graz(Stadt)"),
+    });
+    expect(text(card, ".info-name")).toBe("Graz(Stadt) Bezirk");
+    expect(text(card, ".info-trail")).toBe("Steiermark Graz(Stadt)");
+    expect(card.shadowRoot?.activeElement).toBe($(card, ".info-name"));
+    all(card, ".info-trail button")[0]!.click();
+    await settle(card);
+    expect(card._selection).toEqual({ kind: "province", row: PROVINCE_IDS.indexOf("AT-6") });
+    expect(text(card, ".info-name")).toBe("Steiermark Bundesland");
+    expect($(card, ".info-trail")).toBeNull();
   });
 
   it("describes a province where there is no town", async () => {
@@ -287,7 +338,7 @@ describe("tapping the map", () => {
     const row = PROVINCE_IDS.indexOf("AT-7");
     await tap(card, ...toScreen(card._camera!, size, table.at[row * 2]!, table.at[row * 2 + 1]!));
     expect(text(card, ".info-name")).toBe("Tirol Bundesland");
-    expect($(card, ".info-parents")).toBeNull();
+    expect($(card, ".info-trail")).toBeNull();
     expect(text(card, ".facts")).toContain("Einwohner");
   });
 
@@ -297,8 +348,9 @@ describe("tapping the map", () => {
     const row = PROVINCE_IDS.indexOf("AT-9");
     await tap(card, ...toScreen(card._camera!, size, table.at[row * 2]!, table.at[row * 2 + 1]!));
     expect(text(card, ".info-name")).toBe("Wien Province");
-    expect(text(card, ".facts")).toMatch(
-      /Population 2,\d{3},\d{3} Statistik Austria, as of 01\.01\.2026/,
+    expect(text(card, ".facts")).toMatch(/^Population 2,\d{3},\d{3} Area 414\.\d km²$/);
+    expect(text(card, ".info-stand")).toBe(
+      "Data as of: Statistik Austria 01.01.2026, BEV 01.04.2026",
     );
   });
 
@@ -306,10 +358,11 @@ describe("tapping the map", () => {
     const card = await mount();
     card._selection = { kind: "river", name: "Lech", order: 6 };
     await settle(card);
-    expect(text(card, ".info-parents")).toBe("Tirol · Vorarlberg");
-    expect(text(card, ".facts")).toMatch(
-      /^Länge in Österreich 90,5 km BMLUK, Stand 2021 Flussordnungszahl 6 BMLUK, Stand 2021$/,
-    );
+    // Provinces a river crosses are a list, not a chain, and the river is not appended.
+    expect(text(card, ".info-trail")).toBe("Tirol Vorarlberg");
+    expect($(card, ".info-trail")?.classList.contains("list")).toBe(true);
+    expect(text(card, ".facts")).toBe("Länge in Österreich 90,5 km Flussordnungszahl 6");
+    expect(text(card, ".info-stand")).toBe("Stand: BMLUK 2021");
     card._selection = { kind: "river", name: "Donau", order: 9 };
     await settle(card);
     expect(text(card, ".facts")).toMatch(/^Länge in Österreich 350 km /);
@@ -401,7 +454,7 @@ describe("the keyboard", () => {
     const card = await mount({ layers: ["provinces"] });
     await key(card, "Enter");
     expect(card._selection?.kind).toBe("province");
-    expect(text(card, ".info-text")).toMatch(/Bundesland/);
+    expect(text(card, ".info-live")).toMatch(/Bundesland/);
   });
 
   it("says so when there is nothing at the centre", async () => {

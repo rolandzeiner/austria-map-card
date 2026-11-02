@@ -16,15 +16,6 @@ export const cardStyles = css`
        active theme and the card inherits it. */
     display: block;
 
-    /* Fill the grid cell the dashboard hands us. A sections view gives the
-       cell WRAPPER a fixed pixel height whenever rows is numeric -- which a
-       user causes just by dragging the row handle -- and styles nothing
-       inside it. With display: block above, this element is ha-card's
-       containing block, so ha-card's block-size: 100% resolves against this
-       line; without it that percentage computes to auto and the card paints
-       over the card below. The pair is guarded by tests/grid-cell.test.ts. */
-    block-size: 100%;
-
     container-type: inline-size;
     container-name: austria-map-card;
 
@@ -42,10 +33,30 @@ export const cardStyles = css`
     /* overflow: hidden keeps a card taller than its cell clipped inside its
        own bounds instead of painting over its neighbour. */
     overflow: hidden;
-    block-size: 100%;
     display: flex;
     flex-direction: column;
     color: var(--amc-text);
+  }
+
+  /* Fill the grid cell the dashboard hands us. A sections view gives the
+     cell WRAPPER a fixed pixel height whenever rows is numeric -- which a
+     user causes just by dragging the row handle -- and styles nothing
+     inside it. :host is display: block, so it is ha-card's containing
+     block: without the host's line, ha-card's 100% computes to auto and the
+     card paints over the card below.
+     Gated on the layout HA sets on the card ("grid" in a sections view and
+     its edit dialog, "panel" in a panel view), as Mushroom and HA's tile
+     card gate it. The add-card picker sets none and centres each preview
+     in a tile as tall as the tallest preview in its row; an ungated 100%
+     resolved against that tile and stretched the card. The pair is guarded
+     by tests/grid-cell.test.ts. */
+  :host([layout="grid"]),
+  :host([layout="panel"]) {
+    block-size: 100%;
+  }
+  :host([layout="grid"]) ha-card,
+  :host([layout="panel"]) ha-card {
+    block-size: 100%;
   }
 
   /* Resolves the tokens above for the canvas; never seen. */
@@ -375,47 +386,128 @@ export const cardStyles = css`
   }
 
   /* ── What was tapped ─────────────────────────────────────────────── */
+  /* A gazetteer entry. The trail is the address line, the name the
+     headline with the actions beside it, the facts one running line of
+     label and value, and the dates of the data one sentence under them.
+     Two columns: the text, and the actions on the name's row. */
   .info {
-    display: flex;
-    align-items: flex-start;
-    gap: var(--ha-space-2, 8px);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    column-gap: var(--ha-space-3, 12px);
+    align-items: start;
     padding: var(--ha-space-2, 8px) var(--amc-pad-x) 0;
     min-block-size: var(--amc-control);
-  }
-  .info-text {
-    flex: 1;
-    min-inline-size: 0;
     line-height: 1.4;
   }
-  .info-name {
+  .info-trail {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .info-live {
+    grid-column: 1;
+    grid-row: 2;
+    min-inline-size: 0;
+  }
+  .info-actions {
+    grid-column: 2;
+    grid-row: 2;
+    display: flex;
+    gap: var(--ha-space-1, 4px);
+  }
+  /* Beside the name the action needs no frame of its own. */
+  .info-actions .text {
+    padding: 0 var(--ha-space-2, 8px);
+    border-color: transparent;
+  }
+
+  /* The trail: "Steiermark › Graz(Stadt) › Graz". Every step but the last
+     is a button set like a link: text colour with a hairline underline,
+     the accent on hover and focus; the last, the selection itself, is
+     muted. The separators are drawn, so they are neither copied nor read
+     out. */
+  .info-trail ol {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
     margin: 0;
-    font-size: var(--ha-font-size-l, 1.143rem);
+    padding: 0;
+    list-style: none;
+    font-size: var(--ha-font-size-s, 0.857rem);
+    color: var(--amc-muted);
+  }
+  .info-trail li + li::before {
+    content: "›" / "";
+    margin: 0 var(--ha-space-1, 4px);
+  }
+  .info-trail.list li + li::before {
+    content: "," / "";
+    margin: 0 var(--ha-space-1, 4px) 0 0;
+  }
+  .link {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--amc-text);
+    font: inherit;
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-decoration-color: var(--amc-muted);
+    text-underline-offset: 3px;
+    cursor: pointer;
+  }
+  .link:hover,
+  .link:focus-visible {
+    color: var(--amc-accent);
+    text-decoration-color: currentColor;
+  }
+
+  /* The name sits on the actions' row, so it takes a control's height and
+     centres its line in it; the kind follows it on the same baseline. */
+  .info-name {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    align-content: center;
+    column-gap: var(--ha-space-2, 8px);
+    min-block-size: var(--amc-control);
+    margin: 0;
+    font-size: var(--ha-font-size-xl, 1.286rem);
     font-weight: var(--ha-font-weight-medium, 500);
-    line-height: 1.3;
+    line-height: 1.25;
     overflow-wrap: anywhere;
+  }
+  .info-name:focus-visible {
+    outline: 2px solid var(--amc-accent);
+    outline-offset: 2px;
+    border-radius: 6px;
   }
   .info-kind {
     font-size: var(--ha-font-size-m, 1rem);
     font-weight: var(--ha-font-weight-normal, 400);
     color: var(--amc-muted);
   }
-  .info-parents,
   .info-idle {
+    display: flex;
+    align-items: center;
+    min-block-size: var(--amc-control);
     margin: 0;
     color: var(--amc-muted);
   }
-  .info-idle {
-    align-self: center;
-  }
+
+  /* "Einwohner 6.624   Seehöhe 321 m   Postleitzahl 3150": label, then
+     value, pair by pair along the line, wrapping as the card narrows. */
   .facts {
-    margin: var(--ha-space-1, 4px) 0 0;
     display: flex;
     flex-wrap: wrap;
-    gap: var(--ha-space-1, 4px) var(--ha-space-4, 16px);
+    column-gap: var(--ha-space-4, 16px);
+    margin: var(--ha-space-1, 4px) 0 0;
   }
   .facts div {
     display: flex;
-    flex-direction: column;
+    align-items: baseline;
+    gap: var(--ha-space-1, 4px);
   }
   .facts dt {
     font-size: var(--ha-font-size-s, 0.857rem);
@@ -423,17 +515,13 @@ export const cardStyles = css`
   }
   .facts dd {
     margin: 0;
+    font-weight: var(--ha-font-weight-medium, 500);
     font-variant-numeric: tabular-nums;
   }
-  .fact-source {
-    display: block;
+  .info-stand {
+    margin: var(--ha-space-1, 4px) 0 0;
     font-size: var(--ha-font-size-s, 0.857rem);
     color: var(--amc-muted);
-  }
-  .info-actions {
-    flex: none;
-    display: flex;
-    gap: var(--ha-space-1, 4px);
   }
 
   .credit {
@@ -445,6 +533,22 @@ export const cardStyles = css`
   }
   .credit a {
     color: inherit;
+  }
+
+  /* A fixed-height cell (ha-card.fixed-height, set by the card's
+     _fixedHeight). The stage already gives way down to its button floor;
+     the info panel below grows with a selected place, and without these it
+     pushed the credit, the licence line, out of the cell. The credit keeps
+     its height, the info panel gives way down to one control's height and
+     scrolls past it. The 4 px at its foot is the room the focus ring (2 px
+     at a 2 px offset) of its last buttons needs inside a scroller. */
+  ha-card.fixed-height .info {
+    min-block-size: var(--amc-control);
+    overflow-y: auto;
+    padding-block-end: var(--ha-space-1, 4px);
+  }
+  ha-card.fixed-height .credit {
+    flex-shrink: 0;
   }
 
   /* A card too narrow for the row of buttons to fit in the empty corner
@@ -475,10 +579,12 @@ export const cardStyles = css`
 
   @container austria-map-card (inline-size < 360px) {
     .info {
-      flex-direction: column;
+      grid-template-columns: minmax(0, 1fr);
     }
     .info-actions {
-      align-self: flex-end;
+      grid-column: 1;
+      grid-row: 3;
+      justify-self: end;
     }
   }
 

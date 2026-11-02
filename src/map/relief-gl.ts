@@ -10,15 +10,17 @@
  * second cell for the whole-country view is a uniform.
  *
  * The "cloth" is the flat map's fills, drawn by the 2D renderer into a
- * canvas of its own: land, terrain, a selected area. Borders and rivers are
+ * canvas of its own: land, terrain, the glaciers. Borders and rivers are
  * lines of their own (relief-lines.ts), drawn a constant number of pixels
- * wide however far the cloth is magnified. The names and the pin are drawn
- * over it all in screen pixels, upright, by the card's own canvas.
+ * wide however far the cloth is magnified, and the lakes are fills of
+ * their own on the ground, counted out with the stencil buffer so an
+ * island stays dry. The names and the pin are drawn over it all in screen
+ * pixels, upright, by the card's own canvas.
  *
  * Without WebGL 2 `create` returns null and the card stays flat.
  */
 import type { Relief } from "../layers/store.ts";
-import type { LineSet } from "./relief-lines.ts";
+import type { FillSet, LineSet } from "./relief-lines.ts";
 import { MAP_HEIGHT, MAP_WIDTH } from "./projection.ts";
 import { METRES_PER_UNIT, type View3D } from "./view3d.ts";
 
@@ -81,17 +83,14 @@ void main() {
 // on a steep slope, and the line sinks into the mountain in pieces.) The
 // ends are then projected and pushed apart sideways on screen by half the
 // width and a pixel more for the soft edge.
-const LINE_VERTEX = `#version 300 es
+// The ground under a point, as the mesh has it, lifted a hair: shared by
+// the lines and the fills.
+const GROUND = `
 uniform highp sampler2D u_height;
-uniform mat4 u_matrix;
 uniform ivec2 u_grid;
 uniform int u_stride;
 uniform float u_zscale;
 uniform float u_lift;
-uniform vec2 u_half;
-uniform float u_width;
-in vec4 a_segment;
-out float v_across;
 
 float texel(ivec2 cell) {
   return texelFetch(u_height, clamp(cell, ivec2(0), u_grid - 1), 0).r;
@@ -117,7 +116,15 @@ float groundAt(vec2 at) {
   }
   return h * u_zscale + u_lift;
 }
+`;
 
+const LINE_VERTEX = `#version 300 es
+uniform mat4 u_matrix;
+uniform vec2 u_half;
+uniform float u_width;
+in vec4 a_segment;
+out float v_across;
+${GROUND}
 void main() {
   float along = float(gl_VertexID >> 1);
   float side = float(gl_VertexID & 1) * 2.0 - 1.0;
@@ -161,6 +168,27 @@ void main() {
 }
 `;
 
+// A fill is triangles on the ground, in one colour. Which of them show is
+// the stencil's business (drawFills).
+const FILL_VERTEX = `#version 300 es
+uniform mat4 u_matrix;
+in vec2 a_point;
+${GROUND}
+void main() {
+  gl_Position = u_matrix * vec4(a_point, groundAt(a_point), 1.0);
+}
+`;
+
+const FILL_FRAGMENT = `#version 300 es
+precision mediump float;
+uniform vec3 u_colour;
+out vec4 colour;
+
+void main() {
+  colour = vec4(u_colour, 1.0);
+}
+`;
+
 /** Where a cell is under a pixel wide, every second one is enough. */
 const meshStride = (view: View3D): number => (view.scale < 1 ? 2 : 1);
 
@@ -168,6 +196,7 @@ const meshStride = (view: View3D): number => (view.scale < 1 ? 2 : 1);
 export const SHADERS = {
   relief: { vertex: VERTEX, fragment: FRAGMENT },
   lines: { vertex: LINE_VERTEX, fragment: LINE_FRAGMENT },
+  fills: { vertex: FILL_VERTEX, fragment: FILL_FRAGMENT },
 } as const;
 
 interface LineBuffer {
@@ -222,8 +251,12 @@ export class ReliefGL {
   private readonly program: WebGLProgram;
   private readonly lineProgram: WebGLProgram;
   private readonly lineUniforms: Record<string, WebGLUniformLocation | null>;
+  private readonly fillProgram: WebGLProgram;
+  private readonly fillUniforms: Record<string, WebGLUniformLocation | null>;
   /** Segment buffers by LineSet key; the data never changes once loaded. */
   private readonly lines = new Map<string, LineBuffer>();
+  /** Triangle buffers by FillSet key, likewise. */
+  private readonly fills = new Map<string, LineBuffer>();
   private readonly heights: WebGLTexture;
   private readonly drape: WebGLTexture;
   private readonly uniforms: Record<string, WebGLUniformLocation | null>;
@@ -235,7 +268,12 @@ export class ReliefGL {
   public static create(canvas: HTMLCanvasElement): ReliefGL | null {
     let gl: WebGL2RenderingContext | null = null;
     try {
-      gl = canvas.getContext("webgl2", { alpha: true, antialias: true, premultipliedAlpha: true });
+      gl = canvas.getContext("webgl2", {
+        alpha: true,
+        antialias: true,
+        premultipliedAlpha: true,
+        stencil: true,
+      });
     } catch {
       gl = null;
     }
@@ -273,6 +311,16 @@ export class ReliefGL {
       "u_lift",
       "u_half",
       "u_width",
+      "u_colour",
+    ]);
+    this.fillProgram = link(gl, FILL_VERTEX, FILL_FRAGMENT);
+    this.fillUniforms = locations(gl, this.fillProgram, [
+      "u_height",
+      "u_matrix",
+      "u_grid",
+      "u_stride",
+      "u_zscale",
+      "u_lift",
       "u_colour",
     ]);
     const texture = (): WebGLTexture => {
@@ -353,7 +401,7 @@ export class ReliefGL {
   public clear(): void {
     const { gl } = this;
     gl.clearColor(0, 0, 0, 0);
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT | gl.STENCIL_BUFFER_BIT);
   }
 
   private lineBuffer(set: LineSet): LineBuffer | null {
@@ -376,6 +424,77 @@ export class ReliefGL {
     const made = { vao, buffer, count: segments.length / 4 };
     this.lines.set(set.key, made);
     return made;
+  }
+
+  private fillBuffer(set: FillSet): LineBuffer | null {
+    const known = this.fills.get(set.key);
+    if (known !== undefined) return known;
+    const { gl } = this;
+    const triangles = set.triangles();
+    if (triangles.length === 0) return null;
+    const vao = gl.createVertexArray();
+    const buffer = gl.createBuffer();
+    if (vao === null || buffer === null) return null;
+    gl.bindVertexArray(vao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, triangles, gl.STATIC_DRAW);
+    const location = gl.getAttribLocation(this.fillProgram, "a_point");
+    gl.enableVertexAttribArray(location);
+    gl.vertexAttribPointer(location, 2, gl.FLOAT, false, 0, 0);
+    gl.bindVertexArray(null);
+    const made = { vao, buffer, count: triangles.length / 2 };
+    this.fills.set(set.key, made);
+    return made;
+  }
+
+  /**
+   * Rings filled on the ground by the even-odd rule, as the flat map fills
+   * them, without cutting them into triangles. Each ring is a fan from its
+   * first point (relief-lines.ts). The fans go down twice: first flipping
+   * the stencil wherever they land, with no depth test, so a part behind a
+   * mountain still counts and the pixels left odd are exactly the inside
+   * of the rings; then in colour, only where the stencil is odd and the
+   * ground is seen, each pixel once. A lake is flat, so a fan's plane lies
+   * on its surface.
+   */
+  private drawFills(view: View3D, sets: readonly FillSet[]): void {
+    const { gl, relief, fillUniforms: u } = this;
+    if (relief === undefined || sets.length === 0) return;
+    gl.useProgram(this.fillProgram);
+    gl.enable(gl.STENCIL_TEST);
+    gl.depthMask(false);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, this.heights);
+    gl.uniform1i(u.u_height!, 0);
+    gl.uniformMatrix4fv(u.u_matrix!, false, view.matrix());
+    gl.uniform2i(u.u_grid!, relief.columns, relief.rows);
+    gl.uniform1i(u.u_stride!, meshStride(view));
+    gl.uniform1f(u.u_zscale!, view.stretch / METRES_PER_UNIT);
+    gl.uniform1f(u.u_lift!, view.distance * 0.0015);
+    for (const set of sets) {
+      const buffer = this.fillBuffer(set);
+      if (buffer === null) continue;
+      gl.bindVertexArray(buffer.vao);
+      // The count: every fan flips the lowest bit of the pixels it covers.
+      gl.clear(gl.STENCIL_BUFFER_BIT);
+      gl.disable(gl.DEPTH_TEST);
+      gl.colorMask(false, false, false, false);
+      gl.stencilFunc(gl.ALWAYS, 0, 1);
+      gl.stencilOp(gl.KEEP, gl.KEEP, gl.INVERT);
+      gl.drawArrays(gl.TRIANGLES, 0, buffer.count);
+      // The colour: where the bit is set and the ground is seen, once.
+      gl.enable(gl.DEPTH_TEST);
+      gl.depthFunc(gl.LEQUAL);
+      gl.colorMask(true, true, true, true);
+      gl.stencilFunc(gl.EQUAL, 1, 1);
+      gl.stencilOp(gl.KEEP, gl.KEEP, gl.ZERO);
+      gl.uniform3f(u.u_colour!, set.colour[0] / 255, set.colour[1] / 255, set.colour[2] / 255);
+      gl.drawArrays(gl.TRIANGLES, 0, buffer.count);
+    }
+    gl.bindVertexArray(null);
+    gl.disable(gl.STENCIL_TEST);
+    gl.depthMask(true);
+    gl.disable(gl.DEPTH_TEST);
   }
 
   /** Lines on the ground: depth-tested against the relief, never writing depth themselves. */
@@ -415,7 +534,7 @@ export class ReliefGL {
   }
 
   /** Draw a frame. Nothing until both the relief and a drape are there. */
-  public draw(view: View3D, lines: readonly LineSet[] = []): void {
+  public draw(view: View3D, lines: readonly LineSet[] = [], fills: readonly FillSet[] = []): void {
     const { gl, relief, uniforms: u } = this;
     gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
     this.clear();
@@ -440,6 +559,7 @@ export class ReliefGL {
     const strips = Math.ceil((relief.rows - 1) / stride);
     gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, across * 2, strips);
     gl.disable(gl.DEPTH_TEST);
+    this.drawFills(view, fills);
     this.drawLines(view, lines);
   }
 }

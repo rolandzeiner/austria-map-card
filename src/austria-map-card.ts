@@ -27,7 +27,7 @@ import type { Feature } from "./map/labels.ts";
 import { derivePalette, readTheme, type Palette } from "./map/palette.ts";
 import { project, type MapPoint } from "./map/projection.ts";
 import { ReliefGL } from "./map/relief-gl.ts";
-import { reliefLines } from "./map/relief-lines.ts";
+import { reliefFills, reliefLines } from "./map/relief-lines.ts";
 import { MapRenderer, type RenderState } from "./map/renderer.ts";
 import {
   FLAT,
@@ -61,6 +61,13 @@ const LICENCE_URL = "https://creativecommons.org/licenses/by/4.0/";
 
 /** Pixels across of the flat map laid over the relief. */
 const DRAPE_WIDTH = 3072;
+/** The layers that fill an area, in the registry's drawing order. They are
+ *  painted into the drape; everything else is a line or a label and is drawn
+ *  sharp over the relief. */
+const DRAPE_LAYERS: readonly LayerId[] = ["terrain", "glaciers"];
+/** Layers the tilted map fills on the ground instead (relief-lines.ts), so
+ *  their edges stay sharp however close the view: the lakes. */
+const FILL_LAYERS: readonly LayerId[] = ["lakes"];
 const TILT_MS = 450;
 /** How far the compass leans back with the map: a share of the pitch, so the
  *  rose stays readable at the steepest tilt. */
@@ -87,6 +94,9 @@ export class AustriaMapCard extends LitElement {
   static override styles = cardStyles;
 
   @property({ attribute: false }) public hass?: HomeAssistant;
+  /** Set by HA: "grid" in a sections view, "panel" in a panel view, unset
+   *  in the add-card picker. Reflected so the styles fill only a cell. */
+  @property({ reflect: true }) public layout?: string;
 
   @state() private _config: NormalisedConfig = normaliseConfig({ type: `custom:${CARD_TAG}` });
   /** The layers that are on. Starts from the config; changes last for the session. */
@@ -115,7 +125,8 @@ export class AustriaMapCard extends LitElement {
   private _renderer?: MapRenderer;
   private readonly _loader: ChunkLoader = sharedLoader({
     base: import.meta.url,
-    version: CARD_VERSION,
+    // The data's fingerprint too: a data build alone changes the key.
+    version: `${CARD_VERSION}-${__DATA_ID__}`,
   });
   private readonly _gesture = new MapGesture();
   private _unsubscribe?: () => void;
@@ -155,7 +166,10 @@ export class AustriaMapCard extends LitElement {
   }
 
   public getGridOptions(): Record<string, number> {
-    return { columns: 12, rows: 7, min_columns: 6, min_rows: 5 };
+    // min_rows measured with the card at a fixed height: at six columns the
+    // toolbar wraps, and the map's button floor, one line of info and the
+    // credit (the licence line) need seven rows. Six fit from eight columns.
+    return { columns: 12, rows: 7, min_columns: 6, min_rows: 7 };
   }
 
   public static getStubConfig(): Record<string, unknown> {
@@ -481,10 +495,11 @@ export class AustriaMapCard extends LitElement {
     this._tiltTo({ pitch: this._orientation.pitch, bearing: 0 });
   }
 
-  /** The layers painted into the picture laid over the relief: only the
-   *  terrain fills an area. Lines and towns are drawn sharp, over it. */
+  /** The layers painted into the picture laid over the relief: the ones
+   *  that fill an area, in drawing order. Lines and towns are drawn sharp,
+   *  over it. */
   private _drapeLayers(): ReadonlySet<LayerId> {
-    return new Set(this._layers.has("terrain") ? (["terrain"] as const) : []);
+    return new Set(DRAPE_LAYERS.filter((id) => this._layers.has(id)));
   }
 
   /** Redraw the flat map that covers the relief, when what it shows changed. */
@@ -567,7 +582,11 @@ export class AustriaMapCard extends LitElement {
       renderer.draw(this._state(camera));
     } else {
       if (this._reliefCanvas) this._reliefCanvas.hidden = false;
-      this._loader.request(["relief", ...chunksFor(this._drapeLayers(), DRAPE_WIDTH / MAP_WIDTH)]);
+      const tilted = new Set([
+        ...this._drapeLayers(),
+        ...FILL_LAYERS.filter((id) => this._layers.has(id)),
+      ]);
+      this._loader.request(["relief", ...chunksFor(tilted, DRAPE_WIDTH / MAP_WIDTH)]);
       const store = this._loader.store;
       gl.setRelief(store.relief ?? flatRelief());
       this._updateDrape(gl);
@@ -577,6 +596,7 @@ export class AustriaMapCard extends LitElement {
         this._palette
           ? reliefLines(store, this._layers, camera.k, this._selection, this._palette)
           : [],
+        this._palette ? reliefFills(store, this._layers, this._palette) : [],
       );
       renderer.drawTilted(this._state(camera), view);
     }
@@ -786,6 +806,15 @@ export class AustriaMapCard extends LitElement {
     return localize(key, resolveLang(this.hass), vars);
   }
 
+  // A sections cell with a set number of rows: the user dragged the card or
+  // switched auto height off (stored grid_options), or getGridOptions()'s own
+  // rows apply. The test HA's gauge, picture-entity and area cards make.
+  private get _fixedHeight(): boolean {
+    const stored = (this._config.grid_options as { rows?: unknown } | undefined)?.rows;
+    const rows = stored ?? this.getGridOptions().rows;
+    return this.layout === "grid" && typeof rows === "number";
+  }
+
   protected override render(): TemplateResult {
     // Read so the template is rebuilt when the loader or the view changes.
     void this._revision;
@@ -795,7 +824,7 @@ export class AustriaMapCard extends LitElement {
     const size = this._renderer?.size;
     const zoom = this._camera && size ? zoomOf(this._camera, size) : 1;
     return html`
-      <ha-card>
+      <ha-card class=${this._fixedHeight ? "fixed-height" : ""}>
         <span class="probe" aria-hidden="true"></span>
         ${config.title ? html`<h2 class="title">${config.title}</h2>` : nothing}
         <div class="stage">
@@ -994,19 +1023,31 @@ export class AustriaMapCard extends LitElement {
     }
   }
 
-  /** A fact as it reads: "1,234", "3,798 m", "292 km". Lengths under
-   *  100 km keep their tenths: "12.4 km". */
+  /** A fact as it reads: "1,234", "3,798 m", "292 km", "8010–8054", "0316",
+   *  "G". Lengths under 100 km keep their tenths: "12.4 km". */
   private _factValue(fact: InfoFact): string {
     switch (fact.format) {
       case "metres":
         return `${this._number(fact.value)} m`;
       case "kilometres":
         return `${this._number(fact.value / 10, { maximumFractionDigits: fact.value < 1000 ? 1 : 0 })} km`;
+      case "square_kilometres":
+        return `${this._number(fact.value / 100, { maximumFractionDigits: fact.value < 100_000 ? 1 : 0 })} km²`;
+      case "postcode":
+        return fact.value < 10_000
+          ? String(fact.value)
+          : `${String(Math.floor(fact.value / 10_000))}–${String(fact.value % 10_000)}`;
+      case "area_code":
+        return `0${String(fact.value)}`;
+      case "text":
+        return fact.text ?? "";
       default:
         return this._number(fact.value);
     }
   }
 
+  /** The facts as one running line of label and value, like a gazetteer
+   *  entry: "Einwohner 6.624  Seehöhe 321 m  Postleitzahl 3150". */
   private _renderFacts(info: FeatureInfo): TemplateResult | typeof nothing {
     if (info.facts.length === 0) return nothing;
     return html`
@@ -1015,21 +1056,67 @@ export class AustriaMapCard extends LitElement {
           (fact) => html`
             <div>
               <dt>${this._t(fact.label)}</dt>
-              <dd>
-                ${this._factValue(fact)}
-                ${
-                  fact.source
-                    ? html`<span class="fact-source"
-                      >${this._t("facts.source", { holder: fact.source.holder, stand: fact.source.stand })}</span
-                    >`
-                    : nothing
-                }
-              </dd>
+              <dd>${this._factValue(fact)}</dd>
             </div>
           `,
         )}
       </dl>
     `;
+  }
+
+  /** When the facts' data is from: each holder and date once, in the
+   *  order the facts name them. Who the holders are and their licence is
+   *  the credit line's job. */
+  private _renderStand(info: FeatureInfo): TemplateResult | typeof nothing {
+    const dates = [
+      ...new Set(
+        info.facts.flatMap((fact) =>
+          fact.source ? [`${fact.source.holder} ${fact.source.stand}`] : [],
+        ),
+      ),
+    ];
+    if (dates.length === 0) return nothing;
+    return html`<p class="info-stand">${this._t("card.stand", { dates: dates.join(", ") })}</p>`;
+  }
+
+  /** Where the selection lies, the largest unit first, each a step that
+   *  selects that unit in turn, and the selection itself last. A parent
+   *  that shares the selection's name is not repeated (the town of Graz in
+   *  the municipality of Graz). A river or a road crosses provinces rather
+   *  than lying in one, so it gets the provinces as a list and no chain.
+   *  Outside the live region: the trail is a way to move, not the news. */
+  private _renderTrail(info: FeatureInfo): TemplateResult | typeof nothing {
+    const chain = this._selection?.kind !== "river" && this._selection?.kind !== "road";
+    const seen = new Set<string>([info.name]);
+    const steps = info.parents.filter((parent) => {
+      if (seen.has(parent.name)) return false;
+      seen.add(parent.name);
+      return true;
+    });
+    if (steps.length === 0) return nothing;
+    const ordered = chain ? [...steps].reverse() : steps;
+    return html`
+      <nav class="info-trail ${chain ? "chain" : "list"}" aria-label=${this._t("card.trail_label")}>
+        <ol lang="de">
+          ${ordered.map(
+            (step) => html`
+              <li>
+                <button type="button" class="link" @click=${() => this._selectStep(step.feature)}>${step.name}</button>
+              </li>
+            `,
+          )}
+          ${chain ? html`<li aria-current="location">${info.name}</li>` : nothing}
+        </ol>
+      </nav>
+    `;
+  }
+
+  /** Select a unit from the trail. The step that was pressed is gone with
+   *  the new selection, so focus moves to the name it now describes. */
+  private async _selectStep(feature: Feature): Promise<void> {
+    this._select(feature);
+    await this.updateComplete;
+    this.renderRoot.querySelector<HTMLElement>(".info-name")?.focus();
   }
 
   /** What was tapped, under the map: no tooltip that a finger would cover.
@@ -1040,21 +1127,17 @@ export class AustriaMapCard extends LitElement {
       this._selection === null ? null : describeFeature(this._loader.store, this._selection);
     return html`
       <section class="info" aria-label=${this._t("card.info_label")}>
-        <div class="info-text" aria-live="polite" aria-atomic="true">
+        ${info === null ? nothing : this._renderTrail(info)}
+        <div class="info-live" aria-live="polite" aria-atomic="true">
           ${
             info === null
               ? html`<p class="info-idle">${this._t(this._nothingHere ? "card.nothing_here" : "card.info_idle")}</p>`
               : html`
-                <p class="info-name">
+                <p class="info-name" tabindex="-1">
                   <span lang="de">${info.name}</span>
                   <span class="info-kind">${this._t(info.kind)}</span>
                 </p>
-                ${
-                  info.parents.length > 0
-                    ? html`<p class="info-parents" lang="de">${[...new Set(info.parents)].filter((name) => name !== info.name).join(" · ")}</p>`
-                    : nothing
-                }
-                ${this._renderFacts(info)}
+                ${this._renderFacts(info)} ${this._renderStand(info)}
               `
           }
         </div>
@@ -1080,7 +1163,9 @@ export class AustriaMapCard extends LitElement {
     `;
   }
 
-  /** Who the data is from, assembled from the chunks that are loaded. */
+  /** Who the data is from, assembled from the chunks that are loaded, and
+   *  the map data's licence. The code tables (RTR, RIS) are free works that
+   *  need no line of their own; the README says so. */
   private _renderCredit(): TemplateResult | typeof nothing {
     const sources = this._loader.store.sources();
     if (sources.length === 0) return nothing;

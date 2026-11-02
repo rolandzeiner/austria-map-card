@@ -94,7 +94,7 @@ describe("the built card", () => {
       ?.querySelector(".credit")
       ?.textContent?.replace(/\s+/g, " ")
       .trim();
-    expect(credit).toBe("Daten: BEV, BMLUK, Statistik Austria · CC BY 4.0");
+    expect(credit).toBe("Daten: BEV, BMLUK, Statistik Austria, RTR, RIS · CC BY 4.0");
     expect(card.shadowRoot?.querySelector(".notice")).toBeNull();
   });
 });

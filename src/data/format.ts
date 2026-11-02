@@ -17,7 +17,7 @@
  */
 
 /** Bump when a chunk's shape or the packing changes. */
-export const DATA_FORMAT = 2;
+export const DATA_FORMAT = 3;
 
 export const CHUNK_IDS = [
   "base",
@@ -217,23 +217,42 @@ export interface SourceInfo {
 }
 
 /**
- * One fact about every row of a table: population today, area or altitude
- * tomorrow. The info panel renders whatever columns a table carries, so a
- * new fact is a build step and two translation strings, not card code.
+ * How a fact prints. Zero means "not known for this row" in every format.
+ *
+ * - `integer`: a plain number.
+ * - `metres`: "1,234 m".
+ * - `kilometres`: tenths of a kilometre, "12.4 km".
+ * - `postcode`: one four-digit code, or `from * 10000 + to` for a range
+ *   ("8010–8054").
+ * - `area_code`: an Ortsnetzkennzahl without its leading zero: 1 is "01".
+ * - `text`: a 1-based index into the column's `texts`.
+ */
+export type FactFormat =
+  | "integer"
+  | "metres"
+  | "kilometres"
+  /** Hectares in the data, shown in square kilometres. */
+  | "square_kilometres"
+  | "postcode"
+  | "area_code"
+  | "text";
+
+/**
+ * One fact about every row of a table: population, altitude, a postal code.
+ * The info panel renders whatever columns a table carries, so a new fact is
+ * a build step and two translation strings, not card code.
  */
 export interface FactColumn {
   readonly key: string;
   /** Translation key of the column's label. */
   readonly label: string;
-  /**
-   * How to print a value. Zero means "not known for this row".
-   * `kilometres` values are tenths of a kilometre.
-   */
-  readonly format: "integer" | "metres" | "kilometres";
+  readonly format: FactFormat;
   /** `SourceInfo.id` of where the values come from. */
   readonly source: string;
   /** Packed integers, one per row. */
   readonly values: string;
+  /** The strings a `text` column's values index, from 1. */
+  readonly texts?: readonly string[];
 }
 
 /** Provinces, districts or municipalities. */

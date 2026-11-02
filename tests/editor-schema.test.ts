@@ -21,11 +21,17 @@ describe("editor schema", () => {
     it(`labels every field and every option (${lang})`, () => {
       for (const field of schema) {
         expect(t(field.name), field.name).not.toBe(`editor.${field.name}`);
-        if ("select" in field.selector) {
-          for (const option of field.selector.select.options) {
-            expect(option.label, `${field.name}=${option.value}`).not.toMatch(/^(editor|layers)\./);
-          }
-        }
+      }
+      const options = schema.flatMap((field) =>
+        "select" in field.selector
+          ? field.selector.select.options.map((option) => [
+              `${field.name}=${option.value}`,
+              option.label,
+            ])
+          : [],
+      );
+      for (const [where, label] of options) {
+        expect(label, where).not.toMatch(/^(editor|layers)\./);
       }
     });
   }

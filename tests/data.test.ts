@@ -43,13 +43,14 @@ describe("the chunk files", () => {
   );
 
   it.each(CHUNK_IDS.map((id) => [id]))(
-    "%s names its sources, all CC BY 4.0, each with a date and a link",
+    "%s names its sources, the map data CC BY 4.0 and the code tables free works, each with a date and a link",
     (id) => {
       const { sources } = chunk(id);
       expect(sources.length).toBeGreaterThan(0);
       for (const source of sources) {
-        expect(source.licence).toBe("CC BY 4.0");
-        expect(source.holder).toMatch(/^(BEV|BMLUK|Statistik Austria)$/);
+        const codes = /^(RTR|RIS)$/.test(source.holder);
+        expect(source.holder).toMatch(/^(BEV|BMLUK|Statistik Austria|RTR|RIS)$/);
+        expect(source.licence).toBe(codes ? "freies Werk (§ 7 UrhG)" : "CC BY 4.0");
         expect(source.stand).toMatch(/\d{4}/);
         expect(source.url).toMatch(/^https:\/\//);
         expect(text(id)).toContain(source.name);
@@ -584,5 +585,128 @@ describe("lake names", () => {
           y <= lakes.boxes[ring * 4 + 3]!,
       ),
     ).toBe(true);
+  });
+});
+
+describe("the data's fingerprint", () => {
+  it("is baked into the card as the hash of the committed chunks, in their known order", async () => {
+    // The card sends it with every chunk request, beside its version, so a
+    // card built on new data never reads a chunk the browser cached.
+    const bytes = new TextEncoder().encode(CHUNK_IDS.map((id) => CHUNK_TEXT[id]).join(""));
+    const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+    const hex = [...digest].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+    expect(__DATA_ID__).toBe(hex.slice(0, 8));
+  });
+});
+
+describe("the areas", () => {
+  /** Austria by Statistik Austria, in hectares: 83 882.6 km². */
+  const AUSTRIA = 8_388_260;
+  const area = (table: Table): Int32Array =>
+    table.facts.find((fact) => fact.key === "area")!.values;
+
+  it("measure every province, district and municipality, in hectares, from the BEV's cadastre", () => {
+    for (const table of [overview.provinces, detail.districts, detail.municipalities]) {
+      const column = table.facts.find((fact) => fact.key === "area")!;
+      expect(column.format).toBe("square_kilometres");
+      expect(column.source).toBe("bev-vgd");
+      expect([...column.values].filter((value) => value <= 0)).toHaveLength(0);
+    }
+  });
+
+  it("add up to Austria within a tenth of a percent, at every level", () => {
+    for (const table of [overview.provinces, detail.districts, detail.municipalities]) {
+      expect(Math.abs(sum(area(table)) - AUSTRIA) / AUSTRIA).toBeLessThan(0.001);
+    }
+  });
+
+  it("give Vienna its 415 km²", () => {
+    const vienna = overview.provinces.names.indexOf("Wien");
+    expect(area(overview.provinces)[vienna]).toBeGreaterThan(41_400);
+    expect(area(overview.provinces)[vienna]).toBeLessThan(41_500);
+  });
+});
+
+describe("the codes", () => {
+  const municipalities = detail.municipalities;
+  const unit = (name: string): number => municipalities.names.indexOf(name);
+  type Facts = {
+    facts: ReadonlyArray<{ key: string; values: Int32Array; texts?: readonly string[] }>;
+  };
+  const fact = (table: Facts, key: string): { values: Int32Array; texts?: readonly string[] } =>
+    table.facts.find((entry) => entry.key === key)!;
+  const textOf = (table: Facts, key: string, row: number): string | undefined => {
+    const column = fact(table, key);
+    return column.texts?.[column.values[row]! - 1];
+  };
+
+  it("give every district, municipality and place a plate code, 98 codes in all", () => {
+    expect(fact(detail.districts, "plate").texts).toHaveLength(98);
+    for (const table of [detail.districts, municipalities]) {
+      expect([...fact(table, "plate").values].filter((value) => value === 0)).toHaveLength(0);
+    }
+    expect([...fact(places, "plate").values].filter((value) => value === 0)).toHaveLength(0);
+  });
+
+  it("know the plate codes that cross the district's: Rust, Klosterneuburg, Schwechat, Leoben, the Ausseerland, the Expositur Gröbming", () => {
+    expect(textOf(detail.districts, "plate", detail.districts.names.indexOf("Rust(Stadt)"))).toBe(
+      "E",
+    );
+    expect(textOf(detail.districts, "plate", detail.districts.names.indexOf("Liezen"))).toBe("LI");
+    for (const [name, code] of [
+      ["Rust", "E"],
+      ["Klosterneuburg", "KG"],
+      ["Schwechat", "SW"],
+      ["Tulln an der Donau", "TU"],
+      ["Leoben", "LE"],
+      ["Trofaiach", "LN"],
+      ["Bad Aussee", "BA"],
+      ["Schladming", "GB"],
+      ["Liezen", "LI"],
+      ["Wien", "W"],
+    ]) {
+      expect(textOf(municipalities, "plate", unit(name!)), name).toBe(code);
+    }
+  });
+
+  it("give a municipality its namesake's postal code, a city the range of its quarters", () => {
+    const postcode = fact(municipalities, "postcode").values;
+    expect(postcode[unit("Eisenstadt")]).toBe(7000);
+    expect(postcode[unit("Schwechat")]).toBe(2320);
+    expect(postcode[unit("Hallstatt")]).toBe(4830);
+    // 1010 to 1230, packed as from * 10000 + to.
+    expect(postcode[unit("Wien")]).toBe(1010_1230);
+    expect(postcode[unit("Graz")]).toBe(8010_8036);
+    expect([...postcode].filter((value) => value === 0)).toHaveLength(0);
+  });
+
+  it("give a municipality the area code seated in it, or its nearest neighbour's", () => {
+    const areaCode = fact(municipalities, "area_code").values;
+    expect(areaCode[unit("Wien")]).toBe(1);
+    expect(areaCode[unit("Graz")]).toBe(316);
+    expect(areaCode[unit("Hallstatt")]).toBe(6134);
+    // No Ortsnetz of its own: Vienna's 01 reaches it.
+    expect(areaCode[unit("Schwechat")]).toBe(1);
+    expect(areaCode[unit("Klosterneuburg")]).toBe(2243);
+    expect([...areaCode].filter((value) => value === 0)).toHaveLength(0);
+  });
+
+  it("give every municipality a height, its namesake's where it has one", () => {
+    const elevation = fact(municipalities, "elevation").values;
+    expect(elevation[unit("Wien")]).toBe(171);
+    expect(elevation[unit("Hallstatt")]).toBe(532);
+    expect([...elevation].filter((value) => value === 0)).toHaveLength(0);
+  });
+
+  it("give a place its own codes where it is their namesake, its municipality's otherwise", () => {
+    const row = places.names.indexOf("Rannersdorf");
+    expect(municipalities.names[places.municipality[row]!]).toBe("Schwechat");
+    expect(fact(places, "postcode").values[row]).toBe(2320);
+    expect(fact(places, "area_code").values[row]).toBe(1);
+    expect(textOf(places, "plate", row)).toBe("SW");
+    expect(fact(places, "elevation").values[row]).toBeGreaterThan(100);
+    const graz = places.names.indexOf("Graz");
+    expect(fact(places, "postcode").values[graz]).toBe(8010_8036);
+    expect(fact(places, "area_code").values[graz]).toBe(316);
   });
 });

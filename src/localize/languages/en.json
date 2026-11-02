@@ -13,7 +13,9 @@
     "reload": "Reload page",
     "credit": "Data: {holders}",
     "map_help_tilt": "Shift and the arrow keys tilt and turn the map.",
-    "loading_relief": "Loading terrain…"
+    "loading_relief": "Loading terrain…",
+    "trail_label": "Lies in",
+    "stand": "Data as of: {dates}"
   },
   "controls": {
     "group": "Map controls",
@@ -61,12 +63,16 @@
   },
   "facts": {
     "population": "Population",
+    "area": "Area",
     "municipality_population": "Population of the municipality",
     "stream_order": "Stream order",
     "length": "Length",
     "length_in_austria": "Length in Austria",
-    "source": "{holder}, as of {stand}",
-    "height": "Height"
+    "height": "Height",
+    "elevation": "Elevation",
+    "postcode": "Postal code",
+    "area_code": "Area code",
+    "plate": "Number plate"
   },
   "editor": {
     "title": "Title",

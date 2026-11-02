@@ -16,7 +16,15 @@ export interface InfoFact {
   readonly label: string;
   readonly value: number;
   readonly format: Fact["format"];
+  /** What a `text` fact's value stands for. */
+  readonly text?: string;
   readonly source: SourceInfo | undefined;
+}
+
+/** A unit a feature lies in, and the unit as a feature, so it can be selected in turn. */
+export interface Parent {
+  readonly name: string;
+  readonly feature: Feature;
 }
 
 export interface FeatureInfo {
@@ -24,41 +32,59 @@ export interface FeatureInfo {
   /** Translation key of what the feature is: `kinds.province`, `kinds.town_0`, ... */
   readonly kind: string;
   /** The units it lies in, nearest first. */
-  readonly parents: readonly string[];
+  readonly parents: readonly Parent[];
   readonly facts: readonly InfoFact[];
 }
 
 /** The facts of one table row. A value of zero means "not known" and is left out. */
 function factsOf(store: MapStore, facts: readonly Fact[], row: number): InfoFact[] {
   return facts
-    .map((fact) => ({
-      label: fact.label,
-      value: fact.values[row] ?? 0,
-      format: fact.format,
-      source: store.source(fact.source),
-    }))
+    .map((fact): InfoFact => {
+      const value = fact.values[row] ?? 0;
+      const text = fact.texts?.[value - 1];
+      return {
+        label: fact.label,
+        value,
+        format: fact.format,
+        ...(text === undefined ? {} : { text }),
+        source: store.source(fact.source),
+      };
+    })
     .filter((fact) => fact.value !== 0);
 }
 
-/** The names of the provinces in a mask, bit n for province row n, in table order. */
-function provincesIn(store: MapStore, mask: number): string[] {
-  const names = store.overview?.provinces.names ?? [];
-  return names.filter((_, row) => (mask & (1 << row)) !== 0);
+/** A row of an area table as a parent; nothing for a row the data lacks (-1). */
+function unit(
+  table: Table | undefined,
+  kind: "province" | "district" | "municipality",
+  row: number,
+): Parent[] {
+  if (table === undefined || row < 0) return [];
+  return [{ name: table.names[row] ?? "", feature: { kind, row } }];
+}
+
+/** The provinces in a mask, bit n for province row n, in table order. */
+function provincesIn(store: MapStore, mask: number): Parent[] {
+  const provinces = store.overview?.provinces;
+  const names = provinces?.names ?? [];
+  return names.flatMap((_, row) =>
+    (mask & (1 << row)) !== 0 ? unit(provinces, "province", row) : [],
+  );
 }
 
 /**
- * A municipality's name, then its district's and its province's. Empty
- * without the base and borders chunks, or for no municipality (-1).
+ * A municipality, then its district and its province. Empty without the
+ * base and borders chunks, or for no municipality (-1).
  */
-function municipalityParents(store: MapStore, municipality: number): string[] {
+function municipalityParents(store: MapStore, municipality: number): Parent[] {
   const provinces = store.overview?.provinces;
   const detail = store.detail;
   if (detail === undefined || provinces === undefined || municipality < 0) return [];
   const district = detail.municipalities.parent?.[municipality] ?? -1;
   return [
-    detail.municipalities.names[municipality] ?? "",
-    detail.districts.names[district] ?? "",
-    provinces.names[detail.provinceOf[municipality] ?? -1] ?? "",
+    ...unit(detail.municipalities, "municipality", municipality),
+    ...unit(detail.districts, "district", district),
+    ...unit(provinces, "province", detail.provinceOf[municipality] ?? -1),
   ];
 }
 
@@ -67,7 +93,7 @@ const rowInfo = (
   table: Table,
   row: number,
   kind: string,
-  parents: string[],
+  parents: Parent[],
 ): FeatureInfo => ({
   name: table.names[row] ?? "",
   kind,
@@ -91,16 +117,20 @@ export function describeFeature(store: MapStore, feature: Feature): FeatureInfo 
     case "district": {
       if (detail === undefined || provinces === undefined) return null;
       const province = detail.districts.parent?.[feature.row] ?? -1;
-      return rowInfo(store, detail.districts, feature.row, "kinds.district", [
-        provinces.names[province] ?? "",
-      ]);
+      return rowInfo(
+        store,
+        detail.districts,
+        feature.row,
+        "kinds.district",
+        unit(provinces, "province", province),
+      );
     }
     case "municipality": {
       if (detail === undefined || provinces === undefined) return null;
       const district = detail.municipalities.parent?.[feature.row] ?? -1;
       return rowInfo(store, detail.municipalities, feature.row, "kinds.municipality", [
-        detail.districts.names[district] ?? "",
-        provinces.names[detail.provinceOf[feature.row] ?? -1] ?? "",
+        ...unit(detail.districts, "district", district),
+        ...unit(provinces, "province", detail.provinceOf[feature.row] ?? -1),
       ]);
     }
     case "city": {
@@ -119,9 +149,8 @@ export function describeFeature(store: MapStore, feature: Feature): FeatureInfo 
       const x = peaks.at[feature.row * 2] as number;
       const y = peaks.at[feature.row * 2 + 1] as number;
       const parents = municipalityParents(store, store.municipalityIndex?.locate(x, y) ?? -1);
-      if (parents.length === 0 && provinces !== undefined && store.overview !== undefined) {
-        const province = store.overview.index.locate(x, y);
-        if (province >= 0) parents.push(provinces.names[province] ?? "");
+      if (parents.length === 0 && store.overview !== undefined) {
+        parents.push(...unit(provinces, "province", store.overview.index.locate(x, y)));
       }
       return {
         name: peaks.names[feature.row] ?? "",

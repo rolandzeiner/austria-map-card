@@ -11,6 +11,9 @@
  * data, the same scales and the same palette as the flat map. The vertices
  * are plain segments on the map; the shader in relief-gl.ts finds their
  * height and their width on screen.
+ *
+ * The lakes go the same way: as fills of their own on the ground, not as
+ * pixels of the cloth, so a shore stays a line however close the view.
  */
 import type { Lines } from "../data/format.ts";
 import { BORDER_WIDTHS } from "../layers/borders.ts";
@@ -260,6 +263,68 @@ export function reliefLines(
         width: 2,
       });
     }
+  }
+  return sets;
+}
+
+/** One batch of filled rings: one colour, by the even-odd rule. */
+export interface FillSet {
+  /** Names the data, not the style: the triangles are built once per key. */
+  readonly key: string;
+  /** Triangles as x1, y1, x2, y2, x3, y3, fanned from each ring's first point. */
+  readonly triangles: () => Float32Array;
+  readonly colour: Rgb;
+}
+
+/**
+ * Every ring as a fan of triangles from its first point: a ring of n
+ * points gives n - 2 triangles. The fans of a concave ring overlap and
+ * reach outside it; drawn with the stencil's even-odd count (relief-gl.ts)
+ * they fill exactly the ring, islands left out, as the flat map's
+ * "evenodd" fill does. A ring that repeats its first point at the end
+ * gives one triangle of no area, which draws nothing.
+ */
+export function fansOf(lines: Lines): Float32Array {
+  const { xy, start } = lines;
+  const out: number[] = [];
+  for (let ring = 0; ring < lines.count; ring += 1) {
+    const from = start[ring] as number;
+    const to = start[ring + 1] as number;
+    const x0 = xy[from * 2] as number;
+    const y0 = xy[from * 2 + 1] as number;
+    for (let point = from + 1; point + 1 < to; point += 1) {
+      out.push(
+        x0,
+        y0,
+        xy[point * 2] as number,
+        xy[point * 2 + 1] as number,
+        xy[point * 2 + 2] as number,
+        xy[point * 2 + 3] as number,
+      );
+    }
+  }
+  return Float32Array.from(out);
+}
+
+/**
+ * What the tilted map fills on the ground rather than paints into the
+ * cloth: the lakes. A lake is flat, so a fan's plane lies on its surface.
+ * The glaciers stay in the cloth: on a slope a flat fan would cut into the
+ * mountain.
+ */
+export function reliefFills(
+  store: MapStore,
+  layers: ReadonlySet<LayerId>,
+  palette: Palette,
+): FillSet[] {
+  const sets: FillSet[] = [];
+  const lakes = store.lakes;
+  if (layers.has("lakes") && lakes !== undefined) {
+    sets.push({
+      key: "fill:lakes",
+      triangles: () => fansOf(lakes.rings),
+      colour: rgb(palette.water),
+    });
   }
   return sets;
 }

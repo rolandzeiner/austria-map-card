@@ -38,6 +38,7 @@ export interface Fact {
   readonly format: FactColumn["format"];
   readonly source: string;
   readonly values: Int32Array;
+  readonly texts?: readonly string[];
 }
 
 /** Provinces, districts or municipalities, one row each. */

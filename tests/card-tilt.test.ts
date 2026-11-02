@@ -112,14 +112,14 @@ describe("the tilted map", () => {
     expect(card._orientation).toEqual(FLAT);
   });
 
-  it("draws the relief with WebGL, loads it, and lays only the terrain over it: lines are drawn sharp", async () => {
+  it("draws the relief with WebGL, loads it, and lays only the fills over it: lines are drawn sharp", async () => {
     const { card, gl } = await mountTilting();
     card._setPose({ camera: card._camera, orientation: { pitch: 0.8, bearing: 0.3 } });
     card._drawNow();
     await settle(card);
     expect(gl.draws.length).toBeGreaterThan(0);
     expect(pageLoader().state("relief")).not.toBe("idle");
-    expect(gl.drapes.at(-1)).toContain("|terrain|");
+    expect(gl.drapes.at(-1)).toContain("|terrain,lakes|");
     expect(gl.drapes.at(-1)).not.toMatch(/rivers|provinces|cities/);
     const lines = gl.lines.at(-1)!;
     expect(lines.some((line) => line.startsWith("rivers:"))).toBe(true);
@@ -134,7 +134,7 @@ describe("the tilted map", () => {
     card._setPose({ camera: card._camera, orientation: { pitch: 0.8, bearing: 0.3 } });
     card._drawNow();
     await settle(card);
-    expect(gl.drapes.at(-1)).toContain("|terrain,lakes,glaciers|");
+    expect(gl.drapes.at(-1)).toContain("|terrain,glaciers,lakes|");
     expect(new Set(requestedIds())).toContain("glaciers");
     const off = await mountTilting({ layers: ["terrain", "provinces"] });
     off.card._setPose({ camera: off.card._camera, orientation: { pitch: 0.8, bearing: 0.3 } });

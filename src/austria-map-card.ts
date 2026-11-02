@@ -61,6 +61,10 @@ const LICENCE_URL = "https://creativecommons.org/licenses/by/4.0/";
 
 /** Pixels across of the flat map laid over the relief. */
 const DRAPE_WIDTH = 3072;
+/** The layers that fill an area, in the registry's drawing order. They are
+ *  painted into the drape; everything else is a line or a label and is drawn
+ *  sharp over the relief. */
+const DRAPE_LAYERS: readonly LayerId[] = ["terrain", "glaciers", "lakes"];
 const TILT_MS = 450;
 /** How far the compass leans back with the map: a share of the pitch, so the
  *  rose stays readable at the steepest tilt. */
@@ -487,10 +491,11 @@ export class AustriaMapCard extends LitElement {
     this._tiltTo({ pitch: this._orientation.pitch, bearing: 0 });
   }
 
-  /** The layers painted into the picture laid over the relief: only the
-   *  terrain fills an area. Lines and towns are drawn sharp, over it. */
+  /** The layers painted into the picture laid over the relief: the ones
+   *  that fill an area, in drawing order. Lines and towns are drawn sharp,
+   *  over it. */
   private _drapeLayers(): ReadonlySet<LayerId> {
-    return new Set(this._layers.has("terrain") ? (["terrain"] as const) : []);
+    return new Set(DRAPE_LAYERS.filter((id) => this._layers.has(id)));
   }
 
   /** Redraw the flat map that covers the relief, when what it shows changed. */

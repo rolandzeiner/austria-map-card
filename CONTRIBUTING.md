@@ -159,7 +159,7 @@ A layer is one entry in `src/layers/registry.ts`: its id, an icon, the chunks it
 
 ### Adding a fact about a place
 
-Population is one column of a table. Another fact (area, altitude) is another column: add it to the table in `scripts/build-data.mjs` with a `key`, a `label` translation key and its `source`, add the label under `facts` in both language files, and rebuild the data. The info panel shows whatever columns a table carries. River and road sets carry facts the same way, one value per river name or route (their length). A value prints as a plain number (`integer`), in metres (`metres`), or in kilometres from tenths of a kilometre (`kilometres`).
+Population is one column of a table. Another fact (area, a date) is another column: add it to the table in `scripts/build-data.mjs` with a `key`, a `label` translation key and its `source`, add the label under `facts` in both language files, and rebuild the data. The info panel shows whatever columns a table carries. River and road sets carry facts the same way, one value per river name or route (their length). A value prints as a plain number (`integer`), in metres (`metres`), in kilometres from tenths of a kilometre (`kilometres`), as a postal code or a range of them (`postcode`), as an area code with its leading zero (`area_code`), or as one of the column's `texts` (`text`, the plate codes). The postal, area and plate codes are matched to the units and places at build time; `scripts/lib/places.ts` has the name matching, and the `--refresh-*` step of each prints what it could not place.
 
 ### Changing the chunk format
 
@@ -214,10 +214,13 @@ node scripts/build-data.mjs --refresh-main-roads   # BEV, the same 1.3 GB file a
 node scripts/build-data.mjs --refresh-population   # Statistik Austria, 18 MB
 node scripts/build-data.mjs --refresh-lakes        # BEV, 77 MB
 node scripts/build-data.mjs --refresh-glaciers     # BEV, the same 77 MB file, and the names file
+node scripts/build-data.mjs --refresh-postcodes    # RTR, 0.5 MB, and the names file
+node scripts/build-data.mjs --refresh-area-codes   # RTR, 60 KB, and the names file
+node scripts/build-data.mjs --refresh-plates       # RIS, 70 KB
 node scripts/build-data.mjs --refresh              # all of them
 ```
 
-Downloads are kept in `.cache/` (ignored by git); add `--download` to fetch one again. Rivers and places are cut against the borders, so refresh those after the borders. The build fails if the borders and the population table do not list the same municipalities.
+Downloads are kept in `.cache/` (ignored by git); add `--download` to fetch one again. Rivers, places, postal places and Ortsnetze are cut against the borders, so refresh those after the borders. The RTR tables are live, so move their `stand` to the `version.published` the download reports. The build fails if the borders and the population table do not list the same municipalities.
 
 `node scripts/build-data.mjs --measure` prints the chunk sizes for a range of tolerances. The tables in the script's comments come from it; update them when you change a setting.
 

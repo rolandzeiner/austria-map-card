@@ -18,7 +18,7 @@ A map of Austria for your Home Assistant dashboard, drawn from official Austrian
 
 - **Eleven layers**: terrain, glaciers, lakes, rivers, provinces, districts, municipalities, towns, peaks, motorways and main roads, switched from a button on the map.
 - **Zoom from 1× to 40×**: finer borders, smaller streams and more names appear as you zoom in.
-- **Select a place**: a town, river, road, peak or area, and the panel under the map says what it is and where it lies.
+- **Select a place**: a town, river, road, peak or area, and the panel under the map says what it is and where it lies, with its population, height above sea level, postal code, area code and number plate code.
 - **3D view, experimental**: tilt and turn the map to see the mountains in relief. A compass turns you back to north.
 - **Mark where you are**: a pin for your home, the device you're on, or a person or tracker as they move.
 - **Open on one province**: start on all of Austria or on a single province.
@@ -174,6 +174,7 @@ layers:
 - **The pin shows only inside the map.** A position outside Austria and its border margin falls off the map's edge.
 - **Names are the official ones.** Towns carry the BEV's spelling, municipalities the register's, so "St. Pölten" and "Sankt Johann" both occur.
 - **A town shows its municipality's population**, and only where the two share a name.
+- **Postal and area codes are a best match, not a register.** A municipality shows the postal code of the postal place of its name, a city the range of its quarters, and a town its own code where it is a postal place. The area code is the Ortsnetz named after the municipality or town; a municipality without one gets its nearest neighbour's, which is off for a few places along an Ortsnetz border. The number plate code is the district's, with the municipalities that have one of their own.
 - **Pinch to zoom from the whole-country view** depends on the browser. If it does not respond, zoom in once with the `+` button or a double-tap.
 
 ## Removal
@@ -187,7 +188,7 @@ After a manual install, delete `<config>/www/community/austria-map-card/` and it
 
 The card credits its sources below the map, for example `Data: BEV, BMLUK, Statistik Austria · CC BY 4.0`. It names the sources whose data is loaded at the moment.
 
-All map data is official Austrian open data under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/):
+All map data is official Austrian open data under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/); the three code tables are official works, free of copyright under § 7 UrhG:
 
 | Data | Source | As of |
 | --- | --- | --- |
@@ -198,18 +199,21 @@ All map data is official Austrian open data under [CC BY 4.0](https://creativeco
 | Roads | BEV, [Digitales Landschaftsmodell, Verkehr](https://data.bev.gv.at/download/DLM/DLM_20260323/) | 23.03.2026 |
 | Lakes and glaciers | BEV, [Digitales Landschaftsmodell, Bodenbedeckung](https://data.bev.gv.at/download/DLM/DLM_20260323/) | 23.03.2026 |
 | Population | Statistik Austria, [Bevölkerung zu Jahresbeginn 2026](https://data.statistik.gv.at/web/meta.jsp?dataset=OGD_bevstandjbab2002_BevStand_2026) | 01.01.2026 |
+| Postal codes | Rundfunk und Telekom Regulierungs-GmbH (RTR), [Open Data Postleitzahlen](https://www2.rtr.at/de/inf/odPLZ) | 07.10.2026 |
+| Area codes | RTR, [Open Data Ortsnetze](https://www2.rtr.at/de/inf/odRNOrtsnetze) (the Ortsnetzkennzahlen of the KEM-V 2009) | 02.11.2026 |
+| Number plate codes | Rechtsinformationssystem des Bundes (RIS), [KDV 1967, Anlage 5d](https://www.ris.bka.gv.at/Dokumente/Bundesnormen/NOR40265416/NOR40265416.html) | 07.04.2025 |
 
-The data was changed for this card: borders, terrain and rivers are simplified, municipalities are merged from cadastral units, towns and peaks are a selection of the BEV's place names, roads are joined into routes and simplified, and lakes and glaciers are a selection of the BEV's land cover, simplified.
+The data was changed for this card: borders, terrain and rivers are simplified, municipalities are merged from cadastral units, towns and peaks are a selection of the BEV's place names, roads are joined into routes and simplified, and lakes and glaciers are a selection of the BEV's land cover, simplified. The postal places and Ortsnetze are matched to the BEV's place names and to the municipalities by name and position, and the plate codes to the districts and municipalities the annex names.
 
 ## License
 
-The code is [MIT](https://github.com/rolandzeiner/austria-map-card/blob/main/LICENSE). The map data in `dist/austria-map-data-*.js` and `scripts/data/` is © BEV, BMLUK and Statistik Austria, under CC BY 4.0 (see *Attribution*).
+The code is [MIT](https://github.com/rolandzeiner/austria-map-card/blob/main/LICENSE). The map data in `dist/austria-map-data-*.js` and `scripts/data/` is © BEV, BMLUK and Statistik Austria, under CC BY 4.0; the postal, area and plate codes in them are free works (see *Attribution*).
 
 To build from source or contribute, see [CONTRIBUTING.md](https://github.com/rolandzeiner/austria-map-card/blob/main/CONTRIBUTING.md).
 
 ## Disclaimer
 
-This card is not affiliated with or endorsed by the BEV, the BMLUK or Statistik Austria. Map data comes from their [open data](https://www.data.gv.at/) under CC BY 4.0. The developer assumes no liability for the accuracy, completeness or timeliness of the displayed data. Use at your own risk.
+This card is not affiliated with or endorsed by the BEV, the BMLUK, Statistik Austria or the RTR. Map data comes from their [open data](https://www.data.gv.at/) under CC BY 4.0, the code tables from the RTR's open data and the RIS. The developer assumes no liability for the accuracy, completeness or timeliness of the displayed data. Use at your own risk.
 
 ---
 

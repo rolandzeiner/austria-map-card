@@ -34,21 +34,30 @@ interface TiltInternals extends CardInternals {
 }
 
 /** What the card asks of the WebGL renderer, recorded. */
-function stubGL(): { draws: View3D[]; lines: string[][]; drapes: string[]; lost: boolean } & Record<
-  string,
-  unknown
-> {
+function stubGL(): {
+  draws: View3D[];
+  lines: string[][];
+  fills: string[][];
+  drapes: string[];
+  lost: boolean;
+} & Record<string, unknown> {
   const stub = {
     draws: [] as View3D[],
     lines: [] as string[][],
+    fills: [] as string[][],
     drapes: [] as string[],
     lost: false,
     resize: () => undefined,
     setRelief: () => undefined,
     setDrape: (_image: unknown, drape: string) => stub.drapes.push(drape),
-    draw: (view: View3D, lines: ReadonlyArray<{ key: string }>) => {
+    draw: (
+      view: View3D,
+      lines: ReadonlyArray<{ key: string }>,
+      fills: ReadonlyArray<{ key: string }> = [],
+    ) => {
       stub.draws.push(view);
       stub.lines.push(lines.map((set) => set.key));
+      stub.fills.push(fills.map((set) => set.key));
     },
   };
   return stub;
@@ -119,8 +128,10 @@ describe("the tilted map", () => {
     await settle(card);
     expect(gl.draws.length).toBeGreaterThan(0);
     expect(pageLoader().state("relief")).not.toBe("idle");
-    expect(gl.drapes.at(-1)).toContain("|terrain,lakes|");
-    expect(gl.drapes.at(-1)).not.toMatch(/rivers|provinces|cities/);
+    expect(gl.drapes.at(-1)).toContain("|terrain|");
+    expect(gl.drapes.at(-1)).not.toMatch(/rivers|provinces|cities|lakes/);
+    // The lakes are fills on the ground, not pixels of the cloth.
+    expect(gl.fills.at(-1)).toEqual(["fill:lakes"]);
     const lines = gl.lines.at(-1)!;
     expect(lines.some((line) => line.startsWith("rivers:"))).toBe(true);
     expect(lines).toContain("borders:coarse:1");
@@ -129,18 +140,21 @@ describe("the tilted map", () => {
     expect($(card, "canvas.relief")?.hidden).toBe(false);
   });
 
-  it("lays the lakes and the glaciers over the relief too, and only while they are on", async () => {
+  it("lays the glaciers over the relief and fills the lakes on it, only while they are on", async () => {
     const { card, gl } = await mountTilting({ layers: ["terrain", "lakes", "glaciers"] });
     card._setPose({ camera: card._camera, orientation: { pitch: 0.8, bearing: 0.3 } });
     card._drawNow();
     await settle(card);
-    expect(gl.drapes.at(-1)).toContain("|terrain,glaciers,lakes|");
+    expect(gl.drapes.at(-1)).toContain("|terrain,glaciers|");
+    expect(gl.fills.at(-1)).toEqual(["fill:lakes"]);
     expect(new Set(requestedIds())).toContain("glaciers");
+    expect(new Set(requestedIds())).toContain("lakes");
     const off = await mountTilting({ layers: ["terrain", "provinces"] });
     off.card._setPose({ camera: off.card._camera, orientation: { pitch: 0.8, bearing: 0.3 } });
     off.card._drawNow();
     await settle(off.card);
     expect(off.gl.drapes.at(-1)).toContain("|terrain|");
+    expect(off.gl.fills.at(-1)).toEqual([]);
   });
 
   it("draws the names upright over it, where their ground is seen", async () => {

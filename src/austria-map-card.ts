@@ -27,7 +27,7 @@ import type { Feature } from "./map/labels.ts";
 import { derivePalette, readTheme, type Palette } from "./map/palette.ts";
 import { project, type MapPoint } from "./map/projection.ts";
 import { ReliefGL } from "./map/relief-gl.ts";
-import { reliefLines } from "./map/relief-lines.ts";
+import { reliefFills, reliefLines } from "./map/relief-lines.ts";
 import { MapRenderer, type RenderState } from "./map/renderer.ts";
 import {
   FLAT,
@@ -64,7 +64,10 @@ const DRAPE_WIDTH = 3072;
 /** The layers that fill an area, in the registry's drawing order. They are
  *  painted into the drape; everything else is a line or a label and is drawn
  *  sharp over the relief. */
-const DRAPE_LAYERS: readonly LayerId[] = ["terrain", "glaciers", "lakes"];
+const DRAPE_LAYERS: readonly LayerId[] = ["terrain", "glaciers"];
+/** Layers the tilted map fills on the ground instead (relief-lines.ts), so
+ *  their edges stay sharp however close the view: the lakes. */
+const FILL_LAYERS: readonly LayerId[] = ["lakes"];
 const TILT_MS = 450;
 /** How far the compass leans back with the map: a share of the pitch, so the
  *  rose stays readable at the steepest tilt. */
@@ -578,7 +581,11 @@ export class AustriaMapCard extends LitElement {
       renderer.draw(this._state(camera));
     } else {
       if (this._reliefCanvas) this._reliefCanvas.hidden = false;
-      this._loader.request(["relief", ...chunksFor(this._drapeLayers(), DRAPE_WIDTH / MAP_WIDTH)]);
+      const tilted = new Set([
+        ...this._drapeLayers(),
+        ...FILL_LAYERS.filter((id) => this._layers.has(id)),
+      ]);
+      this._loader.request(["relief", ...chunksFor(tilted, DRAPE_WIDTH / MAP_WIDTH)]);
       const store = this._loader.store;
       gl.setRelief(store.relief ?? flatRelief());
       this._updateDrape(gl);
@@ -588,6 +595,7 @@ export class AustriaMapCard extends LitElement {
         this._palette
           ? reliefLines(store, this._layers, camera.k, this._selection, this._palette)
           : [],
+        this._palette ? reliefFills(store, this._layers, this._palette) : [],
       );
       renderer.drawTilted(this._state(camera), view);
     }

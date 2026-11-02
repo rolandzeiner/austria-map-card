@@ -4,8 +4,8 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import type { Lines } from "../src/data/format.ts";
-import { LIGHT_THEME, derivePalette } from "../src/map/palette.ts";
-import { reliefLines, segmentsOf } from "../src/map/relief-lines.ts";
+import { LIGHT_THEME, derivePalette, parseColour } from "../src/map/palette.ts";
+import { fansOf, reliefFills, reliefLines, segmentsOf } from "../src/map/relief-lines.ts";
 import type { LayerId } from "../src/types.ts";
 import { storeWith } from "./chunks.ts";
 
@@ -113,5 +113,31 @@ describe("the lines of the tilted map", () => {
     const far = reliefLines(store, new Set(), 1, null, palette).at(-1)!;
     expect(far.width).toBe(1.5);
     expect(near.width).toBeGreaterThan(far.width);
+  });
+});
+
+describe("the fills of the tilted map", () => {
+  it("fans each ring from its first point: a ring of n points is n - 2 triangles", () => {
+    const rings: Lines = {
+      xy: Float32Array.from([0, 0, 4, 0, 4, 3, 0, 3, 1, 1, 2, 1, 2, 2]),
+      start: Uint32Array.from([0, 4, 7]),
+      count: 2,
+      closed: true,
+    };
+    // Two triangles for the square, one for the triangle.
+    expect(Array.from(fansOf(rings))).toEqual([
+      0, 0, 4, 0, 4, 3, 0, 0, 4, 3, 0, 3, 1, 1, 2, 1, 2, 2,
+    ]);
+  });
+
+  it("fills the lakes in the water colour while they are on, and nothing else on the ground", () => {
+    const fills = reliefFills(store, new Set(["terrain", "lakes", "glaciers"]), palette);
+    expect(fills.map((set) => set.key)).toEqual(["fill:lakes"]);
+    const lakes = fills[0]!;
+    expect(lakes.colour).toEqual(parseColour(palette.water));
+    const triangles = lakes.triangles();
+    expect(triangles.length % 6).toBe(0);
+    expect(triangles.length).toBe(fansOf(store.lakes!.rings).length);
+    expect(reliefFills(store, new Set(["terrain", "glaciers"]), palette)).toEqual([]);
   });
 });

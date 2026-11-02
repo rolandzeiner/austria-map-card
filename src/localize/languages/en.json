@@ -66,7 +66,11 @@
     "length": "Length",
     "length_in_austria": "Length in Austria",
     "source": "{holder}, as of {stand}",
-    "height": "Height"
+    "height": "Height",
+    "elevation": "Elevation",
+    "postcode": "Postal code",
+    "area_code": "Area code",
+    "plate": "Number plate"
   },
   "editor": {
     "title": "Title",

@@ -1014,14 +1014,22 @@ export class AustriaMapCard extends LitElement {
     }
   }
 
-  /** A fact as it reads: "1,234", "3,798 m", "292 km". Lengths under
-   *  100 km keep their tenths: "12.4 km". */
+  /** A fact as it reads: "1,234", "3,798 m", "292 km", "8010–8054", "0316",
+   *  "G". Lengths under 100 km keep their tenths: "12.4 km". */
   private _factValue(fact: InfoFact): string {
     switch (fact.format) {
       case "metres":
         return `${this._number(fact.value)} m`;
       case "kilometres":
         return `${this._number(fact.value / 10, { maximumFractionDigits: fact.value < 1000 ? 1 : 0 })} km`;
+      case "postcode":
+        return fact.value < 10_000
+          ? String(fact.value)
+          : `${String(Math.floor(fact.value / 10_000))}–${String(fact.value % 10_000)}`;
+      case "area_code":
+        return `0${String(fact.value)}`;
+      case "text":
+        return fact.text ?? "";
       default:
         return this._number(fact.value);
     }
@@ -1100,7 +1108,9 @@ export class AustriaMapCard extends LitElement {
     `;
   }
 
-  /** Who the data is from, assembled from the chunks that are loaded. */
+  /** Who the data is from, assembled from the chunks that are loaded, and
+   *  the map data's licence. The code tables (RTR, RIS) are free works that
+   *  need no line of their own; the README says so. */
   private _renderCredit(): TemplateResult | typeof nothing {
     const sources = this._loader.store.sources();
     if (sources.length === 0) return nothing;

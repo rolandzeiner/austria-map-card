@@ -42,6 +42,9 @@ describe("the store", () => {
         "bev-dlm-verkehr",
         "bev-vgd",
         "bmluk-ggn",
+        "ris-kdv",
+        "rtr-ortsnetze",
+        "rtr-plz",
         "statistik-bev",
       ]),
     );
@@ -62,7 +65,7 @@ describe("the store", () => {
     const forwards = storeWith("base", "borders", "places");
     const backwards = storeWith("places", "borders", "base");
     expect(holders(backwards)).toEqual(holders(forwards));
-    expect(holders(forwards)).toEqual(["BEV", "BMLUK", "Statistik Austria"]);
+    expect(holders(forwards)).toEqual(["BEV", "BMLUK", "Statistik Austria", "RTR", "RIS"]);
   });
 
   it("tells the three levels of the fine borders apart", () => {

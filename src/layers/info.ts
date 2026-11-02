@@ -16,6 +16,8 @@ export interface InfoFact {
   readonly label: string;
   readonly value: number;
   readonly format: Fact["format"];
+  /** What a `text` fact's value stands for. */
+  readonly text?: string;
   readonly source: SourceInfo | undefined;
 }
 
@@ -31,12 +33,17 @@ export interface FeatureInfo {
 /** The facts of one table row. A value of zero means "not known" and is left out. */
 function factsOf(store: MapStore, facts: readonly Fact[], row: number): InfoFact[] {
   return facts
-    .map((fact) => ({
-      label: fact.label,
-      value: fact.values[row] ?? 0,
-      format: fact.format,
-      source: store.source(fact.source),
-    }))
+    .map((fact): InfoFact => {
+      const value = fact.values[row] ?? 0;
+      const text = fact.texts?.[value - 1];
+      return {
+        label: fact.label,
+        value,
+        format: fact.format,
+        ...(text === undefined ? {} : { text }),
+        source: store.source(fact.source),
+      };
+    })
     .filter((fact) => fact.value !== 0);
 }
 

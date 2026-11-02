@@ -32,19 +32,30 @@ describe("areas", () => {
     });
   });
 
-  it("places a district in its province", () => {
+  it("places a district in its province, with its plate code", () => {
     expect(about({ kind: "district", row: 0 })).toMatchObject({
       name: "Eisenstadt(Stadt)",
       kind: "kinds.district",
       parents: ["Burgenland"],
+      facts: [
+        { label: "facts.population", format: "integer" },
+        { label: "facts.plate", text: "E", format: "text" },
+      ],
     });
   });
 
-  it("places a municipality in its district and province", () => {
+  it("places a municipality in its district and province, with its codes", () => {
     expect(about({ kind: "municipality", row: 0 })).toMatchObject({
       name: "Eisenstadt",
       kind: "kinds.municipality",
       parents: ["Eisenstadt(Stadt)", "Burgenland"],
+      facts: [
+        { label: "facts.population", format: "integer" },
+        { label: "facts.elevation", format: "metres" },
+        { label: "facts.postcode", value: 7000, format: "postcode" },
+        { label: "facts.area_code", value: 2682, format: "area_code" },
+        { label: "facts.plate", text: "E", format: "text" },
+      ],
     });
   });
 
@@ -61,7 +72,14 @@ describe("towns", () => {
       name: "Graz",
       kind: "kinds.town_0",
       parents: ["Graz", "Graz(Stadt)", "Steiermark"],
-      facts: [{ label: "facts.municipality_population", value: 306971 }],
+      facts: [
+        { label: "facts.municipality_population", value: 306971, format: "integer" },
+        { label: "facts.elevation", value: 363, format: "metres" },
+        // 8010 to 8036, packed as one number.
+        { label: "facts.postcode", value: 80108036, format: "postcode" },
+        { label: "facts.area_code", value: 316, format: "area_code" },
+        { label: "facts.plate", text: "G", format: "text" },
+      ],
     });
     expect(about(town("Hallstatt"))).toMatchObject({
       kind: "kinds.town_1",

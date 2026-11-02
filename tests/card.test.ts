@@ -109,7 +109,9 @@ describe("loading", () => {
     expect(fake.named("fill").length).toBeGreaterThan(8);
     expect(fake.texts()).toContain("Wien");
     expect($(card, ".loading")).toBeNull();
-    expect(text(card, ".credit")).toBe("Daten: BEV, BMLUK, Statistik Austria · CC BY 4.0");
+    expect(text(card, ".credit")).toBe(
+      "Daten: BEV, BMLUK, Statistik Austria, RTR, RIS · CC BY 4.0",
+    );
     expect($(card, ".credit a")?.getAttribute("href")).toBe(
       "https://creativecommons.org/licenses/by/4.0/",
     );
@@ -296,7 +298,7 @@ describe("tapping the map", () => {
     expect(pageLoader().state("borders")).toBe("ready");
     expect(text(card, ".info-parents")).toBe("Graz(Stadt) · Steiermark");
     expect(text(card, ".facts")).toMatch(
-      /^Einwohner der Gemeinde [\d.]+ Statistik Austria, Stand 01\.01\.2026$/,
+      /^Einwohner der Gemeinde [\d.]+ Statistik Austria, Stand 01\.01\.2026 Seehöhe \d+ m BEV, Stand [\d.]+ Postleitzahl 8010–\d{4} RTR, Stand [\d.]+ Vorwahl 0316 RTR, Stand [\d.]+ Kfz-Kennzeichen G RIS, Stand [\d.]+$/,
     );
     expect($(card, ".info-text")?.getAttribute("aria-live")).toBe("polite");
   });

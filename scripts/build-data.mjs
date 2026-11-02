@@ -8,6 +8,7 @@
 //   node scripts/build-data.mjs --refresh-borders | --refresh-terrain | --refresh-rivers
 //                               | --refresh-places | --refresh-peaks | --refresh-motorways | --refresh-main-roads
 //                               | --refresh-population | --refresh-lakes | --refresh-glaciers
+//                               | --refresh-postcodes | --refresh-area-codes | --refresh-plates
 //                               add --download to fetch a file again that is already in .cache/
 //
 // Two stages. The downloads are large (a 59 MB river network, 58 MB of place
@@ -15,7 +16,8 @@
 // the map can use and commits that as scripts/data/*.gz. The build proper
 // reads only those, which is why CI can check dist/ without a download.
 //
-// Sources, all CC BY 4.0, each pinned to one release:
+// Sources, each pinned to one release. The map data is CC BY 4.0; the three
+// code tables are official works and free of copyright (§ 7 UrhG):
 //   Borders     BEV, Verwaltungsgrenzen (VGD) 1:250 000
 //   Terrain     BEV, Digitales Geländehöhenmodell, Höhenraster 500 m
 //   Rivers      BMLUK, Flussordnungszahlen NGP 2021 (Gesamtgewässernetz)
@@ -23,6 +25,9 @@
 //   Roads       BEV, Digitales Landschaftsmodell, Verkehr
 //   Lakes and glaciers  BEV, Digitales Landschaftsmodell, Bodenbedeckung (names: Namen)
 //   Population  Statistik Austria, Bevölkerung zu Jahresbeginn
+//   Postal codes  RTR, Open Data Postleitzahlen
+//   Area codes    RTR, Open Data Ortsnetze (the KEM-V 2009's Ortsnetzkennzahlen)
+//   Plate codes   RIS, KDV 1967, Anlage 5d
 //
 // Everything is drawn in the view-box units of src/map/projection.ts, from
 // degrees on Austria's MGI datum without a shift to WGS84. All five sources
@@ -56,7 +61,16 @@ import {
   wellKnownBinary,
 } from "./lib/geopackage.ts";
 import { labelStretches } from "./lib/label-lines.ts";
-import { PLACE_KINDS, classFloor, nameKey, rankPlaces } from "./lib/places.ts";
+import {
+  NameIndex,
+  PLACE_KINDS,
+  classFloor,
+  nameKey,
+  namedLike,
+  nearCode,
+  nearestSeat,
+  rankPlaces,
+} from "./lib/places.ts";
 import {
   lengthWhere,
   networks,
@@ -182,6 +196,40 @@ const POPULATION = {
 };
 const POPULATION_URL = "https://data.statistik.gv.at/data/OGD_bevstandjbab2002_BevStand_2026.csv";
 
+/** Official works, free of copyright under § 7 UrhG: the RTR says so of its tables, and a regulation's annex is one. */
+const FREE = "freies Werk (§ 7 UrhG)";
+
+/** A live table; `stand` is the version the RTR published, from the download's `version.published`. */
+const POSTCODES = {
+  id: "rtr-plz",
+  holder: "RTR",
+  name: "Open Data Postleitzahlen",
+  licence: FREE,
+  stand: "07.10.2026",
+  url: "https://www2.rtr.at/de/inf/odPLZ",
+};
+const POSTCODES_URL = "https://data.rtr.at/api/v1/tables/plz.json?size=10000";
+
+const AREA_CODES = {
+  id: "rtr-ortsnetze",
+  holder: "RTR",
+  name: "Open Data Ortsnetze (KEM-V 2009)",
+  licence: FREE,
+  stand: "02.11.2026",
+  url: "https://www2.rtr.at/de/inf/odRNOrtsnetze",
+};
+const AREA_CODES_URL = "https://data.rtr.at/api/v1/tables/rnOrtsnetze.json?size=10000";
+
+/** The annex as in force; `stand` is its Inkrafttretensdatum. A newer version is a new NOR document. */
+const PLATES = {
+  id: "ris-kdv",
+  holder: "RIS",
+  name: "KDV 1967, Anlage 5d: Bezeichnung der Behörde im Kennzeichen",
+  licence: FREE,
+  stand: "07.04.2025",
+  url: "https://www.ris.bka.gv.at/Dokumente/Bundesnormen/NOR40265416/NOR40265416.html",
+};
+
 const root = new URL("../", import.meta.url);
 const input = (name) => new URL(`scripts/data/${name}`, root);
 const cache = (name) => new URL(`.cache/${name}`, root);
@@ -196,6 +244,9 @@ const MAIN_ROADS_FILE = input("bev_main_roads.txt.gz");
 const POPULATION_FILE = input("statistik_population.txt.gz");
 const LAKES_FILE = input("bev_lakes.txt.gz");
 const GLACIERS_FILE = input("bev_glaciers.txt.gz");
+const POSTCODES_FILE = input("rtr_postcodes.txt.gz");
+const AREA_CODES_FILE = input("rtr_area_codes.txt.gz");
+const PLATES_FILE = input("kdv_plates.txt.gz");
 const BORDERS_CACHE = cache("borders/VGD_Oesterreich_gen_250.zip");
 const TERRAIN_CACHE = cache("terrain/DGM_Rasterweite_500m.zip");
 const RIVERS_CACHE = cache("rivers/FlussordnungszahlenNGP21.gpkg");
@@ -203,6 +254,9 @@ const PLACES_CACHE = cache("places/DLM_7000_NAMEN_20260323.gpkg");
 const ROADS_CACHE = cache("roads/DLM_1000_VERKEHR_20260323.gpkg");
 const LAND_COVER_CACHE = cache("land-cover/DLM_5000_BODENBEDECKUNG_20260323.gpkg");
 const POPULATION_CACHE = cache("population/OGD_bevstandjbab2002_BevStand_2026.csv");
+const POSTCODES_CACHE = cache("codes/plz.json");
+const AREA_CODES_CACHE = cache("codes/rnOrtsnetze.json");
+const PLATES_CACHE = cache("codes/NOR40265416.html");
 const DIST = new URL("dist/", root);
 
 // ---------------------------------------------------------------------------
@@ -466,6 +520,160 @@ const CAPITALS = new Map([
   ["70101", 1],
   ["80207", 1],
 ]);
+
+/**
+ * KDV 1967, Anlage 5d: what each plate code's authority registers for, as a
+ * district (BKZ) as a rule, as municipalities (GKZ) where a city has a code
+ * beside its district's (Leoben LE in Leoben LN) or an Außenstelle
+ * registers for a few municipalities (Bad Aussee BA, the Expositur Gröbming
+ * GB). Eisenstadt's E covers Rust too, a district of its own.
+ * `--refresh-plates` checks the codes against the annex's text.
+ */
+const PLATE_UNITS = {
+  // Burgenland
+  E: ["101", "102"],
+  EU: ["103"],
+  GS: ["104"],
+  JE: ["105"],
+  MA: ["106"],
+  ND: ["107"],
+  OP: ["108"],
+  OW: ["109"],
+  // Kärnten
+  K: ["201"],
+  VI: ["202"],
+  HE: ["203"],
+  KL: ["204"],
+  SV: ["205"],
+  SP: ["206"],
+  VL: ["207"],
+  VK: ["208"],
+  WO: ["209"],
+  FE: ["210"],
+  // Niederösterreich
+  KS: ["301"],
+  P: ["302"],
+  WY: ["303"],
+  WN: ["304"],
+  AM: ["305"],
+  BN: ["306"],
+  BL: ["307"],
+  GF: ["308"],
+  GD: ["309"],
+  HL: ["310"],
+  HO: ["311"],
+  KO: ["312"],
+  KR: ["313"],
+  LF: ["314"],
+  ME: ["315"],
+  MI: ["316"],
+  MD: ["317"],
+  NK: ["318"],
+  PL: ["319"],
+  SB: ["320"],
+  TU: ["321"],
+  WT: ["322"],
+  WB: ["323"],
+  ZT: ["325"],
+  SW: ["30740"],
+  KG: ["32144"],
+  // Oberösterreich
+  L: ["401"],
+  SR: ["402"],
+  WE: ["403"],
+  BR: ["404"],
+  EF: ["405"],
+  FR: ["406"],
+  GM: ["407"],
+  GR: ["408"],
+  KI: ["409"],
+  LL: ["410"],
+  PE: ["411"],
+  RI: ["412"],
+  RO: ["413"],
+  SD: ["414"],
+  SE: ["415"],
+  UU: ["416"],
+  VB: ["417"],
+  WL: ["418"],
+  // Salzburg
+  S: ["501"],
+  HA: ["502"],
+  SL: ["503"],
+  JO: ["504"],
+  TA: ["505"],
+  ZE: ["506"],
+  // Steiermark
+  G: ["601"],
+  DL: ["603"],
+  GU: ["606"],
+  LB: ["610"],
+  LN: ["611"],
+  LI: ["612"],
+  MU: ["614"],
+  VO: ["616"],
+  WZ: ["617"],
+  MT: ["620"],
+  BM: ["621"],
+  HF: ["622"],
+  SO: ["623"],
+  LE: ["61108"],
+  BA: ["61204", "61207", "61215", "61255"],
+  GB: ["61213", "61217", "61236", "61254", "61260", "61261", "61262", "61265", "61266"],
+  // Tirol
+  I: ["701"],
+  IM: ["702"],
+  IL: ["703"],
+  KB: ["704"],
+  KU: ["705"],
+  LA: ["706"],
+  LZ: ["707"],
+  RE: ["708"],
+  SZ: ["709"],
+  // Vorarlberg
+  BZ: ["801"],
+  B: ["802"],
+  DO: ["803"],
+  FK: ["804"],
+  // Wien
+  W: ["900"],
+};
+
+/**
+ * How far an Ortsnetz reaches past its seat, from the residents of the
+ * seat's municipality, and half as far again for Vienna's one-digit 01,
+ * which takes in Schwechat, Vösendorf and Perchtoldsdorf. Distances to a
+ * seat are divided by this when a municipality has no Ortsnetz of its own.
+ * The numbers were picked on the Vienna suburbs; Laxenburg (02236, from
+ * Mödling) still falls to Münchendorf next door.
+ */
+const areaCodeReach = (residents, code) =>
+  Math.max(1, residents / 1000) ** 0.2 * (code.length === 1 ? 1.5 : 1);
+
+/**
+ * The RTR files a postal place under the district of its delivery office,
+ * which is spelt its own way; these are the spellings that `nameKey` does
+ * not match to the BEV's district names. Vienna's 23 districts are one.
+ */
+const POSTAL_DISTRICTS = {
+  "Braunau am Inn": "Braunau",
+  "Kirchdorf an der Krems": "Kirchdorf",
+  "Ried im Innkreis": "Ried",
+  "Linz(Stadt)": "Stadt Linz",
+  "Steyr(Stadt)": "Stadt Steyr",
+  "Wels(Stadt)": "Stadt Wels",
+};
+const POSTAL_PROVINCES = {
+  B: "1",
+  K: "2",
+  N: "3",
+  O: "4",
+  Sa: "5",
+  St: "6",
+  T: "7",
+  V: "8",
+  W: "9",
+};
 
 const args = new Set(process.argv.slice(2));
 
@@ -1198,8 +1406,8 @@ async function refreshPlaces() {
   const rows = await queryPlaceNames(
     PLACES_TABLE,
     "place names",
-    `select NAME as name, F_CODE as code, EINWOHNER_KLASSE as size, geom from "${PLACES_TABLE}" ` +
-      `where F_CODE in (${Object.keys(PLACE_KINDS).join(",")}) order by OBJECTID`,
+    `select NAME as name, F_CODE as code, EINWOHNER_KLASSE as size, HOEHE_BODEN as height, geom ` +
+      `from "${PLACES_TABLE}" where F_CODE in (${Object.keys(PLACE_KINDS).join(",")}) order by OBJECTID`,
   );
 
   const mesh = readMesh();
@@ -1216,7 +1424,14 @@ async function refreshPlaces() {
     const kind = PLACE_KINDS[row.code];
     const named = nameKey(row.name) === nameKey(mesh.units[municipality].name);
     if (kind === 2 && !named && classFloor(row.size) < 2000) continue;
-    kept.push({ kind, name: row.name.trim(), size: row.size, x: x.toFixed(2), y: y.toFixed(2) });
+    kept.push({
+      kind,
+      name: row.name.trim(),
+      size: row.size,
+      x: x.toFixed(2),
+      y: y.toFixed(2),
+      height: Math.round(row.height),
+    });
   }
   kept.sort(
     (p, q) => byCodeUnit(p.name, q.name) || Number(p.x) - Number(q.x) || Number(p.y) - Number(q.y),
@@ -1226,12 +1441,12 @@ async function refreshPlaces() {
     [
       `Settlements: every Stadt (0) and Markt (1), every Dorf (2) of 2000 residents or more, and the`,
       `place each municipality is named after. Class, name, the BEV's size class, x, y in the`,
-      `view-box units of src/map/projection.ts.`,
+      `view-box units of src/map/projection.ts, height above sea level in metres.`,
     ],
     "--refresh-places",
   );
   for (const place of kept)
-    lines.push([place.kind, place.name, place.size, place.x, place.y].join("\t"));
+    lines.push([place.kind, place.name, place.size, place.x, place.y, place.height].join("\t"));
   writeInput(PLACES_FILE, lines);
   console.log(
     `  kept ${kept.length} of ${rows.length} settlements (${outside} lie outside every municipality)`,
@@ -1400,9 +1615,268 @@ function readPeaks() {
 
 function readPlaces() {
   return readInput(PLACES_FILE).map((line) => {
-    const [kind, name, sizeClass, x, y] = line.split("\t");
-    return { kind: Number(kind), name, sizeClass, x: Number(x), y: Number(y) };
+    const [kind, name, sizeClass, x, y, height] = line.split("\t");
+    return {
+      kind: Number(kind),
+      name,
+      sizeClass,
+      x: Number(x),
+      y: Number(y),
+      height: Number(height),
+    };
   });
+}
+
+// ---------------------------------------------------------------------------
+// Refresh: postal codes, area codes, plate codes
+// ---------------------------------------------------------------------------
+
+/** The BEV's settlement classes a name may be looked up in: towns, villages, city quarters and single farms; not what is abandoned. */
+const SETTLEMENT_CODES = [7101, 7102, 7103, 7104, 7111];
+const SINGLE_HOUSES = 7111;
+
+/**
+ * Every settlement the BEV names, 58 000 of them, with the municipality it
+ * lies in, and every municipality at the middle of its settlements: what a
+ * postal place or an Ortsnetz is looked up in by name. A postal place or
+ * Ortsnetz named after a municipality (Lesachtal, Dunkelsteinerwald) has
+ * no settlement of its name. `weight` says which of two places of one name
+ * is the likelier: the larger class, a village before a single farm.
+ */
+async function readSettlements(mesh, index) {
+  const rows = await queryPlaceNames(
+    PLACES_TABLE,
+    "place names",
+    `select NAME as name, F_CODE as code, EINWOHNER_KLASSE as size, geom from "${PLACES_TABLE}" ` +
+      `where NAME is not null and F_CODE in (${SETTLEMENT_CODES.join(",")}) order by OBJECTID`,
+  );
+  const middles = mesh.units.map((unit, municipality) => ({
+    name: unit.name,
+    key: nameKey(unit.name),
+    x: 0,
+    y: 0,
+    weight: 0,
+    municipality,
+    district: unit.district,
+    province: unit.province,
+  }));
+  const settlements = [];
+  for (const row of rows) {
+    const [x, y] = project(...gpkgPoint(row.geom));
+    const municipality = index.locate(x, y);
+    if (municipality < 0) continue;
+    const unit = mesh.units[municipality];
+    settlements.push({
+      name: row.name.trim(),
+      key: nameKey(row.name),
+      x,
+      y,
+      weight: row.code === SINGLE_HOUSES ? -1 : classFloor(row.size),
+      municipality,
+      district: unit.district,
+      province: unit.province,
+    });
+    const middle = middles[municipality];
+    middle.x += x;
+    middle.y += y;
+    middle.weight += 1;
+  }
+  // A middle stands behind a settlement of the same name, but before a farm.
+  for (const middle of middles) {
+    middle.x /= Math.max(middle.weight, 1);
+    middle.y /= Math.max(middle.weight, 1);
+    middle.weight = 0;
+  }
+  return [...settlements, ...middles];
+}
+
+/** `namedLike` over a list with `key`s, limited to what `allowed` allows. */
+function lookupIn(list) {
+  const index = new NameIndex(list);
+  return (name, allowed) => namedLike(name, index, allowed);
+}
+
+const largest = (candidates) =>
+  candidates.reduce((best, candidate) => (candidate.weight > best.weight ? candidate : best));
+
+/**
+ * The RTR's postal places, each put on the map at the settlement of its
+ * name: 2720 rows, since a city has a code per quarter and a large
+ * municipality one per village. A row names the district of its delivery
+ * office, which lies across a province border now and then (Burgenland
+ * villages delivered from Bruck an der Leitha), so the search widens from
+ * that district to the province and then to the whole map, where only a
+ * name borne once counts.
+ */
+async function refreshPostcodes() {
+  await download(POSTCODES_URL, POSTCODES_CACHE, "RTR");
+  const { data: rows, version } = JSON.parse(readFileSync(POSTCODES_CACHE, "utf8"));
+  const mesh = readMesh();
+  const index = meshIndex(mesh);
+  const find = lookupIn(await readSettlements(mesh, index));
+  const districtByKey = new Map(
+    levels(mesh.units).districts.map((district) => [nameKey(district.name), district.code]),
+  );
+  const districtOf = (bezirk) => {
+    if (bezirk === null || bezirk === "NULL") return undefined;
+    const name = /^Wien\s+\d/.test(bezirk) ? "Wien(Stadt)" : (POSTAL_DISTRICTS[bezirk] ?? bezirk);
+    const code = districtByKey.get(nameKey(name));
+    if (code === undefined) throw new Error(`no district is named ${bezirk}`);
+    return code;
+  };
+  const placed = [];
+  const unplaced = [];
+  for (const row of rows) {
+    const district = districtOf(row.bezirk);
+    const province = POSTAL_PROVINCES[row.bundesland];
+    if (province === undefined) throw new Error(`unknown province ${row.bundesland}`);
+    let found = district === undefined ? [] : find(row.ort, (s) => s.district === district);
+    if (found.length === 0) found = find(row.ort, (s) => s.province === province);
+    if (found.length === 0) found = find(row.ort);
+    // Without a district to go by, a name borne in two municipalities is
+    // anyone's guess; a town and its municipality's middle are one place.
+    const spread = new Set(found.map((candidate) => candidate.municipality)).size;
+    if (found.length === 0 || (spread > 1 && district === undefined)) {
+      unplaced.push(`${row.ort} (${row.plz})`);
+      continue;
+    }
+    const seat = largest(found);
+    placed.push({ plz: row.plz, ort: row.ort, x: seat.x.toFixed(2), y: seat.y.toFixed(2) });
+  }
+  placed.sort((p, q) => p.plz - q.plz || byCodeUnit(p.ort, q.ort));
+  const lines = header(
+    POSTCODES,
+    [
+      `Postal places: code, name, x, y of the settlement of that name in the view-box units of`,
+      `src/map/projection.ts. Version published ${version.published}.`,
+    ],
+    "--refresh-postcodes",
+  );
+  for (const place of placed) lines.push([place.plz, place.ort, place.x, place.y].join("\t"));
+  writeInput(POSTCODES_FILE, lines);
+  console.log(`  placed ${placed.length} of ${rows.length} postal places`);
+  if (unplaced.length > 0) console.log(`  not placed: ${unplaced.join(", ")}`);
+}
+
+/**
+ * The 1022 Ortsnetze, each put on the map at the settlement it is named
+ * after. A name the BEV spells differently is found by its spellings and
+ * shorter names, and one shared by several settlements is settled by the
+ * codes around it (`nearCode`).
+ */
+async function refreshAreaCodes() {
+  await download(AREA_CODES_URL, AREA_CODES_CACHE, "RTR");
+  const { data: rows, version } = JSON.parse(readFileSync(AREA_CODES_CACHE, "utf8"));
+  const mesh = readMesh();
+  const index = meshIndex(mesh);
+  const find = lookupIn(await readSettlements(mesh, index));
+  const candidates = rows.map((row) => ({
+    code: row.ortsnetzkennzahl,
+    name: row.ortsnetzname,
+    found: find(row.ortsnetzname),
+  }));
+  const placed = [];
+  // The names borne once first: the shared ones are settled by their neighbours.
+  for (const candidate of candidates) {
+    if (candidate.found.length === 1) placed.push({ ...candidate.found[0], ...candidate });
+  }
+  for (const candidate of candidates) {
+    if (candidate.found.length > 1) {
+      placed.push({ ...nearCode(candidate.code, candidate.found, placed), ...candidate });
+    }
+  }
+  const missing = candidates.filter((candidate) => candidate.found.length === 0);
+  placed.sort((p, q) => Number(p.code) - Number(q.code));
+  const lines = header(
+    AREA_CODES,
+    [
+      `Ortsnetze: code (without the leading zero), name, x, y of the settlement of that name in`,
+      `the view-box units of src/map/projection.ts. Version published ${version.published}.`,
+    ],
+    "--refresh-area-codes",
+  );
+  for (const seat of placed)
+    lines.push([seat.code, seat.name, seat.x.toFixed(2), seat.y.toFixed(2)].join("\t"));
+  writeInput(AREA_CODES_FILE, lines);
+  console.log(`  placed ${placed.length} of ${rows.length} Ortsnetze`);
+  if (missing.length > 0) {
+    console.log(
+      `  not placed: ${missing.map((candidate) => `${candidate.name} (0${candidate.code})`).join(", ")}`,
+    );
+  }
+}
+
+/**
+ * The plate codes from the annex's text on RIS, a table of authorities and
+ * their one- or two-letter codes. PLATE_UNITS says what each stands for;
+ * the two lists have to name the same codes.
+ */
+async function refreshPlates() {
+  await download(PLATES.url, PLATES_CACHE, "RIS");
+  const page = readFileSync(PLATES_CACHE, "utf8").replace(
+    /<span class="sr-only">[^<]*<\/span>/g,
+    "",
+  );
+  const text = (cell) =>
+    cell
+      .replace(/<[^>]+>/g, "")
+      .replace(/&amp;/g, "&")
+      .replace(/\s+/g, " ")
+      .trim();
+  const authorities = new Map();
+  for (const match of page.matchAll(
+    /<tr>\s*<td[^>]*>(.*?)<\/td>\s*<td[^>]*>(.*?)<\/td>\s*<\/tr>/gs,
+  )) {
+    const code = text(match[2]);
+    if (/^[A-Z]{1,2}$/.test(code)) authorities.set(code, text(match[1]));
+  }
+  const known = Object.keys(PLATE_UNITS);
+  const missing = known.filter((code) => !authorities.has(code));
+  const unknown = [...authorities.keys()].filter((code) => !(code in PLATE_UNITS));
+  if (missing.length > 0 || unknown.length > 0) {
+    throw new Error(
+      `the annex and PLATE_UNITS differ: not in the annex ${missing.join(", ") || "-"}, ` +
+        `not in PLATE_UNITS ${unknown.join(", ") || "-"}`,
+    );
+  }
+  const lines = header(
+    PLATES,
+    [
+      `Plate codes: code, the district (BKZ) or municipality (GKZ) it registers for, the authority`,
+      `as the annex names it.`,
+    ],
+    "--refresh-plates",
+  );
+  for (const code of known) {
+    for (const unit of PLATE_UNITS[code])
+      lines.push([code, unit, authorities.get(code)].join("\t"));
+  }
+  writeInput(PLATES_FILE, lines);
+  console.log(`  ${authorities.size} plate codes`);
+}
+
+function readPostcodes() {
+  return readInput(POSTCODES_FILE).map((line) => {
+    const [plz, ort, x, y] = line.split("\t");
+    return { plz: Number(plz), key: nameKey(ort), x: Number(x), y: Number(y), reach: 1 };
+  });
+}
+
+function readAreaCodes() {
+  return readInput(AREA_CODES_FILE).map((line) => {
+    const [code, name, x, y] = line.split("\t");
+    return { code, key: nameKey(name), x: Number(x), y: Number(y) };
+  });
+}
+
+/** Plate code by the unit (BKZ or GKZ) it registers for. */
+function readPlates() {
+  const byUnit = new Map();
+  for (const line of readInput(PLATES_FILE)) {
+    const [code, unit] = line.split("\t");
+    byUnit.set(unit, code);
+  }
+  return byUnit;
 }
 
 // ---------------------------------------------------------------------------
@@ -1691,6 +2165,7 @@ function build(settings = {}) {
   const glaciersDrawn = settings.glaciers ?? GLACIERS_DRAWN;
 
   const mesh = readMesh();
+  const grid = readGrid();
   const { districts, provinces, districtOf, provinceOfDistrict, provinceOf } = levels(mesh.units);
   if (provinces.length !== 9) throw new Error(`${provinces.length} provinces, not 9`);
 
@@ -1807,17 +2282,15 @@ function build(settings = {}) {
     ),
     facts: [populationFact(sumBy(districtOf, districts.length))],
   };
+  const municipalityPoints = labelPoints(
+    municipalityIndex,
+    mesh.units.map((unit) => `${unit.name} (${unit.code})`),
+  );
   const municipalityTable = {
     ids: mesh.units.map((unit) => unit.code),
     names: mesh.units.map((unit) => unit.name),
     parent: encodeInts(districtOf),
-    at: encodePoints(
-      labelPoints(
-        municipalityIndex,
-        mesh.units.map((unit) => `${unit.name} (${unit.code})`),
-      ),
-      POINT_Q,
-    ),
+    at: encodePoints(municipalityPoints, POINT_Q),
     facts: [populationFact(residents)],
   };
 
@@ -1867,6 +2340,142 @@ function build(settings = {}) {
     ],
   };
 
+  // --- Height, postal code, area code and plate code ---
+  // Spread over the three tables. A municipality has the height of its
+  // namesake, the postal codes of the postal places in it (the nearest
+  // one's where none is), the Ortsnetz seated in it (the nearest seat's
+  // where none is, a city's reaching further) and its district's plate
+  // code unless it has one of its own. A place has its own postal code and
+  // Ortsnetz where it is their namesake, its municipality's otherwise.
+  const unitCount = mesh.units.length;
+  const seatRow = new Int32Array(unitCount).fill(-1);
+  places.forEach((place, row) => {
+    if (place.seat) seatRow[place.municipality] = row;
+  });
+  // A municipality's own point: its namesake, its largest place, or its
+  // label point where it has no place on the map.
+  const largestIn = new Int32Array(unitCount).fill(-1);
+  places.forEach((place, row) => {
+    if (largestIn[place.municipality] < 0) largestIn[place.municipality] = row;
+  });
+  const placeRow = (unit) => (seatRow[unit] >= 0 ? seatRow[unit] : largestIn[unit]);
+  const unitPoint = (unit) => {
+    const row = placeRow(unit);
+    return row >= 0 ? [places[row].x, places[row].y] : municipalityPoints[unit];
+  };
+  // Its height likewise: the place's, or the ground's at the label point.
+  const groundAt = (x, y) => {
+    const value = grid.values[Math.floor(y) * grid.columns + Math.floor(x)];
+    return Number.isNaN(value) ? 0 : Math.round(value);
+  };
+  const unitElevation = Array.from({ length: unitCount }, (_, unit) => {
+    const row = placeRow(unit);
+    return row >= 0 ? places[row].height : groundAt(...municipalityPoints[unit]);
+  });
+
+  const locateRow = (row) => ({
+    ...row,
+    municipality: municipalityIndex.locate(onGrid(row.x), onGrid(row.y)),
+  });
+  const inUnits = (rows) => {
+    const inside = Array.from({ length: unitCount }, () => []);
+    for (const row of rows) if (row.municipality >= 0) inside[row.municipality].push(row);
+    return inside;
+  };
+
+  const postal = readPostcodes().map(locateRow);
+  const postalIn = inUnits(postal);
+  const postcodeRange = (codes) => {
+    if (codes.length === 0) return 0;
+    const low = Math.min(...codes);
+    const high = Math.max(...codes);
+    return low === high ? low : low * 10_000 + high;
+  };
+  // A municipality's own code is its namesake postal place's (a city's
+  // quarters are all named after it: Wien 1010 to 1230); without one, the
+  // codes of whatever postal places lie in it.
+  const unitPostcode = mesh.units.map((unit, row) => {
+    const key = nameKey(unit.name);
+    const inside = postalIn[row];
+    const namesake = inside.filter((place) => place.key === key);
+    const own = (namesake.length > 0 ? namesake : inside).map((place) => place.plz);
+    if (own.length > 0) return postcodeRange(own);
+    const [x, y] = unitPoint(row);
+    return nearestSeat(x, y, postal).plz;
+  });
+  const placePostcode = places.map((place) => {
+    const key = nameKey(place.name);
+    const own = postalIn[place.municipality].filter((row) => row.key === key).map((row) => row.plz);
+    return own.length > 0 ? postcodeRange(own) : unitPostcode[place.municipality];
+  });
+
+  const seats = readAreaCodes()
+    .map(locateRow)
+    .map((seat) => ({
+      ...seat,
+      reach: areaCodeReach(seat.municipality < 0 ? 0 : residents[seat.municipality], seat.code),
+    }));
+  const seatsIn = inUnits(seats);
+  const unitAreaCode = mesh.units.map((unit, row) => {
+    const inside = seatsIn[row];
+    const key = nameKey(unit.name);
+    const own =
+      inside.find((seat) => seat.key === key) ??
+      inside.toSorted((p, q) => p.code.length - q.code.length)[0];
+    if (own !== undefined) return Number(own.code);
+    const [x, y] = unitPoint(row);
+    return Number(nearestSeat(x, y, seats).code);
+  });
+  const placeAreaCode = places.map((place) => {
+    const key = nameKey(place.name);
+    const own = seatsIn[place.municipality].find((seat) => seat.key === key);
+    return own === undefined ? unitAreaCode[place.municipality] : Number(own.code);
+  });
+
+  const plateOf = readPlates();
+  for (const unit of plateOf.keys()) {
+    if (!mesh.units.some((member) => member.code === unit || member.district === unit))
+      throw new Error(
+        `plate code ${plateOf.get(unit)} registers for ${unit}, which is not on the map`,
+      );
+  }
+  const plateCodes = [...new Set(plateOf.values())].toSorted(byCodeUnit);
+  const plateIndex = (unit) => {
+    const code = plateOf.get(unit);
+    return code === undefined ? 0 : plateCodes.indexOf(code) + 1;
+  };
+  const districtPlate = districts.map((district) => plateIndex(district.code));
+  if (districtPlate.includes(0)) throw new Error("a district has no plate code");
+  const unitPlate = mesh.units.map((unit) => plateIndex(unit.code) || plateIndex(unit.district));
+  const placePlate = places.map((place) => unitPlate[place.municipality]);
+
+  const fact = (key, format, source, values, texts) => ({
+    key,
+    label: `facts.${key}`,
+    format,
+    source: source.id,
+    values: encodeInts(values),
+    ...(texts === undefined ? {} : { texts }),
+  });
+  districtTable.facts.push(fact("plate", "text", PLATES, districtPlate, plateCodes));
+  municipalityTable.facts.push(
+    fact("elevation", "metres", PLACES, unitElevation),
+    fact("postcode", "postcode", POSTCODES, unitPostcode),
+    fact("area_code", "area_code", AREA_CODES, unitAreaCode),
+    fact("plate", "text", PLATES, unitPlate, plateCodes),
+  );
+  placeTable.facts.push(
+    fact(
+      "elevation",
+      "metres",
+      PLACES,
+      places.map((place) => place.height),
+    ),
+    fact("postcode", "postcode", POSTCODES, placePostcode),
+    fact("area_code", "area_code", AREA_CODES, placeAreaCode),
+    fact("plate", "text", PLATES, placePlate, plateCodes),
+  );
+
   // --- Which provinces a line runs through ---
   // By district: the municipality index would test two thousand outlines
   // for every point. A province counts once a line runs PROVINCE_REACH
@@ -1889,7 +2498,6 @@ function build(settings = {}) {
   };
 
   // --- Terrain and rivers ---
-  const grid = readGrid();
   const stretches = readRivers();
   const riverLengths = readRiverLengths();
   const riverProvinces = new Map();
@@ -1915,7 +2523,7 @@ function build(settings = {}) {
       rivers: packRivers(stretches, RIVERS_OVERVIEW, RIVER_LABELS, aboutRivers),
     },
     borders: {
-      ...head("borders", [BORDERS, POPULATION]),
+      ...head("borders", [BORDERS, POPULATION, PLACES, POSTCODES, AREA_CODES, PLATES]),
       districts: districtTable,
       municipalities: municipalityTable,
       arcs: upper,
@@ -1935,7 +2543,10 @@ function build(settings = {}) {
         RIVERS_OVERVIEW.minOrder,
       ),
     },
-    places: { ...head("places", [PLACES, POPULATION]), places: placeTable },
+    places: {
+      ...head("places", [PLACES, POPULATION, POSTCODES, AREA_CODES, PLATES]),
+      places: placeTable,
+    },
     relief: { ...head("relief", [TERRAIN]), relief: packRelief(grid, RELIEF) },
     peaks: { ...head("peaks", [PLACES]), peaks: packPeaks(readPeaks(), PEAKS) },
     motorways: {
@@ -1959,9 +2570,10 @@ function build(settings = {}) {
     const credit = chunk.sources
       .map((source) => `${source.holder}, ${source.name} (${source.stand})`)
       .join("; ");
+    const licences = [...new Set(chunk.sources.map((source) => source.licence))].join(", ");
     files.set(
       id,
-      `/*! Austria Map Card, map data "${id}". ${credit}. ${LICENCE}. ` +
+      `/*! Austria Map Card, map data "${id}". ${credit}. ${licences}. ` +
         `Generated by scripts/build-data.mjs: do not edit. */\n` +
         `export default ${JSON.stringify(chunk)};\n`,
     );
@@ -2067,6 +2679,10 @@ if (everything || args.has("--refresh-motorways")) await refreshRoads("motorways
 if (everything || args.has("--refresh-main-roads")) await refreshRoads("main-roads");
 if (everything || args.has("--refresh-lakes")) await refreshLakes();
 if (everything || args.has("--refresh-glaciers")) await refreshGlaciers();
+// Both read the committed mesh and the names file, so after the borders.
+if (everything || args.has("--refresh-postcodes")) await refreshPostcodes();
+if (everything || args.has("--refresh-area-codes")) await refreshAreaCodes();
+if (everything || args.has("--refresh-plates")) await refreshPlates();
 
 if (args.has("--measure")) {
   measure();

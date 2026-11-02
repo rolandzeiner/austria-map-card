@@ -12,7 +12,26 @@
 // Decorators are deliberately not configured here. Rolldown reads
 // tsconfig.json itself and turns on Lit's legacy (experimental) decorators
 // from it.
+import { createHash } from "node:crypto";
+import { existsSync, readFileSync } from "node:fs";
 import { defineConfig } from "vite-plus";
+
+import { CHUNK_IDS, chunkFile } from "./src/data/format.ts";
+
+// A fingerprint of the committed data chunks, baked into the card as
+// __DATA_ID__ and sent with every chunk request (`?v=<version>-<id>`), so a
+// rebuilt card never reads a chunk the browser cached before the data
+// changed: a data build without a version bump reached no browser that had
+// the old chunks for its 31-day lifetime. A hash of the files, not a
+// time, so the same chunks give the same bundle and CI's byte-for-byte
+// check of the committed bundle holds.
+function dataId(): string {
+  const hash = createHash("sha256");
+  const files = CHUNK_IDS.map((id) => `dist/${chunkFile(id)}`);
+  if (!files.every((file) => existsSync(file))) return "nodata";
+  for (const file of files) hash.update(readFileSync(file));
+  return hash.digest("hex").slice(0, 8);
+}
 
 // MUST be a legal comment — `/*! ... */` — not `//`. The minifier strips
 // ordinary comments including a `//` banner, silently. `comments: { legal:
@@ -25,6 +44,7 @@ const banner =
 export default defineConfig(({ mode }) => {
   const dev = mode === "development";
   return {
+    define: { __DATA_ID__: JSON.stringify(dataId()) },
     build: {
       // Library mode: one ES module, no index.html, no hashed file name.
       lib: {

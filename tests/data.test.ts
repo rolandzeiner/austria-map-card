@@ -588,6 +588,17 @@ describe("lake names", () => {
   });
 });
 
+describe("the data's fingerprint", () => {
+  it("is baked into the card as the hash of the committed chunks, in their known order", async () => {
+    // The card sends it with every chunk request, beside its version, so a
+    // card built on new data never reads a chunk the browser cached.
+    const bytes = new TextEncoder().encode(CHUNK_IDS.map((id) => CHUNK_TEXT[id]).join(""));
+    const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+    const hex = [...digest].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+    expect(__DATA_ID__).toBe(hex.slice(0, 8));
+  });
+});
+
 describe("the areas", () => {
   /** Austria by Statistik Austria, in hectares: 83 882.6 km². */
   const AUSTRIA = 8_388_260;

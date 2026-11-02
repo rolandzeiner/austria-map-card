@@ -125,7 +125,8 @@ export class AustriaMapCard extends LitElement {
   private _renderer?: MapRenderer;
   private readonly _loader: ChunkLoader = sharedLoader({
     base: import.meta.url,
-    version: CARD_VERSION,
+    // The data's fingerprint too: a data build alone changes the key.
+    version: `${CARD_VERSION}-${__DATA_ID__}`,
   });
   private readonly _gesture = new MapGesture();
   private _unsubscribe?: () => void;

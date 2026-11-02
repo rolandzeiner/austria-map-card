@@ -24,7 +24,8 @@ export type Importer = (url: string) => Promise<unknown>;
 export interface LoaderOptions {
   /** URL of the card's own module; the chunks lie beside it. */
   readonly base: string;
-  /** The card version, as a cache key: a new card never reads an old chunk. */
+  /** The card version and the data's fingerprint, as a cache key: a new
+   *  card, or a card built on new data, never reads an old chunk. */
   readonly version: string;
   readonly importer?: Importer;
 }

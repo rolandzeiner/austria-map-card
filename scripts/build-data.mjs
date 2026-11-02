@@ -744,6 +744,19 @@ function readInput(url) {
     .filter((line) => line !== "" && !line.startsWith("#"));
 }
 
+/** The value per municipality code and the `total` row of a committed table,
+ *  as the population and area refreshes write it. */
+function readTotals(url) {
+  const byCode = new Map();
+  let total = 0;
+  for (const line of readInput(url)) {
+    const [code, value] = line.split("\t");
+    if (code === "total") total = Number(value);
+    else byCode.set(code, Number(value));
+  }
+  return { byCode, total };
+}
+
 const header = (source, what, built) => [
   ...what.map((line) => `# ${line}`),
   `# Source: ${source.holder}, ${source.name}, Stand ${source.stand}, ${source.licence}.`,
@@ -1353,17 +1366,6 @@ async function refreshPopulation() {
   console.log(`  ${sums.size} municipalities, ${total} residents`);
 }
 
-function readPopulation() {
-  const byCode = new Map();
-  let total = 0;
-  for (const line of readInput(POPULATION_FILE)) {
-    const [code, value] = line.split("\t");
-    if (code === "total") total = Number(value);
-    else byCode.set(code, Number(value));
-  }
-  return { byCode, total };
-}
-
 // ---------------------------------------------------------------------------
 // Refresh: areas
 // ---------------------------------------------------------------------------
@@ -1421,17 +1423,6 @@ async function refreshAreas() {
     lines.push(`${code}\t${hectares.get(code)}`);
   writeInput(AREAS_FILE, lines);
   console.log(`  ${hectares.size} municipalities, ${Math.round(total / 100)} km²`);
-}
-
-function readAreas() {
-  const byCode = new Map();
-  let total = 0;
-  for (const line of readInput(AREAS_FILE)) {
-    const [code, value] = line.split("\t");
-    if (code === "total") total = Number(value);
-    else byCode.set(code, Number(value));
-  }
-  return { byCode, total };
 }
 
 // ---------------------------------------------------------------------------
@@ -2257,7 +2248,7 @@ function build(settings = {}) {
   if (provinces.length !== 9) throw new Error(`${provinces.length} provinces, not 9`);
 
   // Population, one to one with the borders or not at all.
-  const population = readPopulation();
+  const population = readTotals(POPULATION_FILE);
   const missing = mesh.units
     .filter((unit) => !population.byCode.has(unit.code))
     .map((unit) => unit.code);
@@ -2278,7 +2269,7 @@ function build(settings = {}) {
     });
     return sums;
   };
-  const areas = readAreas();
+  const areas = readTotals(AREAS_FILE);
   const unmeasured = mesh.units
     .filter((unit) => !areas.byCode.has(unit.code))
     .map((unit) => unit.code);

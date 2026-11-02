@@ -33,7 +33,7 @@ export default defineConfig(({ mode }) => {
         fileName: () => "austria-map-card.js",
       },
       outDir: "dist",
-      // dist/ is shared with the data build: the ten austria-map-data-*.js
+      // dist/ is shared with the data build: the twelve austria-map-data-*.js
       // chunks sit beside the card and are not part of this graph. Vite
       // empties its output directory before each build by default, which
       // would delete every one of them. With nothing emptied, a dev build's
@@ -87,7 +87,7 @@ export default defineConfig(({ mode }) => {
         "typescript/no-unnecessary-type-assertion": "error",
         "eslint/no-shadow": "error",
         "unicorn/no-array-sort": "error",
-        // Test hygiene, from the vitest plugin enabled below: a committed
+        // Test hygiene, from the vitest plugin named in `plugins` above: a committed
         // .only or .skip quietly drops tests, a test without an assertion
         // passes whatever the code does, and a duplicate title makes a
         // failure ambiguous to read.

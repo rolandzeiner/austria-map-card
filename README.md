@@ -18,7 +18,7 @@ A map of Austria for your Home Assistant dashboard, drawn from official Austrian
 
 - **Eleven layers**: terrain, glaciers, lakes, rivers, provinces, districts, municipalities, towns, peaks, motorways and main roads, switched from a button on the map.
 - **Zoom from 1× to 40×**: finer borders, smaller streams and more names appear as you zoom in.
-- **Select a place**: a town, river, road, peak or area, and the panel under the map says what it is and where it lies, with its population, area, height above sea level, postal code, area code and number plate code. The trail above the name runs from the province down to the place, and each step selects that unit.
+- **Select a town, river, road, peak or area**: the panel says what and where it is, with population, area, height, postal, area and plate codes.
 - **3D view, experimental**: tilt and turn the map to see the mountains in relief. A compass turns you back to north.
 - **Mark where you are**: a pin for your home, the device you're on, or a person or tracker as they move.
 - **Open on one province**: start on all of Austria or on a single province.
@@ -117,6 +117,7 @@ The position stays in your browser. The card draws it and sends it nowhere.
 | Zoom | Pinch, double-tap, `+` / `−` buttons, Ctrl or ⌘ + scroll | `+` / `−` |
 | Return to the opening view, flat | **Reset view** button | `0` |
 | See what is at a spot | Tap or click it | `Enter` reads out what is under the crosshair |
+| Select the municipality, district or province it lies in | Tap it in the trail above the name | Tab to it, then `Enter` |
 | Go to your location | **Show your location** button | Tab to the button, then `Enter` |
 | Tilt and turn (3D view) | **3D view** button. Shift + drag, or drag with the right mouse button. Two fingers sliding up or down tilt; a twist turns | Shift + arrow keys |
 | Face north | Tap the compass | Tab to the compass, then `Enter` |
@@ -217,4 +218,4 @@ This card is not affiliated with or endorsed by the BEV, the BMLUK, Statistik Au
 
 ---
 
-Diese Karte steht in keiner Verbindung zum BEV, zum BMLUK oder zu Statistik Austria und wird von ihnen nicht unterstützt. Die Kartendaten stammen aus ihren [offenen Daten](https://www.data.gv.at/) und stehen unter CC BY 4.0. Für die Richtigkeit, Vollständigkeit und Aktualität der angezeigten Daten wird keine Haftung übernommen. Nutzung auf eigene Verantwortung.
+Diese Karte steht in keiner Verbindung zum BEV, zum BMLUK, zu Statistik Austria oder zur RTR und wird von ihnen nicht unterstützt. Die Kartendaten stammen aus ihren [offenen Daten](https://www.data.gv.at/) und stehen unter CC BY 4.0, die Kennzahlentabellen aus den offenen Daten der RTR und dem RIS. Für die Richtigkeit, Vollständigkeit und Aktualität der angezeigten Daten wird keine Haftung übernommen. Nutzung auf eigene Verantwortung.

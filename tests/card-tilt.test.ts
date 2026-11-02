@@ -16,6 +16,7 @@ import {
   key,
   mount,
   pageLoader,
+  requestedIds,
   settle,
   setUp,
   tap,
@@ -126,6 +127,20 @@ describe("the tilted map", () => {
     // The national border last, over the others.
     expect(lines.at(-1)).toBe("borders:coarse:0");
     expect($(card, "canvas.relief")?.hidden).toBe(false);
+  });
+
+  it("lays the lakes and the glaciers over the relief too, and only while they are on", async () => {
+    const { card, gl } = await mountTilting({ layers: ["terrain", "lakes", "glaciers"] });
+    card._setPose({ camera: card._camera, orientation: { pitch: 0.8, bearing: 0.3 } });
+    card._drawNow();
+    await settle(card);
+    expect(gl.drapes.at(-1)).toContain("|terrain,lakes,glaciers|");
+    expect(new Set(requestedIds())).toContain("glaciers");
+    const off = await mountTilting({ layers: ["terrain", "provinces"] });
+    off.card._setPose({ camera: off.card._camera, orientation: { pitch: 0.8, bearing: 0.3 } });
+    off.card._drawNow();
+    await settle(off.card);
+    expect(off.gl.drapes.at(-1)).toContain("|terrain|");
   });
 
   it("draws the names upright over it, where their ground is seen", async () => {

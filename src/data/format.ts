@@ -227,7 +227,15 @@ export interface SourceInfo {
  * - `area_code`: an Ortsnetzkennzahl without its leading zero: 1 is "01".
  * - `text`: a 1-based index into the column's `texts`.
  */
-export type FactFormat = "integer" | "metres" | "kilometres" | "postcode" | "area_code" | "text";
+export type FactFormat =
+  | "integer"
+  | "metres"
+  | "kilometres"
+  /** Hectares in the data, shown in square kilometres. */
+  | "square_kilometres"
+  | "postcode"
+  | "area_code"
+  | "text";
 
 /**
  * One fact about every row of a table: population, altitude, a postal code.

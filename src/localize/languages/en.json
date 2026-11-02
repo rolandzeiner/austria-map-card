@@ -63,6 +63,7 @@
   },
   "facts": {
     "population": "Population",
+    "area": "Area",
     "municipality_population": "Population of the municipality",
     "stream_order": "Stream order",
     "length": "Length",

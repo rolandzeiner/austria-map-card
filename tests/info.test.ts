@@ -28,8 +28,15 @@ describe("areas", () => {
       name: "Burgenland",
       kind: "kinds.province",
       parents: [],
-      facts: [{ label: "facts.population", value: 301695, format: "integer" }],
+      facts: [
+        { label: "facts.population", value: 301695, format: "integer" },
+        { label: "facts.area", format: "square_kilometres" },
+      ],
     });
+    // Burgenland: 3 965 km² by Statistik Austria, in hectares here.
+    const area = about({ kind: "province", row: 0 })?.facts[1]?.value ?? 0;
+    expect(area).toBeGreaterThan(395_000);
+    expect(area).toBeLessThan(398_000);
   });
 
   it("places a district in its province, with its plate code", () => {
@@ -39,6 +46,7 @@ describe("areas", () => {
       parents: [{ name: "Burgenland", feature: { kind: "province", row: 0 } }],
       facts: [
         { label: "facts.population", format: "integer" },
+        { label: "facts.area", format: "square_kilometres" },
         { label: "facts.plate", text: "E", format: "text" },
       ],
     });
@@ -54,6 +62,7 @@ describe("areas", () => {
       ],
       facts: [
         { label: "facts.population", format: "integer" },
+        { label: "facts.area", format: "square_kilometres" },
         { label: "facts.elevation", format: "metres" },
         { label: "facts.postcode", value: 7000, format: "postcode" },
         { label: "facts.area_code", value: 2682, format: "area_code" },

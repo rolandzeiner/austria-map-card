@@ -18,7 +18,7 @@ A map of Austria for your Home Assistant dashboard, drawn from official Austrian
 
 - **Eleven layers**: terrain, glaciers, lakes, rivers, provinces, districts, municipalities, towns, peaks, motorways and main roads, switched from a button on the map.
 - **Zoom from 1× to 40×**: finer borders, smaller streams and more names appear as you zoom in.
-- **Select a place**: a town, river, road, peak or area, and the panel under the map says what it is and where it lies, with its population, height above sea level, postal code, area code and number plate code. The trail above the name runs from the province down to the place, and each step selects that unit.
+- **Select a place**: a town, river, road, peak or area, and the panel under the map says what it is and where it lies, with its population, area, height above sea level, postal code, area code and number plate code. The trail above the name runs from the province down to the place, and each step selects that unit.
 - **3D view, experimental**: tilt and turn the map to see the mountains in relief. A compass turns you back to north.
 - **Mark where you are**: a pin for your home, the device you're on, or a person or tracker as they move.
 - **Open on one province**: start on all of Austria or on a single province.
@@ -192,7 +192,7 @@ All map data is official Austrian open data under [CC BY 4.0](https://creativeco
 
 | Data | Source | As of |
 | --- | --- | --- |
-| Borders | Bundesamt für Eich- und Vermessungswesen (BEV), [Verwaltungsgrenzen (VGD) 1:250 000](https://www.data.gv.at/datasets/d960f393-0a19-43f7-b2f1-2a79d9fc6fdd) | 01.04.2026 |
+| Borders and areas | Bundesamt für Eich- und Vermessungswesen (BEV), [Verwaltungsgrenzen (VGD)](https://www.data.gv.at/datasets/d960f393-0a19-43f7-b2f1-2a79d9fc6fdd): the borders from the 1:250 000 file, the areas measured on the full-resolution cadastral polygons | 01.04.2026 |
 | Terrain | BEV, [Digitales Geländehöhenmodell, Höhenraster 500 m](https://www.data.gv.at/datasets/e629ae18-8f69-40ab-838a-1c0c60ebe727) | 15.04.2021 |
 | Rivers | Bundesministerium für Land- und Forstwirtschaft, Klima- und Umweltschutz, Regionen und Wasserwirtschaft (BMLUK), [Flussordnungszahlen NGP 2021 (Gesamtgewässernetz)](https://www.data.gv.at/datasets/e73a9425-a833-4579-9e6e-3ca76a1ea943) | 2021 |
 | Towns, peaks and glacier names | BEV, [Digitales Landschaftsmodell, Namen](https://data.bev.gv.at/download/DLM/DLM_20260323/) | 23.03.2026 |
@@ -203,7 +203,7 @@ All map data is official Austrian open data under [CC BY 4.0](https://creativeco
 | Area codes | RTR, [Open Data Ortsnetze](https://www2.rtr.at/de/inf/odRNOrtsnetze) (the Ortsnetzkennzahlen of the KEM-V 2009) | 02.11.2026 |
 | Number plate codes | Rechtsinformationssystem des Bundes (RIS), [KDV 1967, Anlage 5d](https://www.ris.bka.gv.at/Dokumente/Bundesnormen/NOR40265416/NOR40265416.html) | 07.04.2025 |
 
-The data was changed for this card: borders, terrain and rivers are simplified, municipalities are merged from cadastral units, towns and peaks are a selection of the BEV's place names, roads are joined into routes and simplified, and lakes and glaciers are a selection of the BEV's land cover, simplified. The postal places and Ortsnetze are matched to the BEV's place names and to the municipalities by name and position, and the plate codes to the districts and municipalities the annex names.
+The data was changed for this card: borders, terrain and rivers are simplified, municipalities are merged from cadastral units and their areas measured on them (within a few tenths of a percent of the Katasterfläche Statistik Austria publishes), towns and peaks are a selection of the BEV's place names, roads are joined into routes and simplified, and lakes and glaciers are a selection of the BEV's land cover, simplified. The postal places and Ortsnetze are matched to the BEV's place names and to the municipalities by name and position, and the plate codes to the districts and municipalities the annex names.
 
 ## License
 

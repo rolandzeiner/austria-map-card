@@ -348,8 +348,10 @@ describe("tapping the map", () => {
     const row = PROVINCE_IDS.indexOf("AT-9");
     await tap(card, ...toScreen(card._camera!, size, table.at[row * 2]!, table.at[row * 2 + 1]!));
     expect(text(card, ".info-name")).toBe("Wien Province");
-    expect(text(card, ".facts")).toMatch(/^Population 2,\d{3},\d{3}$/);
-    expect(text(card, ".info-stand")).toBe("Data as of: Statistik Austria 01.01.2026");
+    expect(text(card, ".facts")).toMatch(/^Population 2,\d{3},\d{3} Area 414\.\d km²$/);
+    expect(text(card, ".info-stand")).toBe(
+      "Data as of: Statistik Austria 01.01.2026, BEV 01.04.2026",
+    );
   });
 
   it("gives a river's length in Austria in kilometres, with tenths below 100, and the provinces it runs through", async () => {

@@ -588,6 +588,34 @@ describe("lake names", () => {
   });
 });
 
+describe("the areas", () => {
+  /** Austria by Statistik Austria, in hectares: 83 882.6 km². */
+  const AUSTRIA = 8_388_260;
+  const area = (table: Table): Int32Array =>
+    table.facts.find((fact) => fact.key === "area")!.values;
+
+  it("measure every province, district and municipality, in hectares, from the BEV's cadastre", () => {
+    for (const table of [overview.provinces, detail.districts, detail.municipalities]) {
+      const column = table.facts.find((fact) => fact.key === "area")!;
+      expect(column.format).toBe("square_kilometres");
+      expect(column.source).toBe("bev-vgd");
+      expect([...column.values].filter((value) => value <= 0)).toHaveLength(0);
+    }
+  });
+
+  it("add up to Austria within a tenth of a percent, at every level", () => {
+    for (const table of [overview.provinces, detail.districts, detail.municipalities]) {
+      expect(Math.abs(sum(area(table)) - AUSTRIA) / AUSTRIA).toBeLessThan(0.001);
+    }
+  });
+
+  it("give Vienna its 415 km²", () => {
+    const vienna = overview.provinces.names.indexOf("Wien");
+    expect(area(overview.provinces)[vienna]).toBeGreaterThan(41_400);
+    expect(area(overview.provinces)[vienna]).toBeLessThan(41_500);
+  });
+});
+
 describe("the codes", () => {
   const municipalities = detail.municipalities;
   const unit = (name: string): number => municipalities.names.indexOf(name);

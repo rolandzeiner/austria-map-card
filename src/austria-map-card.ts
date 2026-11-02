@@ -1030,6 +1030,8 @@ export class AustriaMapCard extends LitElement {
         return `${this._number(fact.value)} m`;
       case "kilometres":
         return `${this._number(fact.value / 10, { maximumFractionDigits: fact.value < 1000 ? 1 : 0 })} km`;
+      case "square_kilometres":
+        return `${this._number(fact.value / 100, { maximumFractionDigits: fact.value < 100_000 ? 1 : 0 })} km²`;
       case "postcode":
         return fact.value < 10_000
           ? String(fact.value)

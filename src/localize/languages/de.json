@@ -63,6 +63,7 @@
   },
   "facts": {
     "population": "Einwohner",
+    "area": "Fläche",
     "municipality_population": "Einwohner der Gemeinde",
     "stream_order": "Flussordnungszahl",
     "length": "Länge",

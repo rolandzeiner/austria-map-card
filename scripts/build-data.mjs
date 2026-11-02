@@ -9,6 +9,7 @@
 //                               | --refresh-places | --refresh-peaks | --refresh-motorways | --refresh-main-roads
 //                               | --refresh-population | --refresh-lakes | --refresh-glaciers
 //                               | --refresh-postcodes | --refresh-area-codes | --refresh-plates
+//                               | --refresh-areas
 //                               add --download to fetch a file again that is already in .cache/
 //
 // Two stages. The downloads are large (a 59 MB river network, 58 MB of place
@@ -119,6 +120,11 @@ const BORDERS = {
 const BORDERS_URL =
   "https://data.bev.gv.at/download/Verwaltungsgrenzen/shp/20260401/VGD_Oesterreich_gen_250_20260402.zip";
 const BORDERS_LAYER = "VGD_250_generalisiert";
+// The same release at full resolution: the cadastral polygons the areas are
+// measured on (refreshAreas). The generalised file is the borders' shape.
+const BORDERS_FULL_URL =
+  "https://data.bev.gv.at/download/Verwaltungsgrenzen/shp/20260401/VGD_Oesterreich_gst_20260402.zip";
+const BORDERS_FULL_LAYER = "VGD";
 
 const TERRAIN = {
   id: "bev-dgm",
@@ -242,12 +248,14 @@ const PEAKS_FILE = input("bev_peaks.txt.gz");
 const MOTORWAYS_FILE = input("bev_motorways.txt.gz");
 const MAIN_ROADS_FILE = input("bev_main_roads.txt.gz");
 const POPULATION_FILE = input("statistik_population.txt.gz");
+const AREAS_FILE = input("bev_areas.txt.gz");
 const LAKES_FILE = input("bev_lakes.txt.gz");
 const GLACIERS_FILE = input("bev_glaciers.txt.gz");
 const POSTCODES_FILE = input("rtr_postcodes.txt.gz");
 const AREA_CODES_FILE = input("rtr_area_codes.txt.gz");
 const PLATES_FILE = input("kdv_plates.txt.gz");
 const BORDERS_CACHE = cache("borders/VGD_Oesterreich_gen_250.zip");
+const BORDERS_FULL_CACHE = cache("borders/VGD_Oesterreich_gst.zip");
 const TERRAIN_CACHE = cache("terrain/DGM_Rasterweite_500m.zip");
 const RIVERS_CACHE = cache("rivers/FlussordnungszahlenNGP21.gpkg");
 const PLACES_CACHE = cache("places/DLM_7000_NAMEN_20260323.gpkg");
@@ -1357,6 +1365,76 @@ function readPopulation() {
 }
 
 // ---------------------------------------------------------------------------
+// Refresh: areas
+// ---------------------------------------------------------------------------
+
+/** The signed area of a ring in its own units: negative for a clockwise ring. */
+function signedArea(ring) {
+  let sum = 0;
+  for (let point = 0; point < ring.length; point += 1) {
+    const [x1, y1] = ring[point];
+    const [x2, y2] = ring[(point + 1) % ring.length];
+    sum += x1 * y2 - x2 * y1;
+  }
+  return sum / 2;
+}
+
+/**
+ * The area of every municipality, measured on the cadastral polygons of the
+ * full-resolution release, since neither BEV release carries an area of its
+ * own. A shapefile's rings run clockwise round a polygon and the other way
+ * round a hole in it, so the signed areas of a record's rings add up to its
+ * land, and a municipality is the sum of its cadastral units. Measured in
+ * the file's own projection, Austria Lambert: conformal, with its parallels
+ * at 46° and 49° north, so the scale is off by under 0.03 % anywhere in
+ * the country. The sum comes to 83 879 km², against the 83 883 km² that
+ * Statistik Austria gives; a municipality is within a few tenths of a
+ * percent of its Katasterfläche there.
+ */
+async function refreshAreas() {
+  await download(BORDERS_FULL_URL, BORDERS_FULL_CACHE, "BEV");
+  const files = unzip(readFileSync(BORDERS_FULL_CACHE));
+  const shapes = parseShapefilePolygons(files.get(`${BORDERS_FULL_LAYER}.shp`));
+  const records = parseDbf(files.get(`${BORDERS_FULL_LAYER}.dbf`));
+  if (shapes.length !== records.length) throw new Error("shapes and records differ in number");
+  const squareMetres = new Map();
+  shapes.forEach((rings, index) => {
+    const code = records[index].GKZ;
+    const area = Math.abs(rings.reduce((sum, ring) => sum + signedArea(ring), 0));
+    squareMetres.set(code, (squareMetres.get(code) ?? 0) + area);
+  });
+  // Whole hectares: a municipality to a hundredth of a square kilometre.
+  const hectares = new Map(
+    [...squareMetres].map(([code, area]) => [code, Math.round(area / 10_000)]),
+  );
+  const total = [...hectares.values()].reduce((sum, value) => sum + value, 0);
+  const lines = header(
+    { ...BORDERS, name: "Verwaltungsgrenzen (VGD), Stichtagsdaten" },
+    [
+      `Area per municipality: code, hectares, measured on the cadastral polygons of the`,
+      `full-resolution release in Austria Lambert.`,
+    ],
+    "--refresh-areas",
+  );
+  lines.push(`total\t${total}`);
+  for (const code of [...hectares.keys()].toSorted(byCodeUnit))
+    lines.push(`${code}\t${hectares.get(code)}`);
+  writeInput(AREAS_FILE, lines);
+  console.log(`  ${hectares.size} municipalities, ${Math.round(total / 100)} km²`);
+}
+
+function readAreas() {
+  const byCode = new Map();
+  let total = 0;
+  for (const line of readInput(AREAS_FILE)) {
+    const [code, value] = line.split("\t");
+    if (code === "total") total = Number(value);
+    else byCode.set(code, Number(value));
+  }
+  return { byCode, total };
+}
+
+// ---------------------------------------------------------------------------
 // Refresh: places
 // ---------------------------------------------------------------------------
 
@@ -2126,6 +2204,15 @@ const populationFact = (values) => ({
   values: encodeInts(values),
 });
 
+/** Hectares in the data; the card shows square kilometres. */
+const areaFact = (values) => ({
+  key: "area",
+  label: "facts.area",
+  format: "square_kilometres",
+  source: BORDERS.id,
+  values: encodeInts(values),
+});
+
 /** The label point of every group of an index, checked against the index itself. */
 function labelPoints(index, names) {
   return names.map((name, group) => {
@@ -2184,13 +2271,22 @@ function build(settings = {}) {
     );
   }
   const residents = mesh.units.map((unit) => population.byCode.get(unit.code));
-  const sumBy = (groupOf, count) => {
+  const sumBy = (values, groupOf, count) => {
     const sums = Array.from({ length: count }, () => 0);
-    residents.forEach((value, unit) => {
+    values.forEach((value, unit) => {
       sums[groupOf[unit]] += value;
     });
     return sums;
   };
+  const areas = readAreas();
+  const unmeasured = mesh.units
+    .filter((unit) => !areas.byCode.has(unit.code))
+    .map((unit) => unit.code);
+  if (unmeasured.length > 0) throw new Error(`no area for ${unmeasured.join(", ")}`);
+  const hectares = mesh.units.map((unit) => areas.byCode.get(unit.code));
+  if (hectares.reduce((sum, value) => sum + value, 0) !== areas.total) {
+    throw new Error("the municipalities do not add up to the national area");
+  }
   if (residents.reduce((sum, value) => sum + value, 0) !== population.total) {
     throw new Error("the municipalities do not add up to the national population");
   }
@@ -2267,7 +2363,10 @@ function build(settings = {}) {
       ),
       POINT_Q,
     ),
-    facts: [populationFact(sumBy(provinceOf, provinces.length))],
+    facts: [
+      populationFact(sumBy(residents, provinceOf, provinces.length)),
+      areaFact(sumBy(hectares, provinceOf, provinces.length)),
+    ],
   };
   const districtTable = {
     ids: districts.map((district) => district.code),
@@ -2280,7 +2379,10 @@ function build(settings = {}) {
       ),
       POINT_Q,
     ),
-    facts: [populationFact(sumBy(districtOf, districts.length))],
+    facts: [
+      populationFact(sumBy(residents, districtOf, districts.length)),
+      areaFact(sumBy(hectares, districtOf, districts.length)),
+    ],
   };
   const municipalityPoints = labelPoints(
     municipalityIndex,
@@ -2291,7 +2393,7 @@ function build(settings = {}) {
     names: mesh.units.map((unit) => unit.name),
     parent: encodeInts(districtOf),
     at: encodePoints(municipalityPoints, POINT_Q),
-    facts: [populationFact(residents)],
+    facts: [populationFact(residents), areaFact(hectares)],
   };
 
   // --- Places ---
@@ -2668,6 +2770,7 @@ function measure() {
 
 const everything = args.has("--refresh");
 if (everything || args.has("--refresh-borders")) await refreshBorders();
+if (everything || args.has("--refresh-areas")) await refreshAreas();
 if (everything || args.has("--refresh-terrain")) await refreshTerrain();
 if (everything || args.has("--refresh-population")) await refreshPopulation();
 // These two read the committed mesh, so they come after the borders.

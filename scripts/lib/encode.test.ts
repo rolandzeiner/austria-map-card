@@ -172,7 +172,7 @@ describe("packed lines", () => {
 
   it("notices a damaged string", () => {
     const packed = encodeLines(lines, 0.05, { closed: false });
-    expect(() => decodeLines({ ...packed, n: 3 })).toThrow();
+    expect(() => decodeLines({ ...packed, n: 3 })).toThrow("packed lines are damaged");
   });
 
   it("joins two sets and measures each line's box", () => {

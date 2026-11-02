@@ -25,9 +25,10 @@ describe("the shaders", () => {
     it(`share every uniform at one precision (${name})`, () => {
       const vertex = uniforms(pair.vertex, "vertex");
       const fragment = uniforms(pair.fragment, "fragment");
-      for (const [uniform, precision] of fragment) {
-        if (vertex.has(uniform)) expect(precision, uniform).toBe(vertex.get(uniform));
-      }
+      const shared = [...fragment].filter(([uniform]) => vertex.has(uniform));
+      expect(shared.map(([uniform, precision]) => `${uniform}: ${precision}`)).toEqual(
+        shared.map(([uniform]) => `${uniform}: ${vertex.get(uniform)}`),
+      );
     });
 
     it(`are GLSL ES 3.00 (${name})`, () => {

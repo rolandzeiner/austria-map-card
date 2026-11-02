@@ -287,7 +287,7 @@ describe("the label point", () => {
         ],
         0.01,
       ),
-    ).toThrow();
+    ).toThrow("no area to place a label in");
   });
 });
 

@@ -46,18 +46,14 @@ async function drawnPin(card: CardInternals): Promise<[number, number] | undefin
   return pinTip(fake);
 }
 
-function expectPinAt(
-  card: CardInternals,
-  tip: [number, number] | undefined,
-  where: typeof LINZ,
-): void {
+/** Where the pin's tip should sit on screen for a place, as a matcher pair. */
+function pinAt(card: CardInternals, where: typeof LINZ): [unknown, unknown] {
   const [x, y] = toScreen(
     card._camera!,
     { width: 760, height: 403 },
     ...project(where.latitude, where.longitude),
   );
-  expect(tip?.[0]).toBeCloseTo(x);
-  expect(tip?.[1]).toBeCloseTo(y);
+  return [expect.closeTo(x), expect.closeTo(y)];
 }
 
 beforeAll(setUp);
@@ -77,7 +73,7 @@ describe("the pin", () => {
 
   it("marks the home when switched on", async () => {
     const card = await mount({ show_location: true }, hassAt(LINZ));
-    expectPinAt(card, await drawnPin(card), LINZ);
+    expect(await drawnPin(card)).toEqual(pinAt(card, LINZ));
   });
 
   it("follows an entity as it moves, without anything else changing", async () => {
@@ -85,9 +81,9 @@ describe("the pin", () => {
       { show_location: true, location: "person.anna" },
       hassAt(LINZ, { "person.anna": away(GRAZ) }),
     );
-    expectPinAt(card, await drawnPin(card), GRAZ);
+    expect(await drawnPin(card)).toEqual(pinAt(card, GRAZ));
     card.hass = hassAt(LINZ, { "person.anna": away(SALZBURG) });
-    expectPinAt(card, await drawnPin(card), SALZBURG);
+    expect(await drawnPin(card)).toEqual(pinAt(card, SALZBURG));
   });
 
   it("does not redraw for state changes elsewhere in the house", async () => {
@@ -158,9 +154,9 @@ describe("this device", () => {
   it("marks the home until the browser answers, then the device", async () => {
     const geo = stubGeolocation();
     const card = await mount({ show_location: true, location: "device" }, hassAt(LINZ));
-    expectPinAt(card, await drawnPin(card), LINZ);
+    expect(await drawnPin(card)).toEqual(pinAt(card, LINZ));
     geo.report(GRAZ);
-    expectPinAt(card, await drawnPin(card), GRAZ);
+    expect(await drawnPin(card)).toEqual(pinAt(card, GRAZ));
   });
 
   it("stays on the home when the browser refuses", async () => {
@@ -168,7 +164,7 @@ describe("this device", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const card = await mount({ show_location: true, location: "device" }, hassAt(LINZ));
     geo.refuse();
-    expectPinAt(card, await drawnPin(card), LINZ);
+    expect(await drawnPin(card)).toEqual(pinAt(card, LINZ));
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
   });

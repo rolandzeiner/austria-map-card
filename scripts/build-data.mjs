@@ -1886,12 +1886,17 @@ async function refreshPlates() {
     /<span class="sr-only">[^<]*<\/span>/g,
     "",
   );
-  const text = (cell) =>
-    cell
-      .replace(/<[^>]+>/g, "")
-      .replace(/&amp;/g, "&")
-      .replace(/\s+/g, " ")
-      .trim();
+  // Tags go until none are left: one pass leaves whatever a removed tag
+  // was splitting (CodeQL js/incomplete-multi-character-sanitization).
+  const untagged = (cell) => {
+    let stripped = cell;
+    for (let before = ""; before !== stripped;) {
+      before = stripped;
+      stripped = stripped.replace(/<[^>]*>/g, "");
+    }
+    return stripped;
+  };
+  const text = (cell) => untagged(cell).replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
   const authorities = new Map();
   for (const match of page.matchAll(
     /<tr>\s*<td[^>]*>(.*?)<\/td>\s*<td[^>]*>(.*?)<\/td>\s*<\/tr>/gs,

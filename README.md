@@ -17,11 +17,11 @@ A map of Austria for your Home Assistant dashboard, drawn from official Austrian
 ## Features
 
 - **Eleven layers**: terrain, glaciers, lakes, rivers, provinces, districts, municipalities, towns, peaks, motorways and main roads, switched from a button on the map.
-- **Zoom from 1× to 40×**: finer borders, smaller streams and more names appear as you zoom in.
+- **Zoom from 1× to 40×**: open on Austria or on one province. Finer borders, smaller streams and more names appear as you zoom in.
 - **Select a town, river, road, peak or area**: the panel says what and where it is, with population, area, height, postal, area and plate codes.
 - **3D view, experimental**: tilt and turn the map to see the mountains in relief. A compass turns you back to north.
 - **Mark where you are**: a pin for your home, the device you're on, or a person or tracker as they move.
-- **Open on one province**: start on all of Austria or on a single province.
+- **Leonida theme**: Austria as an island on a poster, with sea all round it, a reference grid and its own colours.
 - **Loads only what you look at**: the card is small, and each layer's data arrives the first time you need it.
 - **Theme, keyboard and language**: follows your light or dark theme, every gesture has a button and a key, in English and German.
 
@@ -61,6 +61,7 @@ Every option is optional. Use the visual editor or YAML.
 | --- | --- | --- | --- |
 | `title` | string | none | Heading above the map. |
 | `view` | `austria`, or `AT-1` to `AT-9` | `austria` | What the card opens on, and what **Reset view** returns to. See *Province codes*. |
+| `theme` | `default`, `leonida` | `default` | How the map is drawn. See *Theming*. |
 | `layers` | list | `terrain`, `lakes`, `rivers`, `provinces`, `cities` | The layers that are on when the card opens. See *Layers*. An empty list shows only the country's outline. |
 | `show_labels` | boolean | `true` | Names on the map. |
 | `show_layer_control` | boolean | `true` | The layer button. Turn it off to lock the layers, for example on a wall display. |
@@ -128,11 +129,22 @@ The panel under the map announces a new selection to screen readers. Controls ar
 
 ### Theming
 
-The map takes its colours from your theme, with its own terrain shading for light and dark. One variable is the card's own:
+`theme` picks how the map is drawn:
+
+| `theme` | Looks like | Good to know |
+| --- | --- | --- |
+| `default` | Your Home Assistant theme | The map takes its colours from your theme, with its own terrain shading for light and dark. Abroad stays clear, so the card shows through. |
+| `leonida` | A tourist poster of an island | Turquoise sea round Austria with shallow water along the coast, green land, white roads and names. The same in light and dark. A grid of ten columns and five rows lies over the map, numbered along the bottom and lettered along the right edge, so `C4` names a square about 62 km across. |
+
+<img src="https://raw.githubusercontent.com/rolandzeiner/austria-map-card/main/screenshots/preview-leonida.webp" alt="The Leonida theme: Austria as a green island in a turquoise sea, under a grid numbered 1 to 10 and lettered A to E" />
+
+On the default theme, one variable is the card's own:
 
 | Variable | Sets | Default |
 | --- | --- | --- |
 | `--austria-map-accent-color` | The selection, the location pin and the focus ring | Your theme's primary colour |
+
+Leonida ignores it: its selection and pin are pink, and its focus ring is white inside dark.
 
 ## Examples
 
@@ -155,6 +167,21 @@ Follow a person on their phone:
 type: custom:austria-map-card
 show_location: true
 location: person.anna
+```
+
+The Leonida poster, with roads and peaks:
+
+```yaml
+type: custom:austria-map-card
+theme: leonida
+layers:
+  - terrain
+  - lakes
+  - rivers
+  - provinces
+  - motorways
+  - peaks
+  - cities
 ```
 
 A fixed map for a wall display:

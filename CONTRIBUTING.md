@@ -197,7 +197,7 @@ Change `src/` and you rebuild the card. Change the data script, the projection, 
 
 `npm run preview` draws real frames with the card's own renderer through `@napi-rs/canvas`: the whole country, a province, a municipal zoom, light and dark. Look at them before you commit a change to drawing code or data. The PNGs land in `.cache/preview/`, which git ignores. Add a scene to the list in `scripts/preview.mjs` when you need another view.
 
-`npm run preview -- --readme` also rewrites the README images: `screenshots/preview.webp` and its dark-theme twin `screenshots/preview-dark.webp`, both transparent outside the border.
+`npm run preview -- --readme` also rewrites the README images: `screenshots/preview.webp` and its dark-theme twin `screenshots/preview-dark.webp`, both transparent outside the border, and `screenshots/preview-leonida.webp` for the Leonida theme.
 
 ## Refreshing the data
 

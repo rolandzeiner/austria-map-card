@@ -564,22 +564,13 @@ describe("the Leonida theme", () => {
     expect(fake.named("fillRect")).toHaveLength(0);
   });
 
-  it("floods the canvas with the sea, then the shallows and the eagle, then the land over them", () => {
+  it("floods the canvas with the sea, then the shallows, then the land over them", () => {
     themed().draw(state(home, []));
     const order = fake.calls
       .filter((call) => ["fillRect", "stroke", "fill"].includes(call.name))
       .map((call) => (call.name === "stroke" ? call.strokeStyle : call.fillStyle));
     const shelf = leonida.sea!.shelf.map((band) => band.colour);
-    const { body, gold, red } = leonida.emblem!;
-    expect(order.slice(0, shelf.length + 5)).toEqual([
-      leonida.sea!.deep,
-      ...shelf,
-      body,
-      gold,
-      red,
-      leonida.land,
-    ]);
-    expect(fake.texts()).toContain("ÖSTERREICH");
+    expect(order.slice(0, shelf.length + 2)).toEqual([leonida.sea!.deep, ...shelf, leonida.land]);
     expect(fake.named("fillRect")[0]!.args).toEqual([0, 0, size.width * 2, size.height * 2]);
   });
 
@@ -639,11 +630,10 @@ describe("the Leonida theme", () => {
     expect(number.args[2] as number).toBeGreaterThan(box[1]! + box[3]! / 2);
   });
 
-  it("keeps the sea, the eagle and the grid out of the picture laid over the tilted map", () => {
+  it("keeps the sea and the grid out of the picture laid over the tilted map", () => {
     themed().draw(state(home, ["terrain"], { fillsOnly: true }));
     expect(fake.named("fillRect")).toHaveLength(0);
     expect(fake.named("stroke")).toHaveLength(0);
-    expect(fake.texts()).toEqual([]);
     expect(fake.named("fill")[0]!.fillStyle).toBe(leonida.land);
   });
 });

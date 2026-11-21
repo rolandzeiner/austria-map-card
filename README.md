@@ -134,9 +134,9 @@ The panel under the map announces a new selection to screen readers. Controls ar
 | `theme` | Looks like | Good to know |
 | --- | --- | --- |
 | `default` | Your Home Assistant theme | The map takes its colours from your theme, with its own terrain shading for light and dark. Abroad stays clear, so the card shows through. |
-| `leonida` | A tourist poster of an island | Turquoise sea round Austria with shallow water along the coast, green land, white roads and names. The same in light and dark. A grid of ten columns and five rows lies over the map, numbered along the bottom and lettered along the right edge, so `C4` names a square about 62 km across. The federal eagle and "ÖSTERREICH" stand in the sea north of Tyrol, and motorways (A) carry the Autobahn sign over their number. The 3D view shows the sea plain, without shallows and eagle. |
+| `leonida` | A tourist poster of an island | Turquoise sea round Austria with shallow water along the coast, green land, white roads and names. The same in light and dark. A grid of ten columns and five rows lies over the map, numbered along the bottom and lettered along the right edge, so `C4` names a square about 62 km across. Motorways (A) carry the Autobahn sign over their number. The 3D view shows the sea plain, without the shallows. |
 
-<img src="https://raw.githubusercontent.com/rolandzeiner/austria-map-card/main/screenshots/preview-leonida.webp" alt="The Leonida theme: Austria as a green island in a turquoise sea, with the federal eagle and the word Österreich north of Tyrol, under a grid numbered 1 to 10 and lettered A to E" />
+<img src="https://raw.githubusercontent.com/rolandzeiner/austria-map-card/main/screenshots/preview-leonida.webp" alt="The Leonida theme: Austria as a green island in a turquoise sea, under a grid numbered 1 to 10 and lettered A to E" />
 
 On the default theme, one variable is the card's own:
 
@@ -233,18 +233,16 @@ All map data is official Austrian open data under [CC BY 4.0](https://creativeco
 
 The data was changed for this card: borders, terrain and rivers are simplified, municipalities are merged from cadastral units and their areas measured on them (within a few tenths of a percent of the Katasterfläche Statistik Austria publishes), towns and peaks are a selection of the BEV's place names, roads are joined into routes and simplified, and lakes and glaciers are a selection of the BEV's land cover, simplified. The postal places and Ortsnetze are matched to the BEV's place names and to the municipalities by name and position, and the plate codes to the districts and municipalities the annex names.
 
-The federal eagle of the Leonida theme is traced and simplified from [Austria Bundesadler.svg](https://commons.wikimedia.org/wiki/File:Austria_Bundesadler.svg) on Wikimedia Commons, the drawing of the Wappengesetz (BGBl. Nr. 159/1984), free of copyright under § 7 UrhG. The card shows it as a picture of the coat of arms, which [§ 7 Wappengesetz](https://www.ris.bka.gv.at/Dokumente/Bundesnormen/NOR12010865/NOR12010865.html) allows as long as it does not suggest an official authorisation.
-
 ## License
 
-The code is [MIT](https://github.com/rolandzeiner/austria-map-card/blob/main/LICENSE); the federal eagle drawn by `src/map/emblem-data.ts` is a free work (see *Attribution*). The map data in `dist/austria-map-data-*.js` and `scripts/data/` is © BEV, BMLUK and Statistik Austria, under CC BY 4.0; the postal, area and plate codes in them are free works (see *Attribution*).
+The code is [MIT](https://github.com/rolandzeiner/austria-map-card/blob/main/LICENSE). The map data in `dist/austria-map-data-*.js` and `scripts/data/` is © BEV, BMLUK and Statistik Austria, under CC BY 4.0; the postal, area and plate codes in them are free works (see *Attribution*).
 
 To build from source or contribute, see [CONTRIBUTING.md](https://github.com/rolandzeiner/austria-map-card/blob/main/CONTRIBUTING.md).
 
 ## Disclaimer
 
-This card is not affiliated with or endorsed by the BEV, the BMLUK, Statistik Austria or the RTR. Map data comes from their [open data](https://www.data.gv.at/) under CC BY 4.0, the code tables from the RTR's open data and the RIS. The federal eagle in the Leonida theme stands for the country on a map; the card is not an official product. The developer assumes no liability for the accuracy, completeness or timeliness of the displayed data. Use at your own risk.
+This card is not affiliated with or endorsed by the BEV, the BMLUK, Statistik Austria or the RTR. Map data comes from their [open data](https://www.data.gv.at/) under CC BY 4.0, the code tables from the RTR's open data and the RIS. The developer assumes no liability for the accuracy, completeness or timeliness of the displayed data. Use at your own risk.
 
 ---
 
-Diese Karte steht in keiner Verbindung zum BEV, zum BMLUK, zu Statistik Austria oder zur RTR und wird von ihnen nicht unterstützt. Die Kartendaten stammen aus ihren [offenen Daten](https://www.data.gv.at/) und stehen unter CC BY 4.0, die Kennzahlentabellen aus den offenen Daten der RTR und dem RIS. Der Bundesadler im Theme Leonida steht auf der Karte für das Land; die Karte ist kein amtliches Produkt. Für die Richtigkeit, Vollständigkeit und Aktualität der angezeigten Daten wird keine Haftung übernommen. Nutzung auf eigene Verantwortung.
+Diese Karte steht in keiner Verbindung zum BEV, zum BMLUK, zu Statistik Austria oder zur RTR und wird von ihnen nicht unterstützt. Die Kartendaten stammen aus ihren [offenen Daten](https://www.data.gv.at/) und stehen unter CC BY 4.0, die Kennzahlentabellen aus den offenen Daten der RTR und dem RIS. Für die Richtigkeit, Vollständigkeit und Aktualität der angezeigten Daten wird keine Haftung übernommen. Nutzung auf eigene Verantwortung.

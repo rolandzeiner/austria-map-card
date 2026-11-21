@@ -23,7 +23,6 @@ const hex = (value: string): Rgb => [
 // along the coast, sea-green land that darkens into forest, white roads and
 // white lettering with a dark edge, a sand-coloured shoreline, and a grid of
 // square cells numbered along one edge and lettered along the other. Its
-// seal is the federal eagle, in the open sea north of Tyrol, and its
 // motorway shields are the Autobahn sign.
 
 /**
@@ -107,12 +106,6 @@ function leonidaPalette(font: string): Palette {
         { reach: 7, colour: css(SHELF, 0.32) },
         { reach: 2.5, colour: css(SHELF, 0.5) },
       ],
-    },
-    emblem: {
-      body: css(WHITE),
-      gold: css(hex("#f3c63f")),
-      red: css(hex("#c8102e")),
-      name: css(WHITE),
     },
     motorwaySign: true,
     grid: {

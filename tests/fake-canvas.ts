@@ -24,6 +24,9 @@ export class FakePath {
   public quadraticCurveTo(): void {
     this.ops.push("Q");
   }
+  public bezierCurveTo(): void {
+    this.ops.push("C");
+  }
   public closePath(): void {
     this.ops.push("Z");
   }

@@ -18,6 +18,7 @@ import { grown } from "../layers/scales.ts";
 import type { MapStore } from "../layers/store.ts";
 import type { LayerId } from "../types.ts";
 import { toMap, toScreen, visibleBox, type Box, type Camera, type Size } from "./camera.ts";
+import { drawEmblem } from "./emblem.ts";
 import { drawGrid, drawRuler, rulerInset } from "./grid.ts";
 import { drawLabels, type DrawnCity, type Feature } from "./labels.ts";
 import type { Palette, Sea } from "./palette.ts";
@@ -154,7 +155,10 @@ export class MapRenderer {
             traceRings(path, (store.detail as NonNullable<typeof store.detail>).country),
           )
         : this.shapes.get("country:coarse", (path) => traceRings(path, overview.country));
-    if (sea !== undefined) this.shallows(sea, scale);
+    if (sea !== undefined) {
+      this.shallows(sea, scale);
+      if (palette.emblem !== undefined) drawEmblem(ctx, this.shapes, palette.emblem, palette.font);
+    }
     ctx.fillStyle = palette.land;
     ctx.fill(country, "evenodd");
 

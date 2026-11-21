@@ -564,13 +564,22 @@ describe("the Leonida theme", () => {
     expect(fake.named("fillRect")).toHaveLength(0);
   });
 
-  it("floods the canvas with the sea, then the shallows, then the land over them", () => {
+  it("floods the canvas with the sea, then the shallows and the eagle, then the land over them", () => {
     themed().draw(state(home, []));
     const order = fake.calls
       .filter((call) => ["fillRect", "stroke", "fill"].includes(call.name))
       .map((call) => (call.name === "stroke" ? call.strokeStyle : call.fillStyle));
     const shelf = leonida.sea!.shelf.map((band) => band.colour);
-    expect(order.slice(0, shelf.length + 2)).toEqual([leonida.sea!.deep, ...shelf, leonida.land]);
+    const { body, gold, red } = leonida.emblem!;
+    expect(order.slice(0, shelf.length + 5)).toEqual([
+      leonida.sea!.deep,
+      ...shelf,
+      body,
+      gold,
+      red,
+      leonida.land,
+    ]);
+    expect(fake.texts()).toContain("ÖSTERREICH");
     expect(fake.named("fillRect")[0]!.args).toEqual([0, 0, size.width * 2, size.height * 2]);
   });
 
@@ -605,10 +614,36 @@ describe("the Leonida theme", () => {
     expect(fake.texts()).toContain("E");
   });
 
-  it("keeps the sea and the grid out of the picture laid over the tilted map", () => {
+  it("gives an A route the Autobahn sign over its number, and leaves an S route its plain shield", () => {
+    const shields = (): number[] => fake.named("roundRect").map((call) => call.args[3] as number);
+    rendererFor(all).draw(state(home, ["motorways"]));
+    expect(new Set(shields())).toEqual(new Set([15]));
+    // The default theme draws no pictogram: nothing but paths and text.
+    expect(fake.named("fillRect")).toHaveLength(0);
+
+    themed().draw(state(home, ["motorways"]));
+    const drawn = fake.calls.filter((call) => ["roundRect", "fillText"].includes(call.name));
+    const heights = new Map<string, number>();
+    drawn.forEach((call, index) => {
+      if (call.name !== "roundRect") return;
+      const ref = drawn.slice(index + 1).find((next) => next.name === "fillText")!;
+      heights.set(String(ref.args[0]), call.args[3] as number);
+    });
+    expect(heights.get("A1")).toBe(30);
+    expect(heights.get("S6")).toBe(15);
+    for (const [ref, height] of heights) expect(height, ref).toBe(ref.startsWith("A") ? 30 : 15);
+    // Its number sits in the lower half, under the pictogram.
+    const sign = fake.calls.findIndex((call) => call.name === "roundRect" && call.args[3] === 30);
+    const number = fake.calls.slice(sign).find((call) => call.name === "fillText")!;
+    const box = fake.calls[sign]!.args as number[];
+    expect(number.args[2] as number).toBeGreaterThan(box[1]! + box[3]! / 2);
+  });
+
+  it("keeps the sea, the eagle and the grid out of the picture laid over the tilted map", () => {
     themed().draw(state(home, ["terrain"], { fillsOnly: true }));
     expect(fake.named("fillRect")).toHaveLength(0);
     expect(fake.named("stroke")).toHaveLength(0);
+    expect(fake.texts()).toEqual([]);
     expect(fake.named("fill")[0]!.fillStyle).toBe(leonida.land);
   });
 });

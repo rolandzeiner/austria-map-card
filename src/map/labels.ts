@@ -28,6 +28,7 @@ import {
   type Rect,
 } from "./label-placer.ts";
 import type { Palette } from "./palette.ts";
+import { SIGN_HEIGHT, SIGN_WIDTH, drawAutobahnSign } from "./road-sign.ts";
 import { sorted } from "../sorted.ts";
 
 /** Something on the map that can be tapped and described. */
@@ -113,6 +114,9 @@ const SHIELDS: Readonly<Record<RoadClass, { readonly most: number; readonly from
   motorway: { most: 16, from: 0 },
   main: { most: 20, from: 2.5 },
 };
+/** A plain shield's height, and that of one with the Autobahn sign over its number. */
+const SHIELD_HEIGHT = 15;
+const SIGN_SHIELD_HEIGHT = 30;
 /** Pixels between candidate spots for a route shield, along its line. */
 const SHIELD_STEP = 180;
 /** Two shields of the same route keep at least this far apart. */
@@ -437,7 +441,12 @@ export function drawLabels(input: LabelInput): DrawnCity[] {
       if (screen.length < 4) continue;
       const measured = measure(screen);
       const total = measured.along[measured.along.length - 1] as number;
-      const width = widthOf(ctx, shieldFont, ref) + 8;
+      // An A route's shield is the Autobahn sign where the theme has it: the
+      // pictogram over the number. An S route is an expressway and keeps
+      // the plain shield.
+      const signed = kind === "motorway" && palette.motorwaySign === true && ref.startsWith("A");
+      const width = Math.max(widthOf(ctx, shieldFont, ref) + 8, signed ? SIGN_WIDTH + 8 : 0);
+      const height = signed ? SIGN_SHIELD_HEIGHT : SHIELD_HEIGHT;
       for (
         let distance = SHIELD_STEP / 2;
         distance < total && placed.length < limits.most;
@@ -451,20 +460,24 @@ export function drawLabels(input: LabelInput): DrawnCity[] {
           )
         )
           continue;
-        const shield = centredOn(x, y, width, 15);
+        const shield = centredOn(x, y, width, height);
         if (!placer.place([shield])) continue;
         placed.push({ ref, x, y });
         ctx.beginPath();
-        ctx.roundRect(shield.x, shield.y, shield.w, shield.h, 3);
+        ctx.roundRect(shield.x, shield.y, shield.w, shield.h, signed ? 4 : 3);
         ctx.lineWidth = 2;
-        ctx.strokeStyle = kind === "motorway" ? palette.halo : ink;
+        // The Autobahn sign has a white rim; the others stand off the map
+        // by the halo, or by their own ink.
+        ctx.strokeStyle = signed || kind !== "motorway" ? ink : palette.halo;
         ctx.stroke();
         ctx.fillStyle = fill;
         ctx.fill();
+        if (signed) drawAutobahnSign(ctx, x - SIGN_WIDTH / 2, shield.y + 3.5, ink, fill);
         ctx.font = shieldFont;
         ctx.textAlign = "center";
         ctx.fillStyle = ink;
-        ctx.fillText(ref, x, y + 0.5);
+        // Under the pictogram, or in the middle of a plain shield.
+        ctx.fillText(ref, x, signed ? shield.y + 3.5 + SIGN_HEIGHT + 8 : y + 0.5);
       }
     }
   }

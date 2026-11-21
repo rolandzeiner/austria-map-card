@@ -43,6 +43,18 @@ export interface GridStyle {
   readonly text: string;
 }
 
+/** The federal eagle and the country's name, printed in a theme's sea (emblem.ts). */
+export interface Emblem {
+  /** The eagle, its outlines and the bar of its shield. */
+  readonly body: string;
+  /** Crown, beak, talons, sickle and hammer. */
+  readonly gold: string;
+  /** The shield's two red bars. */
+  readonly red: string;
+  /** The country's name under the eagle. */
+  readonly name: string;
+}
+
 export interface Palette {
   readonly dark: boolean;
   readonly font: string;
@@ -81,6 +93,11 @@ export interface Palette {
   readonly sea?: Sea;
   /** Set by a theme that lays a reference grid over the map. */
   readonly grid?: GridStyle;
+  /** Set by a theme that prints the federal eagle in its sea. Needs `sea`. */
+  readonly emblem?: Emblem;
+  /** True where a motorway's shield carries the pictogram of the Autobahn
+   *  sign over its number. */
+  readonly motorwaySign?: boolean;
 }
 
 /** Home Assistant's default light and dark themes, for the preview and the tests. */

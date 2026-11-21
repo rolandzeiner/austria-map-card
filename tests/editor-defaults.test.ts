@@ -61,6 +61,15 @@ describe("editor defaults", () => {
     );
   });
 
+  it("draws the default theme unless another is named, and saves only the other", () => {
+    expect(normaliseConfig({ type: TYPE }).theme).toBe("default");
+    expect(tidyConfig({ type: TYPE, theme: "default" })).toEqual({ type: TYPE });
+    expect(tidyConfig(normaliseConfig({ type: TYPE, theme: "leonida" }))).toEqual({
+      type: TYPE,
+      theme: "leonida",
+    });
+  });
+
   it("round-trips an untouched config unchanged", () => {
     const config = { type: TYPE, view: "AT-5", layers: ["terrain", "districts"] };
     expect(tidyConfig(normaliseConfig(config))).toEqual(config);
@@ -75,6 +84,7 @@ describe("config validation", () => {
     ],
     [{ layers: "terrain" }, /"layers" must be a list of/],
     [{ view: "AT-10" }, /"view" must be one of: austria, AT-1/],
+    [{ theme: "vice" }, /"theme" must be one of: default, leonida/],
     [{ show_labels: "yes" }, /"show_labels" must be true or false/],
     [{ show_layer_control: 1 }, /"show_layer_control" must be true or false/],
     [{ title: 42 }, /"title" must be text/],

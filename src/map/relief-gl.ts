@@ -21,6 +21,7 @@
  */
 import type { Relief } from "../layers/store.ts";
 import type { FillSet, LineSet } from "./relief-lines.ts";
+import type { Rgb } from "./palette.ts";
 import { MAP_HEIGHT, MAP_WIDTH } from "./projection.ts";
 import { METRES_PER_UNIT, type View3D } from "./view3d.ts";
 
@@ -156,13 +157,14 @@ const LINE_FRAGMENT = `#version 300 es
 precision highp float;
 uniform vec3 u_colour;
 uniform float u_width;
+uniform float u_alpha;
 in float v_across;
 out vec4 colour;
 
 void main() {
   // Full inside the line, fading over the last pixel: lines thinner than a
   // pixel come out fainter, not jagged.
-  float cover = clamp(u_width * 0.5 + 0.5 - abs(v_across), 0.0, 1.0) * min(u_width, 1.0);
+  float cover = clamp(u_width * 0.5 + 0.5 - abs(v_across), 0.0, 1.0) * min(u_width, 1.0) * u_alpha;
   if (cover <= 0.0) discard;
   colour = vec4(u_colour * cover, cover);
 }
@@ -312,6 +314,7 @@ export class ReliefGL {
       "u_half",
       "u_width",
       "u_colour",
+      "u_alpha",
     ]);
     this.fillProgram = link(gl, FILL_VERTEX, FILL_FRAGMENT);
     this.fillUniforms = locations(gl, this.fillProgram, [
@@ -398,9 +401,11 @@ export class ReliefGL {
     if (canvas.height !== h) canvas.height = h;
   }
 
-  public clear(): void {
+  /** Clear to nothing, or to a theme's sea: the colour behind the relief. */
+  public clear(backdrop: Rgb | null = null): void {
     const { gl } = this;
-    gl.clearColor(0, 0, 0, 0);
+    if (backdrop === null) gl.clearColor(0, 0, 0, 0);
+    else gl.clearColor(backdrop[0] / 255, backdrop[1] / 255, backdrop[2] / 255, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT | gl.STENCIL_BUFFER_BIT);
   }
 
@@ -523,6 +528,7 @@ export class ReliefGL {
       const buffer = this.lineBuffer(set);
       if (buffer === null) continue;
       gl.uniform1f(u.u_width!, set.width * dpr);
+      gl.uniform1f(u.u_alpha!, set.alpha ?? 1);
       gl.uniform3f(u.u_colour!, set.colour[0] / 255, set.colour[1] / 255, set.colour[2] / 255);
       gl.bindVertexArray(buffer.vao);
       gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, buffer.count);
@@ -533,11 +539,20 @@ export class ReliefGL {
     gl.disable(gl.DEPTH_TEST);
   }
 
-  /** Draw a frame. Nothing until both the relief and a drape are there. */
-  public draw(view: View3D, lines: readonly LineSet[] = [], fills: readonly FillSet[] = []): void {
+  /**
+   * Draw a frame. Nothing but the backdrop until both the relief and a
+   * drape are there. `backdrop` is what shows abroad, where the relief has
+   * no colour: nothing, so the card shows through, or a theme's sea.
+   */
+  public draw(
+    view: View3D,
+    lines: readonly LineSet[] = [],
+    fills: readonly FillSet[] = [],
+    backdrop: Rgb | null = null,
+  ): void {
     const { gl, relief, uniforms: u } = this;
     gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
-    this.clear();
+    this.clear(backdrop);
     if (relief === undefined || this.drapeKey === "" || this.lost) return;
     gl.enable(gl.DEPTH_TEST);
     gl.useProgram(this.program);

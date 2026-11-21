@@ -67,6 +67,8 @@ export interface LabelInput {
    * `box` must then cover every map point that may land on the canvas.
    */
   readonly project?: (x: number, y: number) => readonly [number, number] | null;
+  /** The part of the canvas names may use; the whole canvas without it. */
+  readonly bounds?: Rect;
 }
 
 /** The scales, in pixels per map unit, between which each kind of name is shown. */
@@ -250,7 +252,7 @@ export function drawLabels(input: LabelInput): DrawnCity[] {
   const { ctx, store, palette, camera, size, box, layers, showLabels, selection } = input;
   const scale = camera.k;
   const family = palette.font;
-  const placer = new LabelPlacer({ x: 0, y: 0, w: size.width, h: size.height }, 3);
+  const placer = new LabelPlacer(input.bounds ?? { x: 0, y: 0, w: size.width, h: size.height }, 3);
   const drawn: DrawnCity[] = [];
   const pixels =
     input.project ??

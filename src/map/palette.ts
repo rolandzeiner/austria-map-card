@@ -21,6 +21,28 @@ export interface Theme {
   readonly font: string;
 }
 
+/** The sea a theme floods the canvas with, round Austria as an island. */
+export interface Sea {
+  /** Open water: the whole canvas outside the country. */
+  readonly deep: string;
+  /**
+   * Shallow water along the coast, as bands stroked round the outline from
+   * the widest to the narrowest: `reach` is how far a band runs out to sea,
+   * in map units, and `colour` what it lays over the bands under it.
+   */
+  readonly shelf: ReadonlyArray<{ readonly reach: number; readonly colour: string }>;
+}
+
+/** A reference grid over the map, with its numbers and letters along the edge. */
+export interface GridStyle {
+  readonly line: string;
+  /** How much of the line colour shows: the tilted map blends it itself. */
+  readonly lineAlpha: number;
+  /** The strips along the bottom and right edge that carry the references. */
+  readonly ruler: string;
+  readonly text: string;
+}
+
 export interface Palette {
   readonly dark: boolean;
   readonly font: string;
@@ -54,6 +76,11 @@ export interface Palette {
   readonly mainShieldText: string;
   /** The fill for ground above a height in metres. */
   band(level: number): string;
+  /** Set by a theme that draws Austria as an island. Without it, abroad is
+   *  left clear and the card shows through. */
+  readonly sea?: Sea;
+  /** Set by a theme that lays a reference grid over the map. */
+  readonly grid?: GridStyle;
 }
 
 /** Home Assistant's default light and dark themes, for the preview and the tests. */

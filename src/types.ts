@@ -51,6 +51,11 @@ export const PROVINCE_IDS = [
 ] as const;
 export type ProvinceId = (typeof PROVINCE_IDS)[number];
 
+/** How the map is drawn. `default` takes its colours from the Home
+ *  Assistant theme; the others bring their own (src/map/themes.ts). */
+export const THEME_IDS = ["default", "leonida"] as const;
+export type ThemeId = (typeof THEME_IDS)[number];
+
 /** What the card opens on: the whole country or one province. */
 export type MapView = "austria" | ProvinceId;
 
@@ -69,6 +74,8 @@ export interface AustriaMapCardConfig extends LovelaceCardConfig {
   show_layer_control?: boolean;
   /** `austria` or a province code, `AT-1` to `AT-9`. Default `austria`. */
   view?: MapView;
+  /** `default` or `leonida`. Default `default`. */
+  theme?: ThemeId;
   /** Mark where you are with a pin. Default false. */
   show_location?: boolean;
   /** `home`, `device` or an entity id. Default `home`. */

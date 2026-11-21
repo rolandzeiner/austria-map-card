@@ -77,6 +77,7 @@ describe("the editor", () => {
     expect(form.schema.map((field) => form.computeLabel(field))).toEqual([
       "Titel",
       "Ansicht beim Öffnen",
+      "Theme",
       "Ebenen beim Öffnen",
       "Namen auf der Karte anzeigen",
       "Ebenen-Schaltfläche anzeigen",
@@ -84,6 +85,7 @@ describe("the editor", () => {
     ]);
     expect(form.computeHelper({ name: "layers" })).toMatch(/Auf der Karte kannst du/);
     expect(form.computeHelper({ name: "show_layer_control" })).toMatch(/Wanddisplay/);
+    expect(form.computeHelper({ name: "theme" })).toMatch(/Raster und Meer/);
     expect(form.computeHelper({ name: "title" })).toBeUndefined();
     const english = await mount({ type: TYPE }, "en");
     expect(english.form.computeLabel({ name: "view" })).toBe("Opening view");

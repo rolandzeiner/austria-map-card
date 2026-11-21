@@ -6,6 +6,7 @@ import { describe, expect, it } from "vite-plus/test";
 import type { Lines } from "../src/data/format.ts";
 import { LIGHT_THEME, derivePalette, parseColour } from "../src/map/palette.ts";
 import { fansOf, reliefFills, reliefLines, segmentsOf } from "../src/map/relief-lines.ts";
+import { paletteFor } from "../src/map/themes.ts";
 import type { LayerId } from "../src/types.ts";
 import { storeWith } from "./chunks.ts";
 
@@ -106,6 +107,22 @@ describe("the lines of the tilted map", () => {
       palette,
     ).at(-1)!;
     expect(river.key).toMatch(/^selected:river:Donau:overview/);
+  });
+
+  it("lays a theme's grid on the ground, see-through, over the map and under the selection", () => {
+    expect(keys(["rivers", "provinces"], 1)).not.toContain("grid");
+    const leonida = paletteFor("leonida", LIGHT_THEME);
+    const drawn = reliefLines(store, new Set(), 1, { kind: "province", row: 2 }, leonida);
+    expect(drawn.map((set) => set.key)).toEqual([
+      "borders:coarse:0",
+      "grid",
+      "selected:province:2:coarse",
+    ]);
+    const grid = drawn[1]!;
+    expect(grid.alpha).toBe(leonida.grid!.lineAlpha);
+    expect(grid.width).toBe(1);
+    // Eleven lines down and six across, each cut to follow the relief.
+    expect(grid.segments().length / 4).toBeGreaterThan(17 * 500);
   });
 
   it("keeps lines as wide on screen as the flat map does, growing a little with zoom", () => {

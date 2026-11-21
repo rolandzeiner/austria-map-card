@@ -23,6 +23,7 @@ import { RIVER_WIDTHS, riverLines, riversAt } from "../layers/rivers.ts";
 import { SCALES, grown } from "../layers/scales.ts";
 import type { MapStore } from "../layers/store.ts";
 import type { LayerId } from "../types.ts";
+import { gridLines } from "./grid.ts";
 import type { Feature } from "./labels.ts";
 import { parseColour, type Palette, type Rgb } from "./palette.ts";
 
@@ -34,6 +35,8 @@ export interface LineSet {
   readonly colour: Rgb;
   /** Pixels on screen, CSS. */
   readonly width: number;
+  /** How much of the colour shows, for a line the ground shows through. Solid without it. */
+  readonly alpha?: number;
 }
 
 /**
@@ -222,6 +225,17 @@ export function reliefLines(
     (set) => set.key.startsWith("borders:") && set.key.endsWith(":0"),
   );
   sets.splice(national < 0 ? sets.length : national, 0, ...roads);
+
+  // A theme's grid lies on the ground, over the map and under the selection.
+  if (palette.grid !== undefined) {
+    sets.push({
+      key: "grid",
+      segments: () => segmentsOf(gridLines(), () => true),
+      colour: rgb(palette.grid.line),
+      width: 1,
+      alpha: palette.grid.lineAlpha,
+    });
+  }
 
   const accent = rgb(palette.accent);
   if (selection?.kind === "road") {

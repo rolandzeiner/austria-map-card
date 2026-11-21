@@ -10,10 +10,12 @@
 import {
   LAYER_IDS,
   PROVINCE_IDS,
+  THEME_IDS,
   type AustriaMapCardConfig,
   type LayerId,
   type LocationSource,
   type MapView,
+  type ThemeId,
 } from "./types.ts";
 
 export const VIEWS: ReadonlyArray<MapView> = ["austria", ...PROVINCE_IDS];
@@ -23,6 +25,7 @@ export const DEFAULTS = {
   show_labels: true,
   show_layer_control: true,
   view: "austria" as MapView,
+  theme: "default" as ThemeId,
   show_location: false,
   location: "home" as LocationSource,
 } as const;
@@ -38,6 +41,7 @@ export interface NormalisedConfig extends AustriaMapCardConfig {
   show_labels: boolean;
   show_layer_control: boolean;
   view: MapView;
+  theme: ThemeId;
   show_location: boolean;
   location: LocationSource;
 }
@@ -80,6 +84,13 @@ function parseView(value: unknown): MapView {
   throw new Error(`"view" must be one of: ${VIEWS.join(", ")}.`);
 }
 
+function parseTheme(value: unknown): ThemeId {
+  if (isUnset(value)) return DEFAULTS.theme;
+  if (typeof value === "string" && (THEME_IDS as ReadonlyArray<string>).includes(value))
+    return value as ThemeId;
+  throw new Error(`"theme" must be one of: ${THEME_IDS.join(", ")}.`);
+}
+
 function parseLocation(value: unknown): LocationSource {
   if (isUnset(value)) return DEFAULTS.location;
   if (
@@ -117,6 +128,7 @@ export function normaliseConfig(raw: unknown): NormalisedConfig {
     show_labels: parseFlag(config, "show_labels"),
     show_layer_control: parseFlag(config, "show_layer_control"),
     view: parseView(config.view),
+    theme: parseTheme(config.theme),
     show_location: parseFlag(config, "show_location"),
     location: parseLocation(config.location),
   };

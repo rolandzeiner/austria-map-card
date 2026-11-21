@@ -1,5 +1,5 @@
 import { LOCATION_MODES, VIEWS } from "./config.ts";
-import { LAYER_IDS, type HaFormSchema } from "./types.ts";
+import { LAYER_IDS, THEME_IDS, type HaFormSchema } from "./types.ts";
 
 /** How the editor offers `location`: the two named sources, or an entity. */
 const LOCATION_CHOICES = [...LOCATION_MODES, "entity"] as const;
@@ -30,6 +30,15 @@ export function buildSchema(
         select: {
           mode: "dropdown",
           options: VIEWS.map((value) => ({ value, label: t(`view_${value}`) })),
+        },
+      },
+    },
+    {
+      name: "theme",
+      selector: {
+        select: {
+          mode: "dropdown",
+          options: THEME_IDS.map((value) => ({ value, label: t(`theme_${value}`) })),
         },
       },
     },

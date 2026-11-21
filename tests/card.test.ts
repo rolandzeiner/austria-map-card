@@ -549,6 +549,28 @@ describe("configuration", () => {
     expect([...card._layers]).toEqual(["cities"]);
   });
 
+  it("draws the default theme unless the config names another", async () => {
+    fake.reset();
+    const card = await mount();
+    expect($(card, ".stage")!.classList.contains("theme-default")).toBe(true);
+    expect(fake.named("fillRect")).toHaveLength(0);
+  });
+
+  it("draws Leonida with its sea and its grid, and switches back when the config does", async () => {
+    fake.reset();
+    const card = await mount({ theme: "leonida" });
+    expect($(card, ".stage")!.classList.contains("theme-leonida")).toBe(true);
+    expect(fake.named("fillRect")[0]!.fillStyle).toBe("rgb(1, 171, 200)");
+    expect(fake.texts()).toContain("10");
+
+    fake.reset();
+    card.setConfig({ type: "custom:austria-map-card" });
+    await settle(card);
+    card._drawNow();
+    expect($(card, ".stage")!.classList.contains("theme-default")).toBe(true);
+    expect(fake.named("fillRect")).toHaveLength(0);
+  });
+
   it("draws no names when they are switched off", async () => {
     fake.reset();
     await mount({ show_labels: false });

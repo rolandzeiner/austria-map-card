@@ -46,6 +46,13 @@ describe("focus", () => {
     expect(css).toMatch(/forced-colors: active/);
   });
 
+  it("rings the Leonida map twice, white inside dark, so one ring shows on sea and land alike", () => {
+    expect(css).toMatch(/\.theme-leonida canvas:focus-visible\s*{[^}]*outline-color:\s*#fff/);
+    expect(css).toMatch(
+      /\.theme-leonida:has\(canvas\.map:focus-visible\)::after\s*{[^}]*border:\s*2px solid #0c3a3e/,
+    );
+  });
+
   it("shows the crosshair only while the map has keyboard focus", () => {
     expect(css).toMatch(/\.crosshair\s*{[^}]*display:\s*none/);
     expect(css).toMatch(/canvas:focus-visible ~ \.crosshair\s*{[^}]*display:\s*block/);

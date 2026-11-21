@@ -24,11 +24,12 @@ import {
 } from "./map/camera.ts";
 import { MapGesture, ZOOM_STEP, keyCommand, wheelFactor, type Pose } from "./map/gestures.ts";
 import type { Feature } from "./map/labels.ts";
-import { derivePalette, readTheme, type Palette } from "./map/palette.ts";
+import { parseColour, readTheme, type Palette } from "./map/palette.ts";
 import { project, type MapPoint } from "./map/projection.ts";
 import { ReliefGL } from "./map/relief-gl.ts";
 import { reliefFills, reliefLines } from "./map/relief-lines.ts";
 import { MapRenderer, type RenderState } from "./map/renderer.ts";
+import { paletteFor } from "./map/themes.ts";
 import {
   FLAT,
   TILT_PITCH,
@@ -156,6 +157,7 @@ export class AustriaMapCard extends LitElement {
     // list of layers replaces the session's, a new opening view moves the map.
     if (next.layers.join() !== previous.layers.join()) this._layers = new Set(next.layers);
     if (next.view !== previous.view) this._camera = this._openingCamera();
+    if (next.theme !== previous.theme) this._refreshPalette(false);
     if (!next.show_layer_control) this._layersOpen = false;
     if (this.isConnected) this._syncDeviceWatch();
     this._requestDraw();
@@ -302,7 +304,7 @@ export class AustriaMapCard extends LitElement {
     const renderer = this._renderer;
     const probe = this._probe;
     if (!renderer || !probe) return;
-    const key = this._hassFingerprint();
+    const key = `${this._hassFingerprint()}|${this._config.theme}`;
     if (!force && key === this._paletteKey && renderer.hasPalette) return;
     const theme = readTheme(probe, this._isDark());
     if (theme === null) {
@@ -310,7 +312,7 @@ export class AustriaMapCard extends LitElement {
       return;
     }
     this._paletteKey = key;
-    this._palette = derivePalette(theme);
+    this._palette = paletteFor(this._config.theme, theme);
     renderer.setPalette(this._palette);
     this._requestDraw();
   }
@@ -597,6 +599,8 @@ export class AustriaMapCard extends LitElement {
           ? reliefLines(store, this._layers, camera.k, this._selection, this._palette)
           : [],
         this._palette ? reliefFills(store, this._layers, this._palette) : [],
+        // Abroad the relief has no colour: a theme's sea shows there.
+        this._palette?.sea ? parseColour(this._palette.sea.deep) : null,
       );
       renderer.drawTilted(this._state(camera), view);
     }
@@ -827,7 +831,7 @@ export class AustriaMapCard extends LitElement {
       <ha-card class=${this._fixedHeight ? "fixed-height" : ""}>
         <span class="probe" aria-hidden="true"></span>
         ${config.title ? html`<h2 class="title">${config.title}</h2>` : nothing}
-        <div class="stage">
+        <div class="stage theme-${config.theme}">
           <canvas
             class=${classMap({ map: true, zoomed: zoom > 1.0001, tilted: !this._flat })}
             tabindex="0"

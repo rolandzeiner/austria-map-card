@@ -39,6 +39,7 @@ function stubGL(): {
   lines: string[][];
   fills: string[][];
   drapes: string[];
+  backdrops: unknown[];
   lost: boolean;
 } & Record<string, unknown> {
   const stub = {
@@ -46,6 +47,7 @@ function stubGL(): {
     lines: [] as string[][],
     fills: [] as string[][],
     drapes: [] as string[],
+    backdrops: [] as unknown[],
     lost: false,
     resize: () => undefined,
     setRelief: () => undefined,
@@ -54,7 +56,9 @@ function stubGL(): {
       view: View3D,
       lines: ReadonlyArray<{ key: string }>,
       fills: ReadonlyArray<{ key: string }> = [],
+      backdrop: unknown = null,
     ) => {
+      stub.backdrops.push(backdrop);
       stub.draws.push(view);
       stub.lines.push(lines.map((set) => set.key));
       stub.fills.push(fills.map((set) => set.key));
@@ -138,6 +142,24 @@ describe("the tilted map", () => {
     // The national border last, over the others.
     expect(lines.at(-1)).toBe("borders:coarse:0");
     expect($(card, "canvas.relief")?.hidden).toBe(false);
+  });
+
+  it("leaves abroad clear on the default theme, and shows Leonida's sea and grid there", async () => {
+    const plain = await mountTilting();
+    plain.card._setPose({ camera: plain.card._camera, orientation: { pitch: 0.8, bearing: 0 } });
+    plain.card._drawNow();
+    await settle(plain.card);
+    expect(plain.gl.backdrops.at(-1)).toBeNull();
+    expect(plain.gl.lines.at(-1)).not.toContain("grid");
+
+    const { card, gl } = await mountTilting({ theme: "leonida" });
+    card._setPose({ camera: card._camera, orientation: { pitch: 0.8, bearing: 0 } });
+    card._drawNow();
+    await settle(card);
+    expect(gl.backdrops.at(-1)).toEqual([1, 171, 200]);
+    expect(gl.lines.at(-1)).toContain("grid");
+    // The theme is part of what the cloth shows, so switching it redraws the cloth.
+    expect(gl.drapes.at(-1)).toContain("|leonida|");
   });
 
   it("lays the glaciers over the relief and fills the lakes on it, only while they are on", async () => {

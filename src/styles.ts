@@ -138,6 +138,22 @@ export const cardStyles = css`
     outline-offset: -2px;
   }
 
+  /* The Leonida theme floods the canvas with a sea no theme colour is sure
+     to stand off from, so its focus ring is two rings, white inside dark:
+     one of them shows on the sea, the land and the ruler alike (WCAG
+     1.4.11). */
+  .theme-leonida canvas:focus-visible {
+    outline-color: #fff;
+  }
+  .theme-leonida:has(canvas.map:focus-visible)::after {
+    content: "";
+    position: absolute;
+    inset: calc(var(--amc-band, 0px) + 2px) 2px 2px;
+    border: 2px solid #0c3a3e;
+    border-radius: calc(var(--ha-border-radius-md, 8px) - 2px);
+    pointer-events: none;
+  }
+
   /* Marks the spot that Enter reads out, while the map has keyboard focus. */
   .crosshair {
     position: absolute;
@@ -154,6 +170,10 @@ export const cardStyles = css`
   }
   canvas:focus-visible ~ .crosshair {
     display: block;
+  }
+  .theme-leonida .crosshair {
+    --amc-accent: #fff;
+    filter: drop-shadow(0 0 1.5px #0c3a3e);
   }
 
   /* ── Controls on the map ─────────────────────────────────────────── */

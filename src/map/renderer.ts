@@ -18,8 +18,9 @@ import { grown } from "../layers/scales.ts";
 import type { MapStore } from "../layers/store.ts";
 import type { LayerId } from "../types.ts";
 import { toMap, toScreen, visibleBox, type Box, type Camera, type Size } from "./camera.ts";
+import { drawGrid, drawRuler, rulerInset } from "./grid.ts";
 import { drawLabels, type DrawnCity, type Feature } from "./labels.ts";
-import type { Palette } from "./palette.ts";
+import type { Palette, Sea } from "./palette.ts";
 import { drawPin } from "./pin.ts";
 import { MAP_HEIGHT, MAP_WIDTH, type MapPoint } from "./projection.ts";
 import type { View3D } from "./view3d.ts";
@@ -45,6 +46,10 @@ export interface CanvasLike {
   height: number;
   getContext(type: "2d"): CanvasRenderingContext2D | null;
 }
+
+/** The widest a band of shallow water is stroked, in pixels: far in, a band
+ *  as wide as its ground would be a stroke many canvases across. */
+const SHELF_MOST = 150;
 
 /** How near a tap has to be, in pixels. */
 const CITY_REACH = 12;
@@ -124,6 +129,14 @@ export class MapRenderer {
       fine,
     };
     const on = (id: LayerId, minScale: number): boolean => layers.has(id) && scale >= minScale;
+    // The picture laid over the tilted map stays clear abroad: the relief
+    // shows only where it has colour.
+    const sea = state.fillsOnly === true ? undefined : palette.sea;
+    const grid = state.fillsOnly === true ? undefined : palette.grid;
+    if (sea !== undefined) {
+      ctx.fillStyle = sea.deep;
+      ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    }
 
     // From here on the context is in map units.
     ctx.setTransform(
@@ -141,6 +154,7 @@ export class MapRenderer {
             traceRings(path, (store.detail as NonNullable<typeof store.detail>).country),
           )
         : this.shapes.get("country:coarse", (path) => traceRings(path, overview.country));
+    if (sea !== undefined) this.shallows(sea, scale);
     ctx.fillStyle = palette.land;
     ctx.fill(country, "evenodd");
 
@@ -163,8 +177,9 @@ export class MapRenderer {
 
     if (state.selection !== null) this.highlight(dc, state.selection, state.fillsOnly !== true);
 
-    // Names and towns are drawn in screen pixels.
+    // The grid, the names and the towns are drawn in screen pixels.
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (grid !== undefined) drawGrid(ctx, camera, size, dc.box, grid);
     this.cities = drawLabels({
       ctx,
       store,
@@ -175,10 +190,32 @@ export class MapRenderer {
       layers,
       showLabels: state.showLabels,
       selection: state.selection,
+      ...(grid === undefined ? {} : { bounds: rulerInset(size) }),
     });
     this.ringSelected(state.selection, palette);
+    if (grid !== undefined) drawRuler(ctx, camera, size, dc.box, grid, palette.font);
     // On top of everything: it is the one mark that is about you.
     if (state.here !== null) drawPin(ctx, ...toScreen(camera, size, ...state.here), palette);
+  }
+
+  /**
+   * Shallow water along the coast: the outline stroked in ever narrower,
+   * ever paler bands, widest first. The land is filled over their inner
+   * half afterwards. Always the generalised outline: under a soft band the
+   * fine one would only cost time. The context is in map units.
+   */
+  private shallows(sea: Sea, scale: number): void {
+    const { ctx, store } = this;
+    const overview = store.overview;
+    if (overview === undefined) return;
+    const coast = this.shapes.get("country:coarse", (path) => traceRings(path, overview.country));
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    for (const band of sea.shelf) {
+      ctx.strokeStyle = band.colour;
+      ctx.lineWidth = Math.min(band.reach * 2, SHELF_MOST / scale);
+      ctx.stroke(coast);
+    }
   }
 
   /** Ring a selected town or summit, where the label pass drew it. */

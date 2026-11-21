@@ -22,9 +22,10 @@ import { Path2D, createCanvas } from "@napi-rs/canvas";
 import { CHUNK_IDS, chunkFile } from "../src/data/format.ts";
 import { MapStore } from "../src/layers/store.ts";
 import { clampCamera, fitBox, fitScale, homeCamera } from "../src/map/camera.ts";
-import { DARK_THEME, LIGHT_THEME, derivePalette } from "../src/map/palette.ts";
+import { DARK_THEME, LIGHT_THEME } from "../src/map/palette.ts";
 import { project } from "../src/map/projection.ts";
 import { MapRenderer } from "../src/map/renderer.ts";
+import { paletteFor } from "../src/map/themes.ts";
 
 const root = new URL("../", import.meta.url);
 const OUT = new URL(".cache/preview/", root);
@@ -55,7 +56,7 @@ const province = (code) => store.overview.provinces.ids.indexOf(code);
  * Each scene: canvas size in CSS pixels, theme, layers, and a camera given
  * either as a province to fit or as a centre (a municipality's label point)
  * with a zoom factor. `here` puts the "you are here" pin at a latitude and
- * longitude.
+ * longitude. `look` is the card's `theme` option; without it, the default.
  */
 const scenes = [
   { name: "overview-phone", width: 400, height: 212, theme: LIGHT_THEME, layers: standard },
@@ -231,6 +232,70 @@ const scenes = [
     zoom: 6,
   },
   { name: "bare", width: 760, height: 403, theme: LIGHT_THEME, layers: [] },
+  {
+    name: "leonida",
+    width: 760,
+    height: 403,
+    theme: LIGHT_THEME,
+    layers: standard,
+    look: "leonida",
+  },
+  {
+    name: "leonida-phone",
+    width: 400,
+    height: 212,
+    theme: DARK_THEME,
+    layers: standard,
+    look: "leonida",
+  },
+  {
+    name: "leonida-roads",
+    width: 760,
+    height: 403,
+    theme: LIGHT_THEME,
+    layers: [...standard, "glaciers", "main_roads", "motorways", "peaks"],
+    look: "leonida",
+  },
+  {
+    name: "leonida-tirol",
+    width: 760,
+    height: 403,
+    theme: LIGHT_THEME,
+    layers: [...standard, "districts", "glaciers", "motorways", "peaks"],
+    fit: "AT-7",
+    look: "leonida",
+  },
+  {
+    name: "leonida-selected",
+    width: 760,
+    height: 403,
+    theme: LIGHT_THEME,
+    layers: [...standard, "districts"],
+    fit: "AT-6",
+    select: "AT-6",
+    here: [47.0707, 15.4395],
+    look: "leonida",
+  },
+  {
+    name: "leonida-municipalities",
+    width: 760,
+    height: 403,
+    theme: LIGHT_THEME,
+    layers: [...everything, "main_roads", "motorways"],
+    at: "40709",
+    zoom: 9,
+    look: "leonida",
+  },
+  {
+    name: "leonida-bodensee",
+    width: 760,
+    height: 403,
+    theme: LIGHT_THEME,
+    layers: standard,
+    at: "80207",
+    zoom: 10,
+    look: "leonida",
+  },
 ];
 
 function cameraFor(scene, size) {
@@ -251,7 +316,7 @@ function render(scene, pixelRatio) {
   const canvas = createCanvas(1, 1);
   const renderer = new MapRenderer(canvas, store, () => new Path2D());
   renderer.resize(scene.width, scene.height, pixelRatio);
-  const palette = derivePalette(scene.theme);
+  const palette = paletteFor(scene.look ?? "default", scene.theme);
   renderer.setPalette(palette);
   // The card's own background, which the canvas in the card lets show through.
   const ctx = canvas.getContext("2d");
@@ -295,12 +360,13 @@ if (process.argv.includes("--readme")) {
     layers: [...standard, "glaciers", "motorways", "peaks"],
   };
   mkdirSync(SCREENSHOTS, { recursive: true });
-  for (const [file, theme] of [
+  for (const [file, theme, look] of [
     ["preview.webp", LIGHT_THEME],
     ["preview-dark.webp", DARK_THEME],
+    ["preview-leonida.webp", LIGHT_THEME, "leonida"],
   ]) {
     const image = new URL(file, SCREENSHOTS);
-    writeFileSync(image, render({ ...readme, theme }, 2).toBuffer("image/webp", 88));
+    writeFileSync(image, render({ ...readme, theme, look }, 2).toBuffer("image/webp", 88));
     console.log(fileURLToPath(image).replace(fileURLToPath(root), ""));
   }
 }

@@ -19,6 +19,7 @@ import {
 import { LIGHT_THEME, derivePalette } from "../src/map/palette.ts";
 import { project } from "../src/map/projection.ts";
 import { MapRenderer, type RenderState } from "../src/map/renderer.ts";
+import { paletteFor } from "../src/map/themes.ts";
 import { LAYER_IDS, type LayerId } from "../src/types.ts";
 import { storeWith } from "./chunks.ts";
 import { fakeCanvas, fakeContext, fakePath, pinTip, type FakeContext } from "./fake-canvas.ts";
@@ -547,5 +548,67 @@ describe("lakes and glaciers", () => {
     fake.reset();
     renderer.draw(state(cameraAt("70220", 6), ["glaciers"]));
     expect(fake.texts()).toEqual(expect.arrayContaining(["Gepatschferner", "Gurgler Ferner"]));
+  });
+});
+
+describe("the Leonida theme", () => {
+  const leonida = paletteFor("leonida", LIGHT_THEME);
+  const themed = (): MapRenderer => {
+    const renderer = rendererFor(all);
+    renderer.setPalette(leonida);
+    return renderer;
+  };
+
+  it("leaves the default theme's canvas clear abroad: no sea, no grid", () => {
+    rendererFor(all).draw(state(home, standard));
+    expect(fake.named("fillRect")).toHaveLength(0);
+  });
+
+  it("floods the canvas with the sea, then the shallows, then the land over them", () => {
+    themed().draw(state(home, []));
+    const order = fake.calls
+      .filter((call) => ["fillRect", "stroke", "fill"].includes(call.name))
+      .map((call) => (call.name === "stroke" ? call.strokeStyle : call.fillStyle));
+    const shelf = leonida.sea!.shelf.map((band) => band.colour);
+    expect(order.slice(0, shelf.length + 2)).toEqual([leonida.sea!.deep, ...shelf, leonida.land]);
+    expect(fake.named("fillRect")[0]!.args).toEqual([0, 0, size.width * 2, size.height * 2]);
+  });
+
+  it("narrows the shallows far in, so a band is never stroked canvases wide", () => {
+    const widths = (camera: Camera): number[] => {
+      themed().draw(state(camera, []));
+      const shelf = new Set(leonida.sea!.shelf.map((band) => band.colour));
+      return fake
+        .named("stroke")
+        .filter((call) => shelf.has(call.strokeStyle as string))
+        .map((call) => (call.lineWidth as number) * camera.k);
+    };
+    expect(widths(home)[0]).toBeCloseTo(leonida.sea!.shelf[0]!.reach * 2 * home.k);
+    expect(Math.max(...widths(cameraAt("40709", 30)))).toBeLessThanOrEqual(150.001);
+  });
+
+  it("draws the grid under the names and the ruler over them", () => {
+    themed().draw(state(home, standard));
+    const names = fake.calls.findIndex(
+      (call) => call.name === "fillText" && call.args[0] === "Wien",
+    );
+    const grid = fake.calls.findIndex(
+      (call) => call.name === "stroke" && call.strokeStyle === leonida.grid!.line,
+    );
+    const ruler = fake.calls.findIndex(
+      (call) => call.name === "fillRect" && call.fillStyle === leonida.grid!.ruler,
+    );
+    expect(grid).toBeGreaterThan(0);
+    expect(grid).toBeLessThan(names);
+    expect(ruler).toBeGreaterThan(names);
+    expect(fake.texts()).toContain("10");
+    expect(fake.texts()).toContain("E");
+  });
+
+  it("keeps the sea and the grid out of the picture laid over the tilted map", () => {
+    themed().draw(state(home, ["terrain"], { fillsOnly: true }));
+    expect(fake.named("fillRect")).toHaveLength(0);
+    expect(fake.named("stroke")).toHaveLength(0);
+    expect(fake.named("fill")[0]!.fillStyle).toBe(leonida.land);
   });
 });
